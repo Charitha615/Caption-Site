@@ -1,0 +1,33 @@
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Environment files
+.env
+.env.backup
+.env.production
+
+# Backend storage & cache
+backend/storage/*.key
+backend/storage/app/public/renders/*
+backend/storage/app/temp/*
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+backend/bootstrap/cache/*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

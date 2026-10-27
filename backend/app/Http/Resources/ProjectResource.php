@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class ProjectResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'uuid' => $this->uuid,
+            'user_id' => $this->user_id,
+            'name' => $this->name,
+            'description' => $this->description,
+            'status' => $this->status,
+            'duration' => $this->duration,
+            'width' => $this->width,
+            'height' => $this->height,
+            'fps' => $this->fps,
+            'language' => $this->language,
+            'thumbnail' => $this->thumbnail,
+            'video_url' => $this->primaryMediaFile ? \Illuminate\Support\Facades\Storage::disk($this->primaryMediaFile->disk)->url($this->primaryMediaFile->file_path) : null,
+            'settings' => $this->settings,
+            'captions_count' => $this->whenCounted('captions', $this->captions_count),
+            'media_files_count' => $this->whenCounted('mediaFiles', $this->media_files_count),
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
+        ];
+    }
+}

@@ -1,0 +1,114 @@
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.input-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.input-required {
+  color: var(--status-error-text);
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.925rem;
+  color: var(--text-main);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input-field:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(91, 33, 182, 0.12);
+}
+
+.input-field::placeholder {
+  color: var(--text-light);
+}
+
+.input-field:disabled {
+  background-color: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.input-has-start-icon {
+  padding-left: 38px;
+}
+
+.input-has-end-icon {
+  padding-right: 38px;
+}
+
+.input-icon-start,
+.input-icon-end {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-light);
+  pointer-events: none;
+}
+
+.input-icon-start {
+  left: 12px;
+}
+
+.input-icon-end {
+  right: 12px;
+}
+
+.input-icon-button {
+  pointer-events: auto;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon-button:hover {
+  color: var(--text-main);
+}
+
+.input-error-field {
+  border-color: var(--status-error-text) !important;
+}
+
+.input-error-field:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+.input-error-text {
+  font-size: 0.8rem;
+  color: var(--status-error-text);
+  margin-top: 2px;
+}
+
+.input-helper-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}

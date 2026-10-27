@@ -1,0 +1,56 @@
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.login-forgot-link {
+  color: var(--brand-primary);
+  font-weight: 500;
+}
+
+.demo-account-box {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background-color: var(--brand-primary-light);
+  border: 1px dashed var(--brand-primary-border);
+  border-radius: var(--radius-md);
+  font-size: 0.825rem;
+  color: var(--brand-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.demo-btn-link {
+  background: none;
+  border: none;
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.auth-switch-text {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}

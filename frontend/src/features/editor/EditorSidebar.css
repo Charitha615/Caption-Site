@@ -1,0 +1,53 @@
+.editor-tool-strip {
+  width: 68px;
+  background-color: #121212;
+  border-right: 1px solid #242424;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 6px;
+  flex-shrink: 0;
+  z-index: 40;
+  user-select: none;
+}
+
+.editor-tool-item {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #9CA3AF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-tool-item:hover {
+  background: #1C1C1C;
+  color: #FFFFFF;
+}
+
+.editor-tool-item-active {
+  background: #1F1B2C !important;
+  color: #FBBF24 !important;
+  border-color: rgba(251, 191, 36, 0.3) !important;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.15);
+}
+
+.editor-tool-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-tool-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
