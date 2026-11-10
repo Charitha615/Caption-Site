@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { AlertTriangle, Film, Loader2 } from 'lucide-react';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useUIStore } from '../../../../stores/editor/uiStore';

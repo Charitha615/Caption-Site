@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useId, useState } from 'react';
+import React, { memo, useId, useState } from 'react';
 import { isValidColor, toHex } from '../utils/captionStyle';
 import { formatTimecode, parseTimecode } from '../utils/time';
 
@@ -249,7 +249,6 @@ export const TimeInput = memo(function TimeInput({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
-  useEffect(() => setInvalid(false), [value]);
 
   const commit = () => {
     if (draft === null) return;
@@ -277,6 +276,7 @@ export const TimeInput = memo(function TimeInput({
       onBlur={() => {
         commit();
         setDraft(null);
+        setInvalid(false);
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') commit();

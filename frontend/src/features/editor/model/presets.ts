@@ -108,7 +108,7 @@ export const BUILT_IN_PRESETS: PresetDefinition[] = [
     key: 'cinema',
     label: 'Cinema',
     description: 'Serif film subtitles in warm ivory.',
-    sample: 'සිනමා පන්නයේ උපසිරැසි',
+    sample: 'සිනමා උපසිරැසි',
     look: look({
       englishFontFamily: '"Merriweather", serif',
       fontFamily: '"Noto Serif Sinhala", serif',
@@ -130,7 +130,7 @@ export const BUILT_IN_PRESETS: PresetDefinition[] = [
     key: 'youtube',
     label: 'YouTube',
     description: 'Solid black box, broadcast legibility.',
-    sample: 'Subscribe කරන්න අමතක කරන්න එපා',
+    sample: 'Subscribe කරන්න',
     look: look({
       englishFontFamily: '"Roboto", sans-serif',
       fontSize: 54,
@@ -150,7 +150,7 @@ export const BUILT_IN_PRESETS: PresetDefinition[] = [
     key: 'tiktok',
     label: 'TikTok',
     description: 'Big punchy words with live karaoke highlight.',
-    sample: 'Trending වීඩියෝවක් මෙන්න',
+    sample: 'Trending වීඩියෝ',
     look: look({
       englishFontFamily: '"Poppins", sans-serif',
       fontSize: 72,

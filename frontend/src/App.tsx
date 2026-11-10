@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -10,9 +10,13 @@ import { DashboardPage } from './pages/Dashboard/DashboardPage';
 import { ProjectsPage } from './pages/Projects/ProjectsPage';
 import { CreateProjectPage } from './pages/CreateProject/CreateProjectPage';
 import { ProjectDetailsPage } from './pages/ProjectDetails/ProjectDetailsPage';
-import { StudioEditorPage } from './pages/Editor/StudioEditorPage';
 import { SettingsPage } from './pages/Settings/SettingsPage';
 import { ProfilePage } from './pages/Profile/ProfilePage';
+
+// The editor is the heaviest screen; load it only when a project is opened.
+const StudioEditorPage = lazy(() =>
+  import('./pages/Editor/StudioEditorPage').then((m) => ({ default: m.StudioEditorPage }))
+);
 
 export const App: React.FC = () => {
   const { initializeAuth } = useAuthStore();
@@ -41,7 +45,14 @@ export const App: React.FC = () => {
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
           {/* Fullscreen Studio Editor */}
-          <Route path="/projects/:uuid/editor" element={<StudioEditorPage />} />
+          <Route
+            path="/projects/:uuid/editor"
+            element={
+              <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#171717' }} />}>
+                <StudioEditorPage />
+              </Suspense>
+            }
+          />
         </Route>
 
         {/* Root redirect */}

@@ -105,10 +105,11 @@ export function openDemo(): void {
 }
 
 export async function closeProject(): Promise<void> {
-  loadToken++;
-  await flush().catch(() => undefined);
+  const token = ++loadToken;
   playback.pause();
-  stopAutosave();
+  await flush().catch(() => undefined);
+  // A new session may have opened while we were flushing (route change, StrictMode remount) — leave it alone.
+  if (token === loadToken) stopAutosave();
 }
 
 export async function renameProject(name: string): Promise<boolean> {
