@@ -165,12 +165,14 @@ class CaptionController extends Controller
         $this->authorize('update', $project);
 
         $validated = $request->validate([
-            'captions' => 'required|array',
-            'captions.*.uuid' => 'nullable|string',
+            // `present` (not `required`) so an editor that deleted every caption can still sync.
+            'captions' => 'present|array',
+            'captions.*.uuid' => 'nullable|uuid',
             'captions.*.sequence' => 'nullable|integer',
             'captions.*.start_time' => 'required|numeric|min:0',
             'captions.*.end_time' => 'required|numeric',
-            'captions.*.text' => 'required|string',
+            // Captions may be temporarily empty while being edited.
+            'captions.*.text' => 'nullable|string',
             'captions.*.language' => 'nullable|string|max:10',
             'captions.*.style_id' => 'nullable|integer',
             'captions.*.style_override' => 'nullable|array',
@@ -185,7 +187,10 @@ class CaptionController extends Controller
                 $captionUuid = !empty($item['uuid']) ? $item['uuid'] : (string) Str::uuid();
                 $incomingUuids[] = $captionUuid;
 
-                $caption = Caption::updateOrCreate(
+                // The editor keeps stable client-generated UUIDs, so undoing a delete re-sends a
+                // caption that was soft-deleted by a previous sync. Include trashed rows and
+                // restore them instead of violating the unique uuid index.
+                $caption = Caption::withTrashed()->updateOrCreate(
                     [
                         'project_id' => $project->id,
                         'uuid' => $captionUuid,
@@ -194,13 +199,17 @@ class CaptionController extends Controller
                         'sequence' => $item['sequence'] ?? ($index + 1),
                         'start_time' => $item['start_time'],
                         'end_time' => max($item['start_time'] + 0.1, $item['end_time']),
-                        'text' => $item['text'],
+                        'text' => $item['text'] ?? '',
                         'language' => $item['language'] ?? ($project->language ?? 'si'),
                         'style_id' => $item['style_id'] ?? null,
                         'style_override' => $item['style_override'] ?? null,
                         'metadata' => $item['metadata'] ?? null,
                     ]
                 );
+
+                if ($caption->trashed()) {
+                    $caption->restore();
+                }
 
                 $syncedCaptions[] = $caption;
             }

@@ -318,4 +318,41 @@ class VideoUploadAndCaptionTest extends TestCase
             'text' => 'පළමු පේළිය: ආයුබෝවන්',
         ]);
     }
+
+    public function test_caption_sync_restores_soft_deleted_caption_when_re_sent(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+        $token = $user->createToken('test')->plainTextToken;
+        $uuid = '0b7e6c1e-5d2a-4c8e-9a51-3f1d2e7b9c40';
+        $caption = ['uuid' => $uuid, 'start_time' => 0, 'end_time' => 2, 'text' => 'ආයුබෝවන්', 'language' => 'si'];
+
+        $sync = fn (array $captions) => $this->withHeader('Authorization', "Bearer {$token}")
+            ->putJson("/api/projects/{$project->uuid}/captions/sync", ['captions' => $captions]);
+
+        $sync([$caption])->assertStatus(200);
+        // Editor deletes every caption (empty list must be accepted)...
+        $sync([])->assertStatus(200);
+        $this->assertSoftDeleted('captions', ['uuid' => $uuid]);
+
+        // ...then the user presses undo, which re-sends the same client UUID.
+        $sync([$caption])->assertStatus(200)->assertJson(['data' => ['count' => 1]]);
+        $this->assertNotSoftDeleted('captions', ['uuid' => $uuid]);
+        $this->assertSame(1, Caption::withTrashed()->where('uuid', $uuid)->count());
+    }
+
+    public function test_caption_sync_accepts_empty_caption_text(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->putJson("/api/projects/{$project->uuid}/captions/sync", [
+                'captions' => [['start_time' => 1, 'end_time' => 2, 'text' => '']],
+            ])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('captions', ['project_id' => $project->id, 'text' => '']);
+    }
 }
