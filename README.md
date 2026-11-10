@@ -1,104 +1,45 @@
-# SampleCap (AI Video Captioning SaaS)
+# SampleCap
 
-> **Centralized Branding Notice:**  
-> The product name is currently set to **SampleCap** and is configured centrally. To rebrand the platform at any time (e.g., to **පේළිCap**), update the single configuration file in `frontend/src/config/brand.ts` and `backend/config/brand.php`. The product name is never hardcoded across components or templates.
-
-A modern, production-grade AI-powered SaaS web application designed for high-accuracy video transcription, timed caption generation, and subtitle styling for **Sinhala (සිංහල)** and **English**.
-
----
-
-## 🚀 Key Capabilities (Step 1 Foundation)
-
-- **Centralized Branding Engine**: Change product name, logo text, tagline, and colors from one configuration without file-by-file search and replace.
-- **Full Sinhala & Unicode Support**: Native UTF8MB4 database encoding, Zero-Width Joiner (ZWJ) normalization, and Google Noto Sans Sinhala font typography.
-- **Decoupled Modern Architecture**:
-  - **Frontend**: React 19, TypeScript, Vite, React Router, Zustand, Axios, Pure CSS Design System (**NO Tailwind CSS**).
-  - **Backend**: Laravel 11/13, Sanctum Token Authentication, Thin Controllers, Action/Service pattern, MySQL, Redis, Laravel Queue.
-  - **Video & AI Architecture**: Contracts and services ready for Google Gemini Multimodal Audio API and FFmpeg/FFprobe video manipulation.
-- **SaaS Dashboard & Workspace**: Usage quota metrics, filterable project lists, video upload preview, and dark video-editing studio workspace.
-- **RESTful API Foundation**: Fully tested Sanctum authentication, authorization policies, and consistent JSON responses.
-
----
-
-## 🛠️ Technology Stack
-
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend** | React, TypeScript, Vite, React Router, Zustand, Axios, Pure Vanilla CSS System |
-| **Backend** | PHP 8.3+, Laravel, Laravel Sanctum, MySQL, Redis, Laravel Horizon/Queues |
-| **Video Engine** | FFmpeg, FFprobe (Process abstraction) |
-| **AI Engine** | Google Gemini / Google AI API (`gemini-1.5-flash`) |
-| **Storage** | Laravel Filesystem Abstraction (Local for Dev, S3-compatible for Prod) |
-
----
-
-## 📂 Project Structure
-
-```text
-├── frontend/                  # React + TypeScript + Vite Single Page Application
-│   ├── src/
-│   │   ├── components/        # Reusable UI (Button, Input, Modal, Toast, Badge, etc.)
-│   │   ├── config/            # Centralized brand config (brand.ts) & constants
-│   │   ├── features/          # Project cards and domain features
-│   │   ├── hooks/             # useBrand, useDocumentTitle
-│   │   ├── layouts/           # AppLayout (Sidebar + Navbar), AuthLayout
-│   │   ├── pages/             # Dashboard, Projects, Create, Editor, Settings, Profile
-│   │   ├── services/          # Axios API clients & endpoints
-│   │   ├── stores/            # Zustand stores (Auth, Projects, Toast)
-│   │   ├── styles/            # CSS tokens (variables.css) & global styles (NO Tailwind)
-│   │   └── types/             # Strict TypeScript models
-├── backend/                   # Laravel 13 REST API Application
-│   ├── app/
-│   │   ├── Actions/           # Single-responsibility business actions
-│   │   ├── Services/          # Brand, Gemini AI, FFmpeg, Caption formatter services
-│   │   ├── Http/Controllers/  # Thin API Controllers
-│   │   ├── Http/Requests/     # Form validation requests
-│   │   ├── Http/Resources/    # JSON serialization resources
-│   │   ├── Models/            # Eloquent models (UUIDs, soft deletes, relations)
-│   │   ├── Policies/          # Authorization policies (ProjectPolicy)
-│   │   └── Traits/            # Consistent ApiResponseTrait
-│   ├── config/brand.php       # Centralized backend branding config
-│   ├── database/migrations/   # 8 core domain tables + indexes + foreign keys
-│   └── tests/Feature/         # 100% passing Feature test suite
-├── docs/                      # Comprehensive technical documentation
-│   ├── ARCHITECTURE.md
-│   ├── SETUP.md
-│   └── ENVIRONMENT.md
-```
-
----
-
-## ⚡ Quick Start
-
-### 1. Backend Setup
+## Run the backend (Laravel API — http://localhost:8000)
 
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env database details (Mac port 8889 configured by default)
 composer install
+cp .env.example .env        # then set your DB details
+php artisan key:generate
 php artisan migrate --seed
-php artisan test
+php artisan storage:link    # serves uploaded videos
 php artisan serve
 ```
 
-*Demo Login:* `demo@samplecap.com` / `password123`
+In a second terminal, start the queue worker (processes uploaded videos and caption generation):
 
-### 2. Frontend Setup
+```bash
+cd backend
+php artisan queue:work
+```
+
+## Run the frontend (React app — http://localhost:5173)
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
+cp .env.example .env        # VITE_API_URL=http://localhost:8000/api
 npm run dev
 ```
 
-Visit [http://localhost:5173](http://localhost:5173).
+Demo login: `demo@samplecap.com` / `password123`
 
----
+## Commands
 
-## 📖 Documentation
-
-- [Setup Guide](docs/SETUP.md): Detailed installation and environment configuration.
-- [Architecture Guide](docs/ARCHITECTURE.md): Deep-dive into Clean Architecture, contracts, and Step 2 roadmap.
-- [Environment Variables](docs/ENVIRONMENT.md): Configuration variables for local development and cloud production.
+| Command | Where | What it does |
+| :--- | :--- | :--- |
+| `php artisan serve` | backend | Start the API |
+| `php artisan queue:work` | backend | Run background jobs |
+| `php artisan migrate` | backend | Apply database migrations |
+| `php artisan migrate:fresh --seed` | backend | Reset the database with demo data |
+| `php artisan test` | backend | Run the backend tests |
+| `npm run dev` | frontend | Start the dev server |
+| `npm run build` | frontend | Typecheck and build for production |
+| `npm run preview` | frontend | Preview the production build |
+| `npm run lint` | frontend | Lint the code |
