@@ -67,6 +67,7 @@ export function Field({ label, hint, children, inline }: { label: string; hint?:
 
 export const SliderField = memo(function SliderField({
   label,
+  hint,
   value,
   min,
   max,
@@ -76,6 +77,8 @@ export const SliderField = memo(function SliderField({
   disabled,
 }: {
   label: string;
+  /** Short qualifier; "preview" marks properties the MP4 renderer cannot reproduce. */
+  hint?: string;
   value: number;
   min: number;
   max: number;
@@ -89,7 +92,14 @@ export const SliderField = memo(function SliderField({
   return (
     <div className="ed-slider">
       <div className="ed-slider-head">
-        <label htmlFor={id} className="ed-field-label">{label}</label>
+        <label htmlFor={id} className="ed-field-label">
+          <span>
+            {label}
+            {hint === 'preview' ? (
+              <span className="ed-field-hint" data-tip={'Shown in the editor preview.\nNot reproduced in rendered MP4 (libass limitation).'}> · preview only</span>
+            ) : hint ? <span className="ed-field-hint"> · {hint}</span> : null}
+          </span>
+        </label>
         <NumberInput value={value} min={min} max={max} step={step} decimals={decimals} unit={unit} onChange={onChange} disabled={disabled} />
       </div>
       <input

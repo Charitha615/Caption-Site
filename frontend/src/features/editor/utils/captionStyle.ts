@@ -81,6 +81,7 @@ export function captionBoxStyle(style: CaptionStyle, scale: number): React.CSSPr
     fontFamily: buildFontStack(style.englishFontFamily, style.fontFamily),
     fontSize: px(style.fontSize),
     fontWeight: style.fontWeight,
+    fontStyle: style.fontStyle,
     lineHeight: style.lineHeight,
     letterSpacing: style.letterSpacing ? px(style.letterSpacing) : undefined,
     color: style.textColor,
@@ -99,6 +100,12 @@ const NUMERIC_KEYS: Array<keyof CaptionStyle> = [
   'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'outlineWidth', 'shadowOpacity', 'shadowBlur',
   'shadowOffsetX', 'shadowOffsetY', 'backgroundOpacity', 'borderRadius', 'padding', 'positionX', 'positionY', 'maxWidth',
 ];
+
+const ENUMS: Record<string, string[]> = {
+  fontStyle: ['normal', 'italic'],
+  textAlign: ['left', 'center', 'right'],
+  animation: ['none', 'fade', 'pop', 'bounce', 'slide', 'typewriter', 'karaoke', 'highlight'],
+};
 
 const LEGACY_PX_KEYS: Array<keyof CaptionStyle> = ['fontSize', 'outlineWidth', 'shadowBlur', 'shadowOffsetX', 'shadowOffsetY', 'borderRadius', 'padding'];
 
@@ -125,6 +132,9 @@ export function sanitizeStyle(raw: unknown, partial = false, legacy = false): Ca
     }
   }
   if (typeof out.alignMatrix === 'string' && !(out.alignMatrix in ALIGN_POSITIONS)) delete out.alignMatrix;
+  for (const [key, allowed] of Object.entries(ENUMS)) {
+    if (key in out && !allowed.includes(out[key] as string)) delete out[key];
+  }
 
   if (legacy) {
     for (const key of LEGACY_PX_KEYS) {

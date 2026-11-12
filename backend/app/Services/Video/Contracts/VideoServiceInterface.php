@@ -21,8 +21,4 @@ interface VideoServiceInterface
      */
     public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): string;
 
-    /**
-     * Hardcode / burn captions (SRT or ASS) directly into MP4 video using FFmpeg.
-     */
-    public function burnCaptions(string $videoPath, string $subtitlesPath, string $outputPath, array $styleOptions = []): string;
 }

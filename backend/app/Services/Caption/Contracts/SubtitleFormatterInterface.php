@@ -22,7 +22,7 @@ interface SubtitleFormatterInterface
     public function toTxt(Collection|array $captions): string;
 
     /**
-     * Format captions into JSON format.
+     * Format captions into structured JSON ({version, ...meta, captions: [...]}).
      */
-    public function toJson(Collection|array $captions): string;
+    public function toJson(Collection|array $captions, array $meta = []): string;
 }

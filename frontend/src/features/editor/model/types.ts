@@ -25,6 +25,8 @@ export type CaptionAnimation =
 
 export type TextAlign = 'left' | 'center' | 'right';
 
+export type FontStyle = 'normal' | 'italic';
+
 export type CanvasAspect = 'source' | '16:9' | '9:16' | '1:1' | '4:5';
 
 export interface CaptionWord {
@@ -51,6 +53,7 @@ export interface CaptionStyle {
   fontFamily: string;
   fontSize: number;
   fontWeight: number;
+  fontStyle: FontStyle;
   lineHeight: number;
   letterSpacing: number;
 

@@ -1,4 +1,5 @@
 import type { AlignMatrix, CaptionStyle } from './types';
+import presetData from './presets.json';
 
 export const ALIGN_POSITIONS: Record<AlignMatrix, { x: number; y: number; label: string }> = {
   'top-left': { x: 6, y: 7, label: 'Top left' },
@@ -18,6 +19,7 @@ export const DEFAULT_STYLE: CaptionStyle = {
   fontFamily: '"Noto Sans Sinhala", sans-serif',
   fontSize: 56,
   fontWeight: 600,
+  fontStyle: 'normal',
   lineHeight: 1.3,
   letterSpacing: 0,
   textColor: '#FFFFFF',
@@ -52,145 +54,24 @@ export interface PresetDefinition {
   look: PresetLook;
 }
 
-const look = (overrides: Partial<PresetLook>): PresetLook => {
+/**
+ * Built-in presets are structured configuration in presets.json — the same file
+ * the backend seeds as system caption templates (backend/resources/captions/presets.json,
+ * kept identical by a backend test). Never define preset styles inside components.
+ */
+export const BUILT_IN_PRESETS: PresetDefinition[] = presetData.presets.map((p) => ({
+  key: p.key,
+  label: p.label,
+  description: p.description,
+  sample: p.sample,
+  look: { ...lookDefaults(), ...(p.style as Partial<PresetLook>) },
+}));
+
+function lookDefaults(): PresetLook {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { preset, alignMatrix, positionX, positionY, maxWidth, textAlign, ...base } = DEFAULT_STYLE;
-  return { ...base, ...overrides };
-};
-
-export const BUILT_IN_PRESETS: PresetDefinition[] = [
-  {
-    key: 'modern',
-    label: 'Modern',
-    description: 'Rounded dark pill, crisp white text.',
-    sample: 'ලංකාවේ අලුත් Story',
-    look: look({}),
-  },
-  {
-    key: 'bold',
-    label: 'Bold',
-    description: 'Heavy yellow type with thick outline.',
-    sample: 'ගැම්මටම කතා කරමු',
-    look: look({
-      fontSize: 68,
-      fontWeight: 800,
-      textColor: '#FACC15',
-      highlightColor: '#FFFFFF',
-      outlineColor: '#000000',
-      outlineWidth: 8,
-      shadowOpacity: 70,
-      shadowBlur: 0,
-      shadowOffsetY: 6,
-      backgroundOpacity: 0,
-      borderRadius: 0,
-      padding: 8,
-      animation: 'pop',
-    }),
-  },
-  {
-    key: 'minimal',
-    label: 'Minimal',
-    description: 'Clean white text, soft shadow, no box.',
-    sample: 'සරල සහ අලංකාර',
-    look: look({
-      fontSize: 50,
-      fontWeight: 500,
-      shadowOpacity: 75,
-      shadowBlur: 10,
-      shadowOffsetY: 2,
-      backgroundOpacity: 0,
-      borderRadius: 0,
-      padding: 8,
-      animation: 'fade',
-    }),
-  },
-  {
-    key: 'cinema',
-    label: 'Cinema',
-    description: 'Serif film subtitles in warm ivory.',
-    sample: 'සිනමා උපසිරැසි',
-    look: look({
-      englishFontFamily: '"Merriweather", serif',
-      fontFamily: '"Noto Serif Sinhala", serif',
-      fontSize: 52,
-      fontWeight: 500,
-      textColor: '#FEF3C7',
-      highlightColor: '#FFFFFF',
-      outlineWidth: 2,
-      shadowOpacity: 90,
-      shadowBlur: 6,
-      shadowOffsetY: 2,
-      backgroundOpacity: 0,
-      borderRadius: 0,
-      padding: 8,
-      animation: 'none',
-    }),
-  },
-  {
-    key: 'youtube',
-    label: 'YouTube',
-    description: 'Solid black box, broadcast legibility.',
-    sample: 'Subscribe කරන්න',
-    look: look({
-      englishFontFamily: '"Roboto", sans-serif',
-      fontSize: 54,
-      fontWeight: 500,
-      highlightColor: '#EF4444',
-      shadowOpacity: 0,
-      shadowBlur: 0,
-      shadowOffsetY: 0,
-      backgroundColor: '#000000',
-      backgroundOpacity: 75,
-      borderRadius: 4,
-      padding: 12,
-      animation: 'none',
-    }),
-  },
-  {
-    key: 'tiktok',
-    label: 'TikTok',
-    description: 'Big punchy words with live karaoke highlight.',
-    sample: 'Trending වීඩියෝ',
-    look: look({
-      englishFontFamily: '"Poppins", sans-serif',
-      fontSize: 72,
-      fontWeight: 800,
-      textColor: '#FFFFFF',
-      highlightColor: '#F97316',
-      outlineColor: '#000000',
-      outlineWidth: 6,
-      shadowOpacity: 60,
-      shadowBlur: 0,
-      shadowOffsetY: 5,
-      backgroundOpacity: 0,
-      borderRadius: 0,
-      padding: 8,
-      letterSpacing: 0.5,
-      animation: 'karaoke',
-    }),
-  },
-  {
-    key: 'classic',
-    label: 'Classic',
-    description: 'Teletext yellow on a solid block.',
-    sample: 'ටෙලිටෙක්ස්ට් මාදිලිය',
-    look: look({
-      englishFontFamily: '"Courier New", monospace',
-      fontSize: 50,
-      fontWeight: 700,
-      textColor: '#FDE047',
-      highlightColor: '#FFFFFF',
-      shadowOpacity: 0,
-      shadowBlur: 0,
-      shadowOffsetY: 0,
-      backgroundColor: '#000000',
-      backgroundOpacity: 100,
-      borderRadius: 2,
-      padding: 12,
-      animation: 'none',
-    }),
-  },
-];
+  return base;
+}
 
 export const PRESETS_BY_KEY: Record<string, PresetDefinition> = Object.fromEntries(
   BUILT_IN_PRESETS.map((p) => [p.key, p])

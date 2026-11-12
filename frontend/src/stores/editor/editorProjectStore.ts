@@ -14,13 +14,27 @@ interface EditorProjectState {
   loadError: string | null;
   /** True when running the offline demo (no backend project) — nothing is persisted. */
   isDemo: boolean;
+  /** Source video size as probed by the server (used to offer 4K export). */
+  sourceWidth: number | null;
+  sourceHeight: number | null;
+  /** The project has an uploaded video on the server (required for MP4 export). */
+  hasServerVideo: boolean;
 
   saveStatus: SaveStatus;
   lastSavedAt: number | null;
   saveError: string | null;
 
   setLoading: (uuid: string) => void;
-  setLoaded: (p: { uuid: string | null; name: string; duration: number | null; settings: Record<string, unknown>; isDemo: boolean }) => void;
+  setLoaded: (p: {
+    uuid: string | null;
+    name: string;
+    duration: number | null;
+    settings: Record<string, unknown>;
+    isDemo: boolean;
+    sourceWidth: number | null;
+    sourceHeight: number | null;
+    hasServerVideo: boolean;
+  }) => void;
   setLoadError: (message: string) => void;
   setProjectName: (name: string) => void;
   setBaseSettings: (settings: Record<string, unknown>) => void;
@@ -37,6 +51,9 @@ const initial = {
   loadStatus: 'idle' as LoadStatus,
   loadError: null,
   isDemo: false,
+  sourceWidth: null,
+  sourceHeight: null,
+  hasServerVideo: false,
   saveStatus: 'saved' as SaveStatus,
   lastSavedAt: null,
   saveError: null,
@@ -45,8 +62,11 @@ const initial = {
 export const useEditorProjectStore = create<EditorProjectState>()((set) => ({
   ...initial,
   setLoading: (projectUuid) => set({ ...initial, projectUuid, loadStatus: 'loading' }),
-  setLoaded: ({ uuid, name, duration, settings, isDemo }) =>
+  setLoaded: ({ uuid, name, duration, settings, isDemo, sourceWidth, sourceHeight, hasServerVideo }) =>
     set({
+      sourceWidth,
+      sourceHeight,
+      hasServerVideo,
       projectUuid: uuid,
       projectName: name,
       projectDuration: duration,

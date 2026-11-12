@@ -1,3 +1,4 @@
+/** Keep in sync with backend config/captions.php 'fonts' (same families/weights are burned into MP4). */
 export interface FontOption {
   label: string;
   value: string;
@@ -15,10 +16,10 @@ export const SINHALA_FONTS: FontOption[] = [
 
 export const LATIN_FONTS: FontOption[] = [
   { label: 'Inter', value: '"Inter", sans-serif', google: 'Inter:wght@400;500;600;700;800;900' },
-  { label: 'Poppins', value: '"Poppins", sans-serif', google: 'Poppins:wght@400;500;600;700;800;900' },
+  { label: 'Poppins', value: '"Poppins", sans-serif', google: 'Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900' },
   { label: 'Montserrat', value: '"Montserrat", sans-serif', google: 'Montserrat:wght@400;500;600;700;800;900' },
-  { label: 'Roboto', value: '"Roboto", sans-serif', google: 'Roboto:wght@400;500;700;900' },
-  { label: 'Merriweather', value: '"Merriweather", serif', google: 'Merriweather:wght@400;700;900' },
+  { label: 'Roboto', value: '"Roboto", sans-serif', google: 'Roboto:ital,wght@0,400;0,500;0,700;0,900;1,400;1,500;1,700;1,900' },
+  { label: 'Merriweather', value: '"Merriweather", serif', google: 'Merriweather:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900' },
   { label: 'Courier New', value: '"Courier New", monospace' },
 ];
 

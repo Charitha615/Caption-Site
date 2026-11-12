@@ -35,13 +35,26 @@ export const StyleControls = memo(function StyleControls({ value, target }: { va
           </select>
         </Field>
         <SliderField label="Font size" value={value.fontSize} min={16} max={160} unit="px" onChange={(v) => set('fontSize', v)} />
-        <Field label="Font weight">
-          <select className="ed-input" value={value.fontWeight} onChange={(e) => set('fontWeight', Number(e.target.value))}>
-            {FONT_WEIGHTS.map((w) => <option key={w.value} value={w.value}>{w.value} · {w.label}</option>)}
-          </select>
-        </Field>
         <div className="ed-grid-2">
-          <SliderField label="Line height" value={value.lineHeight} min={0.9} max={2.2} step={0.05} onChange={(v) => set('lineHeight', v)} />
+          <Field label="Font weight">
+            <select className="ed-input" value={value.fontWeight} onChange={(e) => set('fontWeight', Number(e.target.value))}>
+              {FONT_WEIGHTS.map((w) => <option key={w.value} value={w.value}>{w.value} · {w.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Style">
+            <Segmented
+              ariaLabel="Font style"
+              value={value.fontStyle}
+              onChange={(v) => set('fontStyle', v)}
+              options={[
+                { value: 'normal', label: 'Normal' },
+                { value: 'italic', label: <em>Italic</em> },
+              ]}
+            />
+          </Field>
+        </div>
+        <div className="ed-grid-2">
+          <SliderField label="Line height" hint="preview" value={value.lineHeight} min={0.9} max={2.2} step={0.05} onChange={(v) => set('lineHeight', v)} />
           <SliderField label="Letter spacing" value={value.letterSpacing} min={-4} max={12} step={0.5} unit="px" onChange={(v) => set('letterSpacing', v)} />
         </div>
       </Section>
@@ -75,7 +88,7 @@ export const StyleControls = memo(function StyleControls({ value, target }: { va
           <SliderField label="Opacity" value={value.backgroundOpacity} min={0} max={100} unit="%" onChange={(v) => set('backgroundOpacity', v)} />
         </div>
         <div className="ed-grid-2">
-          <SliderField label="Radius" value={value.borderRadius} min={0} max={60} unit="px" onChange={(v) => set('borderRadius', v)} />
+          <SliderField label="Radius" hint="preview" value={value.borderRadius} min={0} max={60} unit="px" onChange={(v) => set('borderRadius', v)} />
           <SliderField label="Padding" value={value.padding} min={0} max={60} unit="px" onChange={(v) => set('padding', v)} />
         </div>
       </Section>

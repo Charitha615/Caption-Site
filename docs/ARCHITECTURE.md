@@ -212,3 +212,47 @@ Whole-document snapshots with structural sharing (cheap). `commit()` = one entry
 
 ### Unicode / Sinhala
 Text is NFC-normalised (ZWJ/ZWNJ preserved). `splitGraphemes()` keeps Sinhala syllables and ZWJ conjuncts (ශ්‍රී, ක්‍ෂ) intact for splitting and the typewriter effect. Fonts: a Latin font first in the stack, then a Sinhala font, so mixed-script captions render each script in its own face. Shortcuts ignore keys during IME composition.
+
+---
+
+## 9. Styling, Templates & Export (STEP 4)
+
+### Style model & presets
+- One style object (see §8) is shared by the editor preview, saved templates and the MP4 renderer. The backend validates it with `App\Services\Caption\CaptionStyleNormalizer` (twin of the editor's `sanitizeStyle`).
+- The 7 built-in presets (Modern, Bold, Minimal, Cinema, YouTube, TikTok, Classic) are structured configuration in **`presets.json`**, kept in two identical copies: `frontend/src/features/editor/model/presets.json` (editor) and `backend/resources/captions/presets.json` (system templates). A backend test fails if they drift.
+
+### Templates (`caption_templates`)
+| Column | Notes |
+|---|---|
+| `uuid`, `user_id` (NULL = system), `slug` | System templates are keyed by preset slug |
+| `name`, `description`, `category`, `preview_text`, `sort_order` | |
+| `is_system` | Read-only for users |
+| `style` (JSON) | Full style: font, size, weight, italic, colours, stroke, shadow, background, padding, radius, alignment, position, animation |
+
+API: `GET/POST /api/caption-templates`, `DELETE /api/caption-templates/{uuid}`. System templates are synced from `presets.json` (`php artisan captions:sync-templates`, also run by the seeder and on first listing). Applying a **system** template changes only the look; a **user** template also carries its layout.
+
+### Exports
+`exports`: `uuid, project_id, user_id, type (srt|vtt|txt|json|mp4), status (queued|processing|completed|failed), progress, file_path, file_size, error_message, metadata, started_at, completed_at`.
+
+| Endpoint | |
+|---|---|
+| `POST /api/projects/{project}/exports` | `{type, resolution?: 720\|1080\|2160\|source, quality?: high\|standard\|small, template?: uuid}` |
+| `GET /api/projects/{project}/exports` | Latest 50 |
+| `GET /api/exports/{export}` | Status/progress + short-lived `download_url` when completed |
+| `DELETE /api/exports/{export}` | Deletes the file; cancels a running render |
+| `GET /api/exports/{export}/download` | **Signed URL only** (30 min); never exposes storage paths |
+
+- Text formats are generated immediately by `SubtitleFormatterService` (UTF-8, NFC; SRT skips empty cues and never prints `,1000` ms; VTT escapes `& < >`).
+- MP4: `ExportService` snapshots the style and queues **`RenderVideoJob`** (never rendered in the HTTP request). Pipeline: captions → `AssCaptionRenderer` (ASS script) → `VideoRendererService` (FFmpeg + libass) → private disk → export record. Max 2 active renders per user. 4K is only offered when the source's short side ≥ 2160.
+- Files live on the **private** `local` disk (`exports/{project}/{export}.{ext}`); downloads use `URL::temporarySignedRoute`.
+- The editor's source video is also served through a signed, Range-capable stream (`GET /api/media/{uuid}/stream`), so seeking works even on `php artisan serve` (which cannot serve byte ranges).
+
+### Rendering (FFmpeg)
+- **Requirements:** FFmpeg with **libass ≥ 0.17** + HarfBuzz (`brew install ffmpeg-full` on macOS; `apt install ffmpeg` on Debian 12 / Ubuntu 24.04), and caption fonts installed with `php artisan captions:install-fonts` (static TTFs into `storage/app/fonts`).
+- `AssCaptionRenderer` mirrors the preview: 1080p reference units scaled by `min(W,H)/1080`; layers = background box (BorderStyle 4, one padded box) → shadow (offset + blur) → outlined text; font runs follow the CSS fallback of the stack `<English font>, <Sinhala font>` (only Sinhala-block chars + ZWJ/ZWNJ use the Sinhala font); each run uses the exact installed face (`FontRegistry` reads the TTF name table — libass ignores `\b600` on the base family) and a size corrected for the font's win ascent/descent; karaoke / word box / typewriter become timed events.
+- `VideoRendererService` builds an argv array (no shell), prefixes paths with `file:`, escapes filtergraph values (`FilterEscaper`, both FFmpeg escaping levels), whitelists encoder values, parses `-progress` output and supports cancellation. Process execution sits behind `ProcessRunner` so tests can fake FFmpeg.
+- **Known differences from the preview** (libass limits, marked "preview only" in the editor): rounded box corners and custom line height are not rendered.
+
+### Operations
+- Run a worker: `php artisan queue:work` (or a dedicated queue: set `RENDER_QUEUE=renders` and run `php artisan queue:work --queue=renders,default`). **Restart workers after deploying code** (`php artisan queue:restart`) — long-running workers keep old code in memory.
+- STEP 5 follow-ups: clean up export files when projects are deleted; storage quotas/retention for exports; S3 support for render inputs (the job currently reads the source via a local path); per-plan render limits.

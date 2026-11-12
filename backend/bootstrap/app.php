@@ -8,6 +8,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -73,6 +74,24 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'Too many requests. Please wait a moment and try again.',
                     'data' => (object) [],
                 ], 429, ['Content-Type' => 'application/json; charset=utf-8'], JSON_UNESCAPED_UNICODE);
+            }
+        });
+
+        // Any other HTTP exception (e.g. 403 invalid/expired signed URL, 409, 405) keeps its status.
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                $status = $e->getStatusCode();
+                $message = match ($status) {
+                    403 => 'This link is invalid or has expired.',
+                    405 => 'Method not allowed.',
+                    default => $e->getMessage() ?: 'Request could not be completed.',
+                };
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'data' => (object) [],
+                ], $status, ['Content-Type' => 'application/json; charset=utf-8'], JSON_UNESCAPED_UNICODE);
             }
         });
 

@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        \App\Models\CaptionTemplate::syncSystemTemplates();
+
         $user = User::firstOrCreate(
             ['email' => 'demo@samplecap.com'],
             [

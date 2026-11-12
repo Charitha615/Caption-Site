@@ -22,7 +22,7 @@ class ProjectResource extends JsonResource
             'fps' => $this->fps,
             'language' => $this->language,
             'thumbnail' => $this->thumbnail,
-            'video_url' => $this->primaryMediaFile ? \Illuminate\Support\Facades\Storage::disk($this->primaryMediaFile->disk)->url($this->primaryMediaFile->file_path) : null,
+            'video_url' => $this->primaryMediaFile?->streamUrl(),
             'settings' => $this->settings,
             'captions_count' => $this->whenCounted('captions', $this->captions_count),
             'media_files_count' => $this->whenCounted('mediaFiles', $this->media_files_count),

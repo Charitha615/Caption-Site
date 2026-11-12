@@ -63,6 +63,9 @@ export async function openProject(uuid: string): Promise<void> {
       duration: project.duration ?? null,
       settings,
       isDemo: false,
+      sourceWidth: project.width ?? null,
+      sourceHeight: project.height ?? null,
+      hasServerVideo: !!project.video_url,
     });
     useEditorStore.getState().select(captions[0]?.id ?? null);
     startAutosave();
@@ -100,7 +103,7 @@ export function openDemo(): void {
   useCaptionStore.getState().load({ ...EMPTY_DOCUMENT, captions });
   useVideoStore.getState()._set({ duration: 16 });
   fitZoom(16);
-  useEditorProjectStore.getState().setLoaded({ uuid: null, name: 'Demo project', duration: 16, settings: {}, isDemo: true });
+  useEditorProjectStore.getState().setLoaded({ uuid: null, name: 'Demo project', duration: 16, settings: {}, isDemo: true, sourceWidth: null, sourceHeight: null, hasServerVideo: false });
   useEditorStore.getState().select(captions[0].id);
 }
 

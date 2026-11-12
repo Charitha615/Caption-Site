@@ -92,6 +92,8 @@ interface CaptionState extends CaptionDocument {
   clearOverride: (id: string) => void;
   clearAllOverrides: () => void;
   applyPreset: (key: string, target: StyleTarget) => void;
+  /** Apply a saved template (full style, incl. layout) to the project or one caption. */
+  applyTemplateStyle: (style: Partial<CaptionStyle>, presetId: string, label: string, target: StyleTarget) => void;
   saveCustomPreset: (label: string) => string;
   deleteCustomPreset: (id: string) => void;
   setCanvas: (patch: Partial<CanvasSettings>) => void;
@@ -345,6 +347,16 @@ export const useCaptionStore = create<CaptionState>()((set, get) => ({
       const c = d.captions.find((x) => x.id === target);
       if (!c) return null;
       return { captions: replaceCaption(d.captions, target, { ...c, styleOverride: { ...(c.styleOverride ?? {}), ...presetLook, preset: key } }) };
+    });
+  },
+
+  applyTemplateStyle: (style, presetId, label, target) => {
+    get().commit(`Apply ${label}`, (d) => {
+      const patch = { ...style, preset: presetId };
+      if (target === null) return { style: { ...d.style, ...patch } };
+      const c = d.captions.find((x) => x.id === target);
+      if (!c) return null;
+      return { captions: replaceCaption(d.captions, target, { ...c, styleOverride: { ...(c.styleOverride ?? {}), ...patch } }) };
     });
   },
 

@@ -1,8 +1,12 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useEditorStore } from '../../../../stores/editor/editorStore';
 import { useSelectedCaption } from '../../../../stores/editor/selectors';
+import { useEditorProjectStore } from '../../../../stores/editor/editorProjectStore';
+import { useTemplateStore } from '../../../../stores/editor/templateStore';
+import { apiErrorMessage } from '../../../../services/exportService';
+import { sanitizeStyle } from '../../utils/captionStyle';
 import { applyPresetLook, BUILT_IN_PRESETS } from '../../model/presets';
 import type { CaptionStyle } from '../../model/types';
 import { Segmented } from '../controls';
@@ -63,6 +67,19 @@ export const StylesPanel = memo(function StylesPanel() {
   const scope = useEditorStore((s) => s.styleScope);
   const selected = useSelectedCaption();
   const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const isDemo = useEditorProjectStore((s) => s.isDemo);
+  const templates = useTemplateStore((s) => s.templates);
+  const templatesStatus = useTemplateStore((s) => s.status);
+  const templatesError = useTemplateStore((s) => s.error);
+  const saveTemplate = useTemplateStore((s) => s.save);
+  const removeTemplate = useTemplateStore((s) => s.remove);
+  const myTemplates = useMemo(() => templates.filter((t) => !t.is_system), [templates]);
+
+  useEffect(() => {
+    if (!isDemo) void useTemplateStore.getState().load();
+  }, [isDemo]);
 
   const target = scope === 'caption' && selected ? selected.id : null;
   const currentPreset = target ? selected?.styleOverride?.preset ?? style.preset : style.preset;
@@ -98,44 +115,75 @@ export const StylesPanel = memo(function StylesPanel() {
       </div>
 
       <div className="ed-inspector-block">
-        <span className="ed-field-label">Your presets</span>
-        {customPresets.length === 0 && (
-          <p className="ed-help">Customise a preset in the Properties panel, then save it here to reuse it.</p>
+        <span className="ed-field-label">My templates</span>
+        <p className="ed-help">Saved to your account — reuse them in any project and when exporting.</p>
+        {isDemo ? (
+          <p className="ed-help">Templates are not available in demo mode.</p>
+        ) : templatesStatus === 'error' ? (
+          <p className="ed-help is-error">{templatesError}</p>
+        ) : (
+          <div className="ed-preset-grid">
+            {myTemplates.map((t) => (
+              <PresetCard
+                key={t.uuid}
+                label={t.name}
+                description={t.description ?? 'Custom template'}
+                sample={t.preview_text || 'මගේ style · My style'}
+                style={sanitizeStyle(t.style)}
+                selected={currentPreset === `template:${t.uuid}`}
+                onApply={() => useCaptionStore.getState().applyTemplateStyle(sanitizeStyle(t.style, true), `template:${t.uuid}`, t.name, target)}
+                onDelete={() => {
+                  if (window.confirm(`Delete template “${t.name}”?`)) void removeTemplate(t.uuid).catch((err) => setFormError(apiErrorMessage(err)));
+                }}
+              />
+            ))}
+            {customPresets.map((p) => (
+              <PresetCard
+                key={p.id}
+                label={p.label}
+                description="Saved in this project"
+                sample="මගේ style · My style"
+                style={p.style}
+                selected={currentPreset === p.id}
+                onApply={() => useCaptionStore.getState().applyPreset(p.id, target)}
+                onDelete={() => useCaptionStore.getState().deleteCustomPreset(p.id)}
+              />
+            ))}
+          </div>
         )}
-        <div className="ed-preset-grid">
-          {customPresets.map((p) => (
-            <PresetCard
-              key={p.id}
-              label={p.label}
-              description={`Based on ${BUILT_IN_PRESETS.find((b) => b.key === p.basePreset)?.label ?? 'custom'}`}
-              sample="මගේ style · My style"
-              style={p.style}
-              selected={currentPreset === p.id}
-              onApply={() => useCaptionStore.getState().applyPreset(p.id, target)}
-              onDelete={() => useCaptionStore.getState().deleteCustomPreset(p.id)}
+        {!isDemo && (
+          <form
+            className="ed-inline-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSaving(true);
+              setFormError(null);
+              try {
+                const t = await saveTemplate(name.trim() || `My style ${myTemplates.length + 1}`, { ...style });
+                useCaptionStore.getState().updateStyle({ preset: `template:${t.uuid}` }, null);
+                setName('');
+              } catch (err) {
+                setFormError(apiErrorMessage(err, 'Could not save template.'));
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            <input
+              className="ed-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Save project style as template…"
+              aria-label="New template name"
+              maxLength={120}
+              data-native-undo
             />
-          ))}
-        </div>
-        <form
-          className="ed-inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            useCaptionStore.getState().saveCustomPreset(name || `My style ${customPresets.length + 1}`);
-            setName('');
-          }}
-        >
-          <input
-            className="ed-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Name current project style…"
-            aria-label="New preset name"
-            data-native-undo
-          />
-          <button type="submit" className="ed-btn">
-            <Plus size={14} /> Save
-          </button>
-        </form>
+            <button type="submit" className="ed-btn" disabled={saving}>
+              <Plus size={14} /> Save
+            </button>
+          </form>
+        )}
+        {formError && <p className="ed-help is-error">{formError}</p>}
       </div>
     </div>
   );

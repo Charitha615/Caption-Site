@@ -13,16 +13,9 @@ class FFmpegService implements VideoServiceInterface
 
     public function __construct()
     {
-        $this->ffmpegBinary = env('FFMPEG_BINARY', '/opt/homebrew/bin/ffmpeg');
-        $this->ffprobeBinary = env('FFPROBE_BINARY', '/opt/homebrew/bin/ffprobe');
-
-        // Fallbacks if not found at exact path
-        if (!file_exists($this->ffmpegBinary)) {
-            $this->ffmpegBinary = 'ffmpeg';
-        }
-        if (!file_exists($this->ffprobeBinary)) {
-            $this->ffprobeBinary = 'ffprobe';
-        }
+        // Config (not env()) so `php artisan config:cache` works in production.
+        $this->ffmpegBinary = (string) config('captions.ffmpeg_binary', 'ffmpeg');
+        $this->ffprobeBinary = (string) config('captions.ffprobe_binary', 'ffprobe');
     }
 
     /**
@@ -191,37 +184,6 @@ class FFmpegService implements VideoServiceInterface
             }
         } catch (\Throwable $e) {
             Log::error('FFmpeg generateThumbnail exception: ' . $e->getMessage());
-        }
-
-        return $outputPath;
-    }
-
-    /**
-     * Hardcode / burn captions (SRT or ASS) directly into MP4 video using FFmpeg.
-     */
-    public function burnCaptions(string $videoPath, string $subtitlesPath, string $outputPath, array $styleOptions = []): string
-    {
-        $dir = dirname($outputPath);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        $escapedSubtitlesPath = str_replace([':', '\\'], ['\\:', '/'], $subtitlesPath);
-
-        $process = new Process([
-            $this->ffmpegBinary,
-            '-y',
-            '-i', $videoPath,
-            '-vf', "subtitles={$escapedSubtitlesPath}",
-            '-c:a', 'copy',
-            $outputPath,
-        ]);
-
-        $process->setTimeout(600);
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            Log::error('FFmpeg burnCaptions failed: ' . $process->getErrorOutput());
         }
 
         return $outputPath;

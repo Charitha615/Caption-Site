@@ -47,6 +47,17 @@ class MediaFile extends Model
         });
     }
 
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
+    /** Signed, expiring URL to the Range-capable stream endpoint (see MediaStreamController). */
+    public function streamUrl(): string
+    {
+        return \Illuminate\Support\Facades\URL::temporarySignedRoute('media.stream', now()->addHours(12), ['media' => $this->uuid]);
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

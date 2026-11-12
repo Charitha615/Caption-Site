@@ -778,7 +778,8 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   font-kerning: normal;
-  font-synthesis: none;
+  /* Allow a synthetic slant for fonts without italics (all Sinhala fonts) — libass does the same. */
+  font-synthesis: style;
 }
 .cap-text {
   position: relative;
@@ -2117,38 +2118,165 @@ select.ed-input {
   border-bottom: 1px solid var(--ed-border, rgba(255, 255, 255, 0.07));
   font-size: 13px;
 }
-.ed-export p {
-  margin: 0 0 14px;
-  line-height: 1.6;
-}
-.ed-export ul {
+.ed-export {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: 16px;
 }
-.ed-export li {
+.ed-export-formats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+}
+.ed-export-format {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--ed-border-strong);
+  border-radius: var(--ed-radius);
+  background: var(--ed-chrome-2);
+  color: var(--ed-muted);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.ed-export-format:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.ed-export-format.is-selected {
+  border-color: var(--ed-primary-line);
+  background: rgba(91, 33, 182, 0.18);
+  color: var(--ed-primary-text);
+}
+.ed-export-format:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ed-export-format-title {
+  color: var(--ed-text-strong);
+  font-weight: 700;
+  font-size: 13px;
+}
+.ed-export-format-desc {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.ed-export-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+  padding: 14px;
+  border: 1px solid var(--ed-border);
+  border-radius: var(--ed-radius);
+  background: var(--ed-chrome-2);
+}
+.ed-export-options .ed-field:nth-child(3),
+.ed-export-summary {
+  grid-column: 1 / -1;
+}
+.ed-export-summary {
+  margin: 0;
+  color: var(--ed-muted);
+  font-size: 12px;
+}
+.ed-export-summary strong {
+  color: var(--ed-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.ed-export-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--ed-border-strong, rgba(255, 255, 255, 0.13));
-  border-radius: 8px;
 }
-.ed-export li > span:nth-child(2) {
-  flex: 1;
+.ed-export-actions .ed-btn {
+  height: 36px;
+  padding: 0 16px;
+}
+.ed-export-history h4 {
+  margin: 4px 0 8px;
+  color: var(--ed-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ed-export-history ul {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
 }
-.ed-export li > span:nth-child(2) span {
-  color: var(--ed-muted, #9ca3af);
+.ed-export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ed-border);
+  border-radius: var(--ed-radius);
+  background: var(--ed-chrome-2);
+}
+.ed-export-row.is-failed {
+  border-color: rgba(248, 113, 113, 0.3);
+}
+.ed-export-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.ed-export-row-title {
+  color: var(--ed-text-strong);
+  font-weight: 700;
   font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
-.ed-export li svg {
-  color: var(--ed-accent, #f97316);
+.ed-export-row-meta {
+  color: var(--ed-faint);
+  font-size: 11.5px;
+}
+.ed-export-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ed-muted);
+  font-size: 12px;
+}
+.ed-export-status.is-ok { color: var(--ed-success); }
+.ed-export-status.is-error { color: var(--ed-danger); }
+.ed-export-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.ed-progress {
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.ed-progress > div {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ed-accent);
+  transition: width 0.4s ease;
+}
+.ed-help.is-error {
+  color: var(--ed-danger);
+}
+@media (max-width: 640px) {
+  .ed-export-options { grid-template-columns: 1fr; }
+  .ed-export-actions { flex-direction: column; align-items: stretch; }
 }
 
 /* ------------------------------------------------------------- boot/error */
