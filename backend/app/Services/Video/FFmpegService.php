@@ -89,6 +89,30 @@ class FFmpegService implements VideoServiceInterface
         return $outputPath;
     }
 
+    public function splitAudio(string $audioPath, float $totalSeconds, int $seconds, string $outputDir): array
+    {
+        if (! is_dir($outputDir)) {
+            mkdir($outputDir, 0700, true);
+        }
+        $chunks = [];
+        for ($i = 0, $offset = 0.0; $offset < $totalSeconds; $i++, $offset += $seconds) {
+            $out = sprintf('%s/chunk_%03d.mp3', $outputDir, $i);
+            $length = min($seconds, $totalSeconds - $offset);
+            $result = $this->run([
+                $this->ffmpegBinary, '-hide_banner', '-nostdin', '-y',
+                '-ss', (string) $offset, '-t', (string) $length,
+                '-i', $audioPath, '-c', 'copy', $out,
+            ], 300, 'ffmpeg');
+            if ($result['exitCode'] !== 0 || ! is_file($out) || filesize($out) === 0) {
+                AppLog::error('ffmpeg.split_audio_failed', ['exit' => $result['exitCode'], 'stderr' => $result['stderr'], 'chunk' => $i]);
+                throw new VideoProcessingException('We could not prepare this long video for transcription.');
+            }
+            $chunks[] = ['path' => $out, 'offset' => (float) $offset, 'duration' => (float) $length];
+        }
+
+        return $chunks;
+    }
+
     public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool
     {
         if (! is_dir(dirname($outputPath))) {

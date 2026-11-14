@@ -16,6 +16,13 @@ interface VideoServiceInterface
     /** Extracts a 16 kHz mono MP3 suitable for speech recognition. */
     public function extractAudio(string $videoPath, string $outputPath): string;
 
+    /**
+     * Splits audio into consecutive pieces of at most $seconds each.
+     *
+     * @return list<array{path: string, offset: float, duration: float}>
+     */
+    public function splitAudio(string $audioPath, float $totalSeconds, int $seconds, string $outputDir): array;
+
     /** Writes a JPEG frame. Best effort: returns false instead of throwing. */
     public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool;
 }

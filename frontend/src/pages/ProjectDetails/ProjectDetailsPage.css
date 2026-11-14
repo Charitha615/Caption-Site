@@ -311,3 +311,7 @@
 .regen-warning, .regen-usage { margin-top: 14px; font-size: 0.83rem; display: flex; gap: 6px; align-items: center; }
 .regen-warning { color: var(--status-warning-text); }
 .regen-usage { color: var(--text-muted); }
+
+.caption-original { font-size: 0.8rem; color: var(--text-muted); }
+.caption-original summary { cursor: pointer; width: fit-content; }
+.caption-original p { margin: 4px 0 0; line-height: 1.6; }

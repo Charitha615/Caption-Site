@@ -25,7 +25,19 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
+        // Speech → timed words. Purpose-built transcription model (Interactions API).
+        'transcribe_model' => env('GEMINI_TRANSCRIBE_MODEL', 'gemini-3.5-transcribe'),
+        // Text model: caption cleanup/punctuation/formatting, and the fallback transcriber
+        // when the transcription model is unavailable. GEMINI_MODEL is the legacy name.
+        'model' => env('GEMINI_TEXT_MODEL', env('GEMINI_MODEL', 'gemini-3.8-flash')),
+        // Run the text model over transcribed captions (punctuation, spacing, Sinhala Unicode
+        // fixes). Never changes timing; the raw transcript is always kept.
+        'caption_cleanup' => (bool) env('GEMINI_CAPTION_CLEANUP', true),
+        // Label speakers (spk_1, spk_2 …) in the transcript.
+        'diarization' => (bool) env('GEMINI_DIARIZATION', true),
+        // Gemini 3.5 Transcribe allows 30 min per request with word timestamps; longer audio
+        // is split into chunks of this many seconds and stitched back together.
+        'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 1500),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
         // Seconds to wait for one model's answer. A 2–3 minute video normally takes < 1 minute.

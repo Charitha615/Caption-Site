@@ -11,7 +11,6 @@ use App\Models\Transcript;
 use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\AI\AIProviderFactory;
-use App\Services\AI\GeminiAIProvider;
 use App\Services\Media\MediaStorage;
 use App\Services\Usage\UsageService;
 use App\Services\Video\Contracts\VideoServiceInterface;
@@ -23,6 +22,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -77,6 +77,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         $started = microtime(true);
         try {
             $ai = $providers->forUser($user);
+            $refiner = $providers->refinerForUser($user);
         } catch (UserFacingException $e) {
             $this->markFailed($project, $e->getMessage());
 
@@ -88,7 +89,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         try {
             $this->phase($project, Project::STATUS_PROCESSING);
 
-            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $storage, $usage) {
+            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $refiner, $storage, $usage) {
                 // 1. Probe
                 $meta = $video->getMetadata($videoPath);
                 $media->update([
@@ -125,18 +126,21 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                     $storage->putLocalFile($audioTmp, $audioKey, $media->disk);
                     $media->update(['audio_path' => $audioKey]);
 
-                    // 4. Transcribe — the only AI request in the pipeline.
+                    // 4. Transcribe (Gemini 3.5 Transcribe → text-model fallback), in chunks for long audio.
                     $this->phase($project, Project::STATUS_TRANSCRIBING);
                     $usage->ensureCanRequestAI($user);
-                    $result = $ai->transcribe($audioTmp, $this->targetLanguage, ['duration' => $meta['duration']]);
-                    $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $ai->name()] + $result['usage']);
+                    $result = $this->transcribe($ai, $video, $storage, $usage, $user, $project, $audioTmp, (float) $meta['duration']);
                 } finally {
                     @unlink($audioTmp);
                 }
 
-                // 5. Captions
+                // 5. Clean up caption text with the text model (timing untouched), then store.
                 $this->phase($project, Project::STATUS_GENERATING_CAPTIONS);
-                $count = $this->storeCaptions($project, $media, $result);
+                $cleaned = $refiner->refine($result['segments'], $result['language']);
+                if ($refiner->model()) {
+                    $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => 'gemini-cleanup', 'model' => $refiner->model()]);
+                }
+                $count = $this->storeCaptions($project, $media, $result, $cleaned, $ai->name(), $refiner->model());
                 $usage->record($user, UsageRecord::ACTION_CAPTION_GENERATION, $meta['duration'], 'seconds', $project, [
                     'language' => $result['language'],
                     'captions_count' => $count,
@@ -147,7 +151,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             AppLog::info('pipeline.completed', $context + ['seconds' => round(microtime(true) - $started, 1)]);
         } catch (UserFacingException $e) {
             AppLog::error('pipeline.failed', $context + ['reason' => $e->getMessage()] + $e->context);
-            if (($e->context['key_rejected'] ?? false) && $ai instanceof GeminiAIProvider) {
+            if (($e->context['key_rejected'] ?? false) && $providers->usesUserKeys()) {
                 $this->flagRejectedKey($user);
             }
             $this->markFailed($project, $e->getMessage());
@@ -168,9 +172,58 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         }
     }
 
-    private function storeCaptions(Project $project, MediaFile $media, array $result): int
+    /**
+     * Transcribes the whole audio, splitting it when it is longer than one request allows,
+     * and shifts each chunk's timings back onto the full timeline.
+     */
+    private function transcribe($ai, VideoServiceInterface $video, MediaStorage $storage, UsageService $usage, User $user, Project $project, string $audioPath, float $duration): array
     {
-        return DB::transaction(function () use ($project, $media, $result) {
+        $limit = max(60, (int) config('ai.gemini.transcribe_chunk_seconds', 1500));
+        if ($duration <= $limit) {
+            $result = $ai->transcribe($audioPath, $this->targetLanguage, ['duration' => $duration]);
+            $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $ai->name()] + $result['usage']);
+
+            return $result;
+        }
+
+        $dir = dirname($storage->tempPath('d')).'/chunks-'.$project->uuid;
+        try {
+            $merged = ['text' => '', 'language' => $this->targetLanguage, 'segments' => [], 'usage' => []];
+            $languages = [];
+            foreach ($video->splitAudio($audioPath, $duration, $limit, $dir) as $chunk) {
+                $usage->ensureCanRequestAI($user);
+                $part = $ai->transcribe($chunk['path'], $this->targetLanguage, ['duration' => $chunk['duration']]);
+                $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $ai->name(), 'chunk_offset' => $chunk['offset']] + $part['usage']);
+                foreach ($part['segments'] as $seg) {
+                    $seg['start'] = round($seg['start'] + $chunk['offset'], 3);
+                    $seg['end'] = round($seg['end'] + $chunk['offset'], 3);
+                    $seg['words'] = array_map(fn ($w) => ['start' => round($w['start'] + $chunk['offset'], 3), 'end' => round($w['end'] + $chunk['offset'], 3)] + $w, $seg['words'] ?? []);
+                    $merged['segments'][] = $seg;
+                }
+                $merged['text'] = trim($merged['text'].' '.$part['text']);
+                $merged['usage'] = $part['usage'];
+                $languages[] = $part['language'];
+            }
+            if ($this->targetLanguage === 'auto' && $languages) {
+                $merged['language'] = collect($languages)->countBy()->sortDesc()->keys()->first();
+            }
+
+            return $merged;
+        } finally {
+            File::deleteDirectory($dir);
+        }
+    }
+
+    /**
+     * Stores captions. The transcript row keeps the ORIGINAL transcription (text, segments,
+     * word timestamps) untouched; each caption keeps `metadata.original_text` so users can
+     * always compare with or restore what the AI heard.
+     *
+     * @param  list<string>  $cleaned  text-model clean-up, 1:1 with segments
+     */
+    private function storeCaptions(Project $project, MediaFile $media, array $result, array $cleaned, string $transcriber, ?string $cleanupModel): int
+    {
+        return DB::transaction(function () use ($project, $media, $result, $cleaned, $transcriber, $cleanupModel) {
             $transcript = Transcript::updateOrCreate(
                 ['project_id' => $project->id],
                 [
@@ -190,6 +243,23 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             $now = now();
             $rows = [];
             foreach ($result['segments'] as $i => $seg) {
+                $text = $cleaned[$i] ?? $seg['text'];
+                $words = $seg['words'] ?? [];
+                // Keep exact word timings; relabel them only if clean-up kept the same word count.
+                $tokens = preg_split('/\s+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                if ($text !== $seg['text'] && count($tokens) === count($words)) {
+                    foreach ($words as $n => &$w) {
+                        $w['word'] = $tokens[$n];
+                    }
+                    unset($w);
+                }
+                $metadata = array_filter([
+                    'words' => $words,
+                    'original_text' => $seg['text'],
+                    'cleaned' => $text !== $seg['text'],
+                    'speaker' => $seg['speaker'] ?? null,
+                    'source' => array_filter(['transcriber' => $transcriber, 'cleanup' => $text !== $seg['text'] ? $cleanupModel : null]),
+                ], fn ($v) => $v !== null && $v !== []);
                 $rows[] = [
                     'uuid' => (string) Str::uuid(),
                     'project_id' => $project->id,
@@ -197,9 +267,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                     'sequence' => $i + 1,
                     'start_time' => $seg['start'],
                     'end_time' => $seg['end'],
-                    'text' => $seg['text'],
+                    'text' => $text,
                     'language' => $seg['language'],
-                    'metadata' => json_encode(['words' => $seg['words']], JSON_UNESCAPED_UNICODE),
+                    'metadata' => json_encode($metadata, JSON_UNESCAPED_UNICODE),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];

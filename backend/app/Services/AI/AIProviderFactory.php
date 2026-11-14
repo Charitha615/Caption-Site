@@ -35,16 +35,43 @@ class AIProviderFactory
         }
     }
 
+    /**
+     * Speech-to-text for this user: Gemini 3.5 Transcribe (GEMINI_TRANSCRIBE_MODEL) with an
+     * automatic fallback to the text model (GEMINI_TEXT_MODEL) transcribing directly.
+     */
     public function forUser(User $user): AIProviderInterface
     {
         if (! $this->usesUserKeys()) {
             return app(AIProviderInterface::class);
         }
+        [$key, $isUserKey] = $this->keyFor($user);
+        $textTranscriber = new GeminiAIProvider(apiKey: $key, isUserKey: $isUserKey);
+
+        if (! config('ai.gemini.transcribe_model')) {
+            return $textTranscriber;
+        }
+
+        return new FallbackTranscriber(new GeminiTranscribeProvider(apiKey: $key, isUserKey: $isUserKey), $textTranscriber);
+    }
+
+    /** Caption clean-up (punctuation/formatting) with the text model, or a no-op. */
+    public function refinerForUser(User $user): CaptionRefinerInterface
+    {
+        if (! $this->usesUserKeys() || ! config('ai.gemini.caption_cleanup', true)) {
+            return new NullCaptionRefiner;
+        }
+
+        return new GeminiCaptionRefiner($this->keyFor($user)[0]);
+    }
+
+    /** @return array{0: string, 1: bool} */
+    private function keyFor(User $user): array
+    {
         if ($user->hasAiKey()) {
-            return new GeminiAIProvider(apiKey: $user->gemini_api_key, isUserKey: true);
+            return [(string) $user->gemini_api_key, true];
         }
         if (config('ai.allow_server_key') && ! empty(config('ai.gemini.api_key'))) {
-            return new GeminiAIProvider;
+            return [(string) config('ai.gemini.api_key'), false];
         }
 
         throw new AIKeyRequiredException;

@@ -72,7 +72,11 @@ Templates: `backend/.env.example` and `frontend/.env.example`. **Never commit `.
 | `AI_PROVIDER` | `gemini` | `gemini` or `fake` (sample captions without any key; development/tests only) |
 | `AI_ALLOW_SERVER_KEY` | `false` | Each user adds their **own** Google AI key in Account & usage. Set `true` to let users without a key fall back to `GEMINI_API_KEY` (the platform then pays for their AI usage) |
 | `GEMINI_API_KEY` | — | Server's own key; only used when `AI_ALLOW_SERVER_KEY=true` |
-| `GEMINI_MODEL` | `gemini-3.8-flash` | Model id |
+| `GEMINI_TRANSCRIBE_MODEL` | `gemini-3.5-transcribe` | Speech → timed words (Interactions API, word timestamps, speaker labels). Empty = transcribe with the text model |
+| `GEMINI_TEXT_MODEL` | `gemini-3.8-flash` | Caption clean-up (punctuation, spacing, Sinhala Unicode) and fallback transcription. `GEMINI_MODEL` is accepted as the old name |
+| `GEMINI_CAPTION_CLEANUP` | `true` | Run the text model over transcribed captions. Timing is never changed; the original stays in `metadata.original_text` and the transcript |
+| `GEMINI_DIARIZATION` | `true` | Ask the transcription model for speaker labels |
+| `GEMINI_TRANSCRIBE_CHUNK_SECONDS` | `1500` | Longer audio is split into chunks of this size (the model allows 30 min per request with word timestamps) |
 | `GEMINI_BASE_URL`, `GEMINI_UPLOAD_URL` | Google endpoints | Override for proxies |
 | `GEMINI_FALLBACK_MODELS` | `gemini-flash-latest` | Comma-separated models tried, in order, when the main model is overloaded (429/5xx) or times out |
 | `GEMINI_THINKING` | `low` | Model reasoning during transcription: `low` (fast), `high`, or `default`. Sent as `thinkingLevel` (Gemini 3) / `thinkingBudget` (2.5) |

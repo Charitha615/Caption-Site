@@ -38,6 +38,8 @@ If a user reports an error with a reference ("Ref: 6b1c2d3e"), search for it: `g
 | "Google’s AI is overloaded right now" | Google returned 503 "high demand" (or timed out) for the main model **and** every `GEMINI_FALLBACK_MODELS` entry. It is temporary — press Retry later, or add another fallback model. Events: `ai.model_unavailable`, `ai.timeout`. |
 | "The AI service is busy…" | Gemini returned 429 (quota). Check your Google quota; event `ai.request_failed` has `status`. |
 | "AI captioning is temporarily unavailable" | Gemini 401/403: wrong key, key restricted to other APIs, or model not enabled. |
+| Captions came from `gemini-3.8-flash`, not the transcribe model | Look for `ai.transcriber_fallback` in the event log: the speech model was unavailable for the key (Verify on Account & usage says so), overloaded, rejected the language, or returned no word timings. |
+| Punctuation wasn't cleaned | `GEMINI_CAPTION_CLEANUP=false`, or the clean-up answer was rejected (`ai.cleanup_mismatch` / `ai.cleanup_failed`) — captions then stay exactly as transcribed. |
 | "This video has too much speech to caption in one pass" | Output hit `GEMINI_MAX_OUTPUT_TOKENS`. Use a shorter clip or raise the limit if the model allows it. |
 | Captions are sample sentences ("no AI key is configured") | Running with `AI_PROVIDER=fake` or no key outside production. Set the key. |
 | Changes to PHP code have no effect on jobs | Workers cache code. `php artisan queue:restart` / `horizon:terminate`. |

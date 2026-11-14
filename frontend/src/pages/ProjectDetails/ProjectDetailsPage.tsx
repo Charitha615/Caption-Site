@@ -412,6 +412,13 @@ export const ProjectDetailsPage: React.FC = () => {
                         <p className="caption-text-content" lang={cap.language === 'si' ? 'si' : undefined}>{cap.text}</p>
                       )}
 
+                      {!isEditing && typeof cap.metadata?.original_text === 'string' && cap.metadata.original_text !== cap.text && (
+                        <details className="caption-original">
+                          <summary>Originally transcribed</summary>
+                          <p lang={cap.language === 'si' ? 'si' : undefined}>{cap.metadata.original_text}</p>
+                        </details>
+                      )}
+
                       {words.length > 0 && !isEditing && (
                         <div className="caption-words-wrap" aria-hidden="true">
                           {words.slice(0, 40).map((w, i) => (

@@ -29,7 +29,9 @@ class AiKeyTest extends TestCase
             'ai.provider' => 'gemini',
             'ai.allow_server_key' => false,
             'ai.gemini.base_url' => 'https://gemini.test/v1beta',
+            'ai.gemini.upload_url' => 'https://gemini.test/upload/v1beta',
             'ai.gemini.model' => 'test-model',
+            'ai.gemini.transcribe_model' => '', // key tests cover the text model; transcribe has its own tests
         ]);
     }
 
@@ -141,6 +143,18 @@ class AiKeyTest extends TestCase
                 file_put_contents($outputPath, 'audio');
 
                 return $outputPath;
+            }
+
+            public function splitAudio(string $audioPath, float $totalSeconds, int $seconds, string $outputDir): array
+            {
+                @mkdir($outputDir, 0700, true);
+                $chunks = [];
+                for ($i = 0, $o = 0.0; $o < $totalSeconds; $i++, $o += $seconds) {
+                    file_put_contents($p = "{$outputDir}/c{$i}.mp3", 'audio');
+                    $chunks[] = ['path' => $p, 'offset' => $o, 'duration' => min($seconds, $totalSeconds - $o)];
+                }
+
+                return $chunks;
             }
 
             public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool

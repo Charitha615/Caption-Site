@@ -369,4 +369,16 @@ class VideoUploadAndCaptionTest extends TestCase
 
         $this->assertDatabaseHas('captions', ['project_id' => $project->id, 'text' => '']);
     }
+
+    public function test_caption_sync_accepts_mixed_language_captions(): void
+    {
+        [$user, $headers] = $this->userWithToken();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $this->withHeaders($headers)->putJson("/api/projects/{$project->uuid}/captions/sync", [
+            'captions' => [['start_time' => 0, 'end_time' => 1, 'text' => 'මේක really හොඳයි', 'language' => 'mixed', 'metadata' => ['original_text' => 'මේක really හොඳයි']]],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('captions', ['project_id' => $project->id, 'language' => 'mixed']);
+    }
 }

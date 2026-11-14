@@ -38,7 +38,7 @@ class CaptionController extends Controller
         return [
             "{$prefix}start_time" => [$req, 'numeric', 'min:0', 'max:'.self::MAX_TIME_SECONDS],
             "{$prefix}end_time" => [$req, 'numeric', 'min:0', 'max:'.self::MAX_TIME_SECONDS],
-            "{$prefix}language" => ['nullable', 'string', Rule::in(['si', 'en', 'auto'])],
+            "{$prefix}language" => ['nullable', 'string', Rule::in(['si', 'en', 'mixed', 'auto'])],
             "{$prefix}sequence" => ['nullable', 'integer', 'min:1', 'max:1000000'],
             "{$prefix}style_id" => ['nullable', 'integer'],
             "{$prefix}style_override" => ['nullable', 'array', new JsonSize(16 * 1024)],
@@ -148,7 +148,7 @@ class CaptionController extends Controller
         $this->authorize('update', $project);
 
         $validated = $request->validate([
-            'language' => ['nullable', 'string', Rule::in(['si', 'en', 'auto'])],
+            'language' => ['nullable', 'string', Rule::in(['si', 'en', 'mixed', 'auto'])],
         ]);
 
         $mediaFile = $project->primaryMediaFile;

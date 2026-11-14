@@ -23,6 +23,7 @@ import { resolveStyle } from '../../utils/captionStyle';
 import { countGraphemes, detectLanguage, LANGUAGE_LABELS } from '../../utils/unicode';
 import { IconButton, Segmented, TimeInput } from '../controls';
 import { StyleControls } from './StyleControls';
+import { AiOriginal } from './AiOriginal';
 
 const MAX_CPS = 17; // common reading-speed guideline (characters per second)
 
@@ -71,6 +72,7 @@ const CaptionEditor = memo(function CaptionEditor({ caption, index, total, compa
           onChange={(e) => store().updateText(caption.id, e.target.value)}
         />
         <CaptionStats caption={caption} />
+        <AiOriginal caption={caption} />
       </div>
 
       <div className="ed-inspector-block">

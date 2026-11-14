@@ -130,8 +130,8 @@ Indexes cover the hot queries: `(user_id, status)`, `(user_id, created_at)` on p
 | `uploaded` | queued |
 | `processing` | FFprobe → duration, size (rotation-aware), fps, audio present? Plan check on duration. Thumbnail (best effort). |
 | `extracting_audio` | FFmpeg → 16 kHz mono MP3, stored next to the video |
-| `transcribing` | **one** `AIProviderInterface::transcribe()` call; `ai_request` usage recorded with token counts |
-| `generating_captions` | transcript + captions replaced in one transaction (bulk insert); `caption_generation` seconds recorded |
+| `transcribing` | `FallbackTranscriber`: **Gemini 3.5 Transcribe** (`GEMINI_TRANSCRIBE_MODEL`) → word timestamps (+ speakers) → `CaptionLineBuilder` lines. Falls back to the text model if the speech model is unavailable/overloaded/returns no timings. Audio longer than `GEMINI_TRANSCRIBE_CHUNK_SECONDS` is split and re-offset. One `ai_request` per call |
+| `generating_captions` | **Gemini 3.8 Flash** (`GEMINI_TEXT_MODEL`) cleans punctuation/spacing/Unicode line-by-line (`GeminiCaptionRefiner`; rejects rewrites/translations, never touches timing). Transcript row keeps the **original** text + timings; each caption keeps `metadata.original_text`, `cleaned`, `speaker`, `source`. Bulk insert; `caption_generation` seconds recorded |
 | `ready` | done |
 | `failed` | `processing_error` holds a safe reason ("This video has no audio track…") |
 
@@ -140,6 +140,8 @@ The job works on a **local copy** (`MediaStorage::withLocalCopy`) so the media d
 ### AI provider
 - **Bring your own key.** Each user saves their own Google AI key on Account & usage (created at https://aistudio.google.com/app/api-keys). `AiKeyController` checks it with Google (`GeminiKeyVerifier` fetches the configured model — free, and proves the key can use that model) before storing it with Eloquent's `encrypted` cast; only the last 4 characters are ever returned. `AIProviderFactory::forUser()` builds a Gemini provider with the project owner's key. Uploads and regeneration are refused up front (`422 ai_key_required`) when the user has no usable key. If Google rejects the key during processing, the project fails with a pointer to Account & usage and the key is marked `invalid`. `AI_ALLOW_SERVER_KEY=true` lets keyless users fall back to the server's `GEMINI_API_KEY`.
 - `GeminiAIProvider`: API key in the `x-goog-api-key` header (never in URLs), inline audio up to `GEMINI_INLINE_MAX_BYTES`, otherwise the Gemini **Files API** (streamed resumable upload, deleted afterwards). JSON response schema enforced; retries 408/429/5xx with backoff; safety blocks, truncated output and malformed JSON all raise `AIProviderException`. It **never** invents captions.
+- **Language handling:** `en` → `en-US` hint; `si` → `si-LK` hint, retried with auto-detect if refused (Sinhala is not on Gemini 3.5 Transcribe's published list — the text-model fallback covers it); `auto` → auto-detect, including Sinhala-English code-switching. Line language is derived from script (Sinhala block → `si`).
+- **Human review:** AI output is never assumed correct — every caption is editable; the editor labels AI captions for review and offers *Restore original* while a caption still maps 1:1 to a transcribed line (split/merge drop the per-caption original; the transcript keeps it).
 - `SegmentNormalizer` cleans output: drops empty and out-of-range lines, clamps to the media duration, sorts, removes overlaps, keeps Sinhala ZWJ conjuncts.
 - `FakeAIProvider` returns clearly-labelled sample lines. Used when `AI_PROVIDER=fake`, or when no key is set **outside production**. Tests force it (`phpunit.xml`) and block real HTTP (`Http::preventStrayRequests()`).
 

@@ -2425,3 +2425,19 @@ select.ed-input {
   .ed-inspector-actions { grid-template-columns: 1fr 1fr; }
   .ed-preset-grid { grid-template-columns: 1fr; }
 }
+
+/* AI provenance: original transcription + restore */
+.ed-ai-origin { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ed-ai-origin .ed-help { display: flex; align-items: center; gap: 5px; }
+.ed-ai-original {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--editor-border);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ed-ai-original p { margin: 0; font-size: 0.85rem; line-height: 1.6; color: var(--editor-text-muted); }
+.ed-ai-original .ed-btn { align-self: flex-start; }
+.ed-btn.is-sm { padding: 4px 8px; font-size: 0.78rem; gap: 4px; }

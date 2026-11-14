@@ -48,6 +48,18 @@ class CaptionPipelineTest extends TestCase
                 return $outputPath;
             }
 
+            public function splitAudio(string $audioPath, float $totalSeconds, int $seconds, string $outputDir): array
+            {
+                @mkdir($outputDir, 0700, true);
+                $chunks = [];
+                for ($i = 0, $o = 0.0; $o < $totalSeconds; $i++, $o += $seconds) {
+                    file_put_contents($p = "{$outputDir}/c{$i}.mp3", 'audio');
+                    $chunks[] = ['path' => $p, 'offset' => $o, 'duration' => min($seconds, $totalSeconds - $o)];
+                }
+
+                return $chunks;
+            }
+
             public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool
             {
                 file_put_contents($outputPath, 'jpeg');

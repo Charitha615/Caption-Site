@@ -98,6 +98,18 @@ export function withTiming(caption: CaptionSegment, start: number, end: number, 
   return { ...caption, start: s, end: e, words };
 }
 
+/**
+ * Removes the per-caption AI original once a caption no longer maps 1:1 to a transcribed
+ * line (split/merge). The full original transcript is still kept on the server.
+ */
+function withoutOriginal(meta: CaptionSegment['meta']): CaptionSegment['meta'] {
+  if (!meta || !('original_text' in meta)) return meta;
+  const { original_text: _o, cleaned: _c, ...rest } = meta as Record<string, unknown>;
+  void _o;
+  void _c;
+  return Object.keys(rest).length ? rest : undefined;
+}
+
 /** Split at `time`. Uses word timings when present, else a Unicode-safe text split proportional to time. */
 export function splitCaption(caption: CaptionSegment, time: number): [CaptionSegment, CaptionSegment] | null {
   if (time <= caption.start + MIN_CAPTION_DURATION / 2 || time >= caption.end - MIN_CAPTION_DURATION / 2) {
@@ -128,9 +140,11 @@ export function splitCaption(caption: CaptionSegment, time: number): [CaptionSeg
     }
   }
 
-  const first: CaptionSegment = { ...caption, end: t, text: firstText, words: firstWords };
+  const meta = withoutOriginal(caption.meta);
+  const first: CaptionSegment = { ...caption, meta, end: t, text: firstText, words: firstWords };
   const second: CaptionSegment = {
     ...caption,
+    meta,
     id: createId(),
     start: t,
     text: secondText,
@@ -145,6 +159,7 @@ export function mergeCaptions(a: CaptionSegment, b: CaptionSegment): CaptionSegm
   const words = a.words?.length && b.words?.length ? [...a.words, ...b.words] : undefined;
   return {
     ...a,
+    meta: withoutOriginal(a.meta),
     start: Math.min(a.start, b.start),
     end: Math.max(a.end, b.end),
     text,

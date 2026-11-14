@@ -38,7 +38,7 @@ class GeminiKeyVerifier
 
         $status = $response->status();
         if ($response->successful()) {
-            return ['result' => self::VALID, 'message' => 'Key verified. Captions will be generated with your Google AI key.'];
+            return ['result' => self::VALID, 'message' => 'Key verified. '.$this->transcribeModelNote($apiKey, $base)];
         }
         if ($status === 429) {
             // Google recognised the key; it is only out of quota right now.
@@ -54,6 +54,24 @@ class GeminiKeyVerifier
         AppLog::warning('ai.key_verify_failed', ['status' => $status]);
 
         return ['result' => self::UNREACHABLE, 'message' => 'Google could not check the key right now. Try Verify again in a moment.'];
+    }
+
+    /** Whether the key can also use the speech model (otherwise the text model transcribes). */
+    protected function transcribeModelNote(string $apiKey, string $base): string
+    {
+        $model = (string) config('ai.gemini.transcribe_model');
+        if ($model === '') {
+            return 'Captions will be generated with your Google AI key.';
+        }
+        try {
+            $ok = Http::acceptJson()->withHeaders(['x-goog-api-key' => $apiKey])->timeout(10)->get("{$base}/models/{$model}")->successful();
+        } catch (\Throwable) {
+            $ok = true; // unknown — don't alarm the user
+        }
+
+        return $ok
+            ? "Speech will be transcribed with {$model}."
+            : "This key can't use {$model} yet, so speech will be transcribed with ".config('ai.gemini.model').' instead.';
     }
 
     /** True when a provider error means the key itself was refused. */
