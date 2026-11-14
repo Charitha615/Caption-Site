@@ -26,6 +26,8 @@ let inFlight: Promise<void> | null = null;
 let queued = false;
 let retryCount = 0;
 let lastSaved: CaptionDocument | null = null;
+/** Project the `lastSaved` snapshot belongs to. Saves for any other project are refused. */
+let sessionProject: string | null = null;
 let unsubscribe: (() => void) | null = null;
 
 const project = () => useEditorProjectStore.getState();
@@ -55,7 +57,9 @@ function schedule(delay = DEBOUNCE_MS) {
 
 async function save(): Promise<void> {
   const { projectUuid, baseSettings, isDemo } = project();
-  if (!projectUuid || isDemo || !lastSaved) return;
+  // Only save the session that was started for this project. While a project loads, the stores
+  // hold an empty placeholder document; saving it would delete every caption on the server.
+  if (!projectUuid || isDemo || !lastSaved || projectUuid !== sessionProject) return;
 
   const doc = currentDoc();
   if (!isDirty(doc)) {
@@ -70,7 +74,9 @@ async function save(): Promise<void> {
 
   try {
     if (captionsDirty) {
-      await captionService.syncCaptions(projectUuid, serializeCaptions(doc.captions), { silent: true });
+      // Removing every caption is allowed, but must be explicit (server-side safety net).
+      const removesAll = doc.captions.length === 0 && lastSaved.captions.length > 0;
+      await captionService.syncCaptions(projectUuid, serializeCaptions(doc.captions), { silent: true, confirmEmpty: removesAll });
     }
     if (settingsDirty) {
       const settings = { ...baseSettings, editor: serializeEditorSettings(doc) };
@@ -123,6 +129,7 @@ export function hasUnsavedChanges(): boolean {
 export function startAutosave(): () => void {
   stopAutosave();
   lastSaved = currentDoc();
+  sessionProject = project().projectUuid;
   retryCount = 0;
 
   unsubscribe = useCaptionStore.subscribe((state, prev) => {
@@ -169,6 +176,8 @@ export function startAutosave(): () => void {
 export function stopAutosave() {
   if (timer) clearTimeout(timer);
   timer = null;
+  lastSaved = null;
+  sessionProject = null;
   unsubscribe?.();
   unsubscribe = null;
 }

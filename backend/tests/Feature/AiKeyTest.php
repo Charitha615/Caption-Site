@@ -138,7 +138,7 @@ class AiKeyTest extends TestCase
                 return ['duration' => 5.0, 'width' => 1280, 'height' => 720, 'fps' => 30.0, 'codec' => 'h264', 'audio_codec' => 'aac', 'sample_rate' => 48000, 'channels' => 2, 'has_audio' => true];
             }
 
-            public function extractAudio(string $videoPath, string $outputPath): string
+            public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string
             {
                 file_put_contents($outputPath, 'audio');
 

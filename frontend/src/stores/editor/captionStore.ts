@@ -343,7 +343,7 @@ export const useCaptionStore = create<CaptionState>()((set, get) => ({
     const presetLook = builtIn ? builtIn.look : custom ? lookOf(custom.style) : null;
     if (!presetLook) return;
     get().commit(`Apply ${builtIn?.label ?? custom?.label} style`, (d) => {
-      if (target === null) return { style: applyPresetLook(d.style, key, presetLook) };
+      if (target === null) return { style: applyPresetLook(d.style, key, presetLook, builtIn?.layout) };
       const c = d.captions.find((x) => x.id === target);
       if (!c) return null;
       return { captions: replaceCaption(d.captions, target, { ...c, styleOverride: { ...(c.styleOverride ?? {}), ...presetLook, preset: key } }) };

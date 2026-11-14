@@ -26,6 +26,7 @@ export const DEFAULT_STYLE: CaptionStyle = {
   highlightColor: '#FFD400',
   highlightTextColor: '#000000',
   activeWordScale: 115,
+  textTransform: 'none',
   outlineColor: '#000000',
   outlineWidth: 6,
   shadowColor: '#000000',
@@ -48,12 +49,16 @@ export const DEFAULT_STYLE: CaptionStyle = {
 /** Only the "look" of a preset — never touches position, so applying a preset keeps the user's layout. */
 export type PresetLook = Omit<CaptionStyle, 'preset' | 'alignMatrix' | 'positionX' | 'positionY' | 'maxWidth' | 'textAlign'>;
 
+/** Layout a preset may carry (e.g. Hormozi sits in the middle of the frame). */
+export type PresetLayout = Partial<Pick<CaptionStyle, 'alignMatrix' | 'positionX' | 'positionY' | 'maxWidth' | 'textAlign'>>;
+
 export interface PresetDefinition {
   key: string;
   label: string;
   description: string;
   sample: string;
   look: PresetLook;
+  layout?: PresetLayout;
 }
 
 /**
@@ -67,6 +72,7 @@ export const BUILT_IN_PRESETS: PresetDefinition[] = presetData.presets.map((p) =
   description: p.description,
   sample: p.sample,
   look: { ...lookDefaults(), ...(p.style as Partial<PresetLook>) },
+  layout: 'layout' in p ? (p.layout as PresetLayout) : undefined,
 }));
 
 function lookDefaults(): PresetLook {
@@ -98,6 +104,6 @@ export const LAYOUT_TEMPLATES: Array<{ key: string; label: string; description: 
   { key: 'speaker', label: 'Speaker left', description: 'Left-aligned, for interviews and two-shots.', patch: { alignMatrix: 'bottom-left', positionX: 6, positionY: 90, maxWidth: 55, textAlign: 'left' } },
 ];
 
-export function applyPresetLook(style: CaptionStyle, presetKey: string, lookToApply: PresetLook): CaptionStyle {
-  return { ...style, ...lookToApply, preset: presetKey };
+export function applyPresetLook(style: CaptionStyle, presetKey: string, lookToApply: PresetLook, layout?: PresetLayout): CaptionStyle {
+  return { ...style, ...lookToApply, ...(layout ?? {}), preset: presetKey };
 }

@@ -74,7 +74,7 @@ class CaptionStylingTest extends TestCase
     {
         $backend = json_decode(file_get_contents(resource_path('captions/presets.json')), true);
         $keys = array_column($backend['presets'], 'key');
-        $this->assertSame(['spotlight', 'wordbox', 'modern', 'bold', 'minimal', 'cinema', 'youtube', 'tiktok', 'classic'], $keys);
+        $this->assertSame(['spotlight', 'hormozi', 'wordbox', 'modern', 'bold', 'minimal', 'cinema', 'youtube', 'tiktok', 'classic'], $keys);
         foreach ($backend['presets'] as $preset) {
             $this->assertSame([], $this->normalizer->errors($preset['style']), "preset {$preset['key']}");
         }
@@ -207,5 +207,18 @@ class CaptionStylingTest extends TestCase
         $this->assertStringContainsString('\\3c&H00D4FF&', $box, 'yellow box');
         $this->assertMatchesRegularExpression('/\{\\\\1c&H000000&\\\\bord0\}\{[^}]*\}එක/u', $text, 'black text in the box');
         $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\\\\bord[\d.]+\}\{[^}]*\}දෙක/u', $text, 'other words white');
+    }
+
+    public function test_uppercase_capitalises_english_and_leaves_sinhala_unchanged(): void
+    {
+        $ass = $this->renderer->render(
+            [['start' => 0, 'end' => 1, 'text' => 'ලංකාවේ bike showroom']],
+            ['textTransform' => 'uppercase', 'animation' => 'none', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            1280, 720,
+        );
+
+        $this->assertStringContainsString('ලංකාවේ', $ass);
+        $this->assertStringContainsString(' BIKE SHOWROOM', $ass);
+        $this->assertStringNotContainsString('bike', $ass);
     }
 }

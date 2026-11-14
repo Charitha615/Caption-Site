@@ -139,6 +139,8 @@ class GeminiTranscribeTest extends TestCase
     public function test_refiner_accepts_cleanup_but_rejects_translation_and_mismatches(): void
     {
         $this->assertTrue(GeminiCaptionRefiner::acceptable('ආයුබෝවන් මිතුරනි', 'ආයුබෝවන්, මිතුරනි!'));
+        $this->assertTrue(GeminiCaptionRefiner::acceptable('ලංකාවේ බයික් ෂෝරූම් එකකට ගියොත්', 'ලංකාවේ bike showroom එකකට ගියොත්'), 'loanwords to English');
+        $this->assertFalse(GeminiCaptionRefiner::acceptable('මම අද ගෙදර යනවා', 'I am going home today'), 'full translation');
         $this->assertFalse(GeminiCaptionRefiner::acceptable('ආයුබෝවන් මිතුරනි', 'Hello friends'), 'translation');
         $this->assertFalse(GeminiCaptionRefiner::acceptable('hello there friends', 'hi'), 'rewrite');
         $this->assertFalse(GeminiCaptionRefiner::acceptable('hello', ''));
@@ -172,7 +174,7 @@ class GeminiTranscribeTest extends TestCase
                 return ['duration' => 100.0, 'width' => 720, 'height' => 1280, 'fps' => 30.0, 'codec' => 'h264', 'audio_codec' => 'aac', 'sample_rate' => 48000, 'channels' => 1, 'has_audio' => true];
             }
 
-            public function extractAudio(string $videoPath, string $outputPath): string
+            public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string
             {
                 file_put_contents($outputPath, 'audio');
 
@@ -206,13 +208,13 @@ class GeminiTranscribeTest extends TestCase
         $this->assertSame(Project::STATUS_READY, $project->fresh()->status, (string) $project->fresh()->processing_error);
         $captions = Caption::where('project_id', $project->id)->orderBy('sequence')->get();
         $this->assertCount(2, $captions, 'one line per 60 s chunk');
-        $this->assertSame(61.0, (float) $captions[1]->start_time, 'second chunk shifted by its offset');
+        $this->assertSame(60.0, (float) $captions[1]->start_time, 'second chunk shifted by its offset, minus the 1 s lead-in');
 
         $first = $captions[0];
         $this->assertSame('ආයුබෝවන්, මිතුරනි!', $first->text);
         $this->assertSame('ආයුබෝවන් මිතුරනි', $first->metadata['original_text']);
         $this->assertTrue($first->metadata['cleaned']);
-        $this->assertEquals([1.0, 1.7], array_column($first->metadata['words'], 'start'), 'timings untouched by clean-up');
+        $this->assertEquals([0.0, 0.7], array_column($first->metadata['words'], 'start'), 'lead-in removed; timings otherwise untouched by clean-up');
         $this->assertSame('gemini-transcribe', $first->metadata['source']['transcriber']);
         $this->assertSame('gemini-3.8-flash', $first->metadata['source']['cleanup']);
 
@@ -254,5 +256,17 @@ class GeminiTranscribeTest extends TestCase
         }
 
         $this->assertSame(1, $calls);
+    }
+
+    public function test_lead_in_silence_is_removed_and_first_word_starts_at_zero(): void
+    {
+        $result = ProcessUploadedVideoJob::shiftTimeline(['segments' => [
+            ['text' => '2026 දී', 'start' => 1.02, 'end' => 2.1, 'words' => [['word' => '2026', 'start' => 1.02, 'end' => 1.6], ['word' => 'දී', 'start' => 1.6, 'end' => 2.1]]],
+            ['text' => 'after the end', 'start' => 31.5, 'end' => 32.0, 'words' => []],
+        ]], -1.0, 30.0);
+
+        $this->assertCount(1, $result['segments'], 'lines beyond the video are dropped');
+        $this->assertSame(0.02, $result['segments'][0]['start']);
+        $this->assertSame([0.02, 0.6], array_column($result['segments'][0]['words'], 'start'));
     }
 }

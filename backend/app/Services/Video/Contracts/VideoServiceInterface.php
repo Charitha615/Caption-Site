@@ -13,8 +13,11 @@ interface VideoServiceInterface
      */
     public function getMetadata(string $filePath): array;
 
-    /** Extracts a 16 kHz mono MP3 suitable for speech recognition. */
-    public function extractAudio(string $videoPath, string $outputPath): string;
+    /**
+     * Extracts a 16 kHz mono MP3 suitable for speech recognition, optionally preceded by
+     * $leadInSeconds of silence (speech models often miss words spoken at the very start).
+     */
+    public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string;
 
     /**
      * Splits audio into consecutive pieces of at most $seconds each.

@@ -31,6 +31,7 @@ describe('Export dialog', () => {
   beforeEach(() => {
     Object.values(exports).forEach((m) => m.mockReset());
     exports.list.mockResolvedValue([]);
+    exports.download.mockResolvedValue(undefined);
   });
 
   it('shows the original aspect ratio and only the resolutions the source supports', async () => {
@@ -68,8 +69,13 @@ describe('Export dialog', () => {
     expect(await screen.findByText('Rendering your video', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Render progress' })).toHaveAttribute('aria-valuenow', '40');
 
-    await userEvent.click(await screen.findByRole('button', { name: /download mp4/i }, { timeout: 3000 }));
-    expect(exports.download).toHaveBeenCalledWith('v1');
+    // Finishing while the user watches starts the download automatically…
+    await screen.findByRole('button', { name: /download mp4/i }, { timeout: 3000 });
+    await waitFor(() => expect(exports.download).toHaveBeenCalledWith('v1'));
+    expect(exports.download).toHaveBeenCalledTimes(1);
+    // …and the button is there to download again.
+    await userEvent.click(screen.getByRole('button', { name: /download mp4/i }));
+    expect(exports.download).toHaveBeenCalledTimes(2);
   });
 
   it('reopening during a render goes straight to its progress', async () => {

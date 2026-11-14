@@ -27,6 +27,7 @@ class CaptionStyleNormalizer
         'highlightColor' => '#FFD400',
         'highlightTextColor' => '#000000',
         'activeWordScale' => 115,
+        'textTransform' => 'none',
         'outlineColor' => '#000000',
         'outlineWidth' => 6,
         'shadowColor' => '#000000',
@@ -75,6 +76,7 @@ class CaptionStyleNormalizer
             'bottom-left', 'bottom-center', 'bottom-right',
         ],
         'animation' => ['none', 'fade', 'pop', 'bounce', 'slide', 'typewriter', 'karaoke', 'highlight'],
+        'textTransform' => ['none', 'uppercase'],
     ];
 
     public const COLORS = ['textColor', 'highlightColor', 'highlightTextColor', 'outlineColor', 'shadowColor', 'backgroundColor'];

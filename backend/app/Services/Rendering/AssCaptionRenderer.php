@@ -63,7 +63,13 @@ class AssCaptionRenderer
                 continue;
             }
             $resolved = $this->normalizer->resolve($global, $caption['style_override'] ?? null);
-            array_push($lines, ...$this->captionEvents($text, $start, $end, $caption['words'] ?? null, $resolved, $width, $height, $scale));
+            $words = $caption['words'] ?? null;
+            if (($resolved['textTransform'] ?? 'none') === 'uppercase') {
+                // Sinhala has no letter case, so only English/Latin letters change.
+                $text = mb_strtoupper($text, 'UTF-8');
+                $words = is_array($words) ? array_map(fn ($w) => array_merge($w, array_map(fn ($v) => is_string($v) ? mb_strtoupper($v, 'UTF-8') : $v, array_intersect_key($w, ['text' => 1, 'word' => 1]))), $words) : $words;
+            }
+            array_push($lines, ...$this->captionEvents($text, $start, $end, $words, $resolved, $width, $height, $scale));
         }
 
         return $this->header($width, $height, $global).implode("\n", $lines)."\n";

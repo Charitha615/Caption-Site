@@ -66,7 +66,8 @@ class GeminiCaptionRefiner implements CaptionRefinerInterface
         $prompt = <<<PROMPT
 You clean up machine-transcribed video captions. {$langNote}
 For each line: fix punctuation, spacing and capitalisation, and repair broken Sinhala Unicode (e.g. ZWJ conjuncts like ශ්‍රී).
-Rules: keep the SAME words and meaning; do not translate; do not add, remove, merge or split lines; keep English words in Latin script and Sinhala words in Sinhala script; if a line is already fine, return it unchanged.
+English words spoken inside Sinhala speech are often written phonetically in Sinhala letters — write those in English (Latin) letters: e.g. "බයික් ෂෝරූම්" → "bike showroom", "ෆියුල්" → "fuel", "සිස්ටම්" → "system", "මාකට් ස්ට්‍රැටජි" → "market strategy". Brand and model names too (e.g. "යමහා" → "Yamaha").
+Rules: keep the SAME words, word order and meaning; never translate Sinhala words into English or English into Sinhala; do not add, remove, merge or split lines; if a line is already fine, return it unchanged.
 Return a JSON object {"lines": [...]} with exactly one string per input line, in order.
 Input lines (JSON): 
 PROMPT;
@@ -115,22 +116,40 @@ PROMPT;
         return array_map(fn ($l) => is_string($l) ? normalizer_normalize(trim($l)) ?: trim($l) : '', $lines);
     }
 
-    /** Rejects edits that look like rewrites or translations rather than clean-up. */
+    /**
+     * Rejects edits that look like rewrites or translations rather than clean-up.
+     * Allowed: punctuation, spacing, Unicode repair, and English loanwords moving from
+     * Sinhala letters to Latin letters. Not allowed: dropping/adding words, English→Sinhala,
+     * or a mostly-Sinhala line turning into English (translation).
+     */
     public static function acceptable(string $original, ?string $cleaned): bool
     {
         if ($cleaned === null || trim($cleaned) === '') {
             return false;
         }
+        $words = fn (string $t) => preg_split('/\s+/u', trim($t), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $wa = count($words($original));
+        $wb = count($words($cleaned));
+        if (abs($wa - $wb) > max(1, (int) ceil($wa * 0.25))) {
+            return false; // words added or removed
+        }
         $a = mb_strlen($original);
         $b = mb_strlen($cleaned);
-        if ($a > 0 && ($b < $a * 0.6 || $b > $a * 1.5 + 4)) {
+        if ($a > 0 && ($b < $a * 0.5 || $b > $a * 1.6 + 4)) {
             return false;
         }
-        // Script must not flip (that would be translation/transliteration).
-        $sinhala = fn (string $t) => preg_match_all('/[\x{0D80}-\x{0DFF}]/u', $t);
-        $sa = $sinhala($original);
-        $sb = $sinhala($cleaned);
+        $sinhalaWords = fn (string $t) => count(array_filter($words($t), fn ($w) => preg_match('/[\x{0D80}-\x{0DFF}]/u', $w)));
+        $sa = $sinhalaWords($original);
+        $sb = $sinhalaWords($cleaned);
+        if ($sa === 0 && $sb > 0) {
+            return false; // English turned into Sinhala
+        }
 
-        return ! ($sa > 0 && $sb < $sa * 0.6) && ! ($sa === 0 && $sb > 0);
+        // Loanwords may move to Latin script, but Sinhala must not vanish (that is translation).
+        if ($sa >= 2 && $sb === 0) {
+            return false;
+        }
+
+        return ! ($sa >= 3 && $sb < $sa * 0.5);
     }
 }

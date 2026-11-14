@@ -127,7 +127,7 @@ function RenderPanel({ item, onCancel, onRetry, onDone }: { item: ExportItem; on
 
       {item.status === 'completed' && (
         <>
-          <p className="ed-render-sub">{formatBytes(item.file_size)} · {item.download_name}</p>
+          <p className="ed-render-sub">{formatBytes(item.file_size)} · {item.download_name} — your download has started. If it didn’t, use the button below.</p>
           {error && <p className="ed-notice is-error"><AlertTriangle size={14} aria-hidden="true" /> {error}</p>}
           <div className="ed-render-actions">
             <button type="button" className="ed-btn" onClick={onDone}>Export another</button>
@@ -255,6 +255,19 @@ export function ExportDialog() {
       setError(apiErrorMessage(err, 'Could not cancel the export.'));
     }
   };
+
+  // When the render being watched finishes, start the download automatically (once).
+  const watchedStatus = useRef<{ uuid: string; status: ExportItem['status'] } | null>(null);
+  useEffect(() => {
+    const current = items.find((e) => e.uuid === focusUuid);
+    const previous = watchedStatus.current;
+    watchedStatus.current = current ? { uuid: current.uuid, status: current.status } : null;
+    if (current?.status === 'completed' && previous?.uuid === current.uuid && previous.status !== 'completed') {
+      void Promise.resolve()
+        .then(() => exportService.download(current.uuid))
+        .catch((err) => setError(apiErrorMessage(err, 'Automatic download failed — use the Download button.')));
+    }
+  }, [items, focusUuid]);
 
   const exportVideo = () => void start({ type: 'mp4', resolution, quality: preferences?.default_export_quality ?? 'standard', template: null });
   const focused = items.find((e) => e.uuid === focusUuid) ?? null;

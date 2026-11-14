@@ -82,6 +82,7 @@ export function captionBoxStyle(style: CaptionStyle, scale: number): React.CSSPr
     fontSize: px(style.fontSize),
     fontWeight: style.fontWeight,
     fontStyle: style.fontStyle,
+    textTransform: style.textTransform === 'uppercase' ? 'uppercase' : undefined,
     lineHeight: style.lineHeight,
     letterSpacing: style.letterSpacing ? px(style.letterSpacing) : undefined,
     color: style.textColor,
@@ -108,6 +109,7 @@ const ENUMS: Record<string, string[]> = {
   fontStyle: ['normal', 'italic'],
   textAlign: ['left', 'center', 'right'],
   animation: ['none', 'fade', 'pop', 'bounce', 'slide', 'typewriter', 'karaoke', 'highlight'],
+  textTransform: ['none', 'uppercase'],
 };
 
 const LEGACY_PX_KEYS: Array<keyof CaptionStyle> = ['fontSize', 'outlineWidth', 'shadowBlur', 'shadowOffsetX', 'shadowOffsetY', 'borderRadius', 'padding'];

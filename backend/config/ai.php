@@ -18,6 +18,10 @@ return [
     // Each user brings their own Google AI key (Account & usage). When true, users
     // without a key fall back to GEMINI_API_KEY (the server's key) instead of being
     // asked to add one. Keep false unless the platform pays for everyone's AI usage.
+    // Seconds of silence put before the audio sent for transcription (removed again from the
+    // timings). Speech models often drop words spoken in the very first instant of a file.
+    'audio_lead_in_seconds' => (float) env('AI_AUDIO_LEAD_IN', 1.0),
+
     'allow_server_key' => (bool) env('AI_ALLOW_SERVER_KEY', false),
 
     // Where users create a key (linked from the Account page).

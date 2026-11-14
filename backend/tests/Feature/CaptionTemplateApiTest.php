@@ -29,10 +29,10 @@ class CaptionTemplateApiTest extends TestCase
         $res = $this->as($me)->getJson('/api/caption-templates')->assertOk();
         $names = array_column($res->json('data.templates'), 'name');
 
-        $this->assertSame(['Spotlight', 'Word Box', 'Modern', 'Bold', 'Minimal', 'Cinema', 'YouTube', 'TikTok', 'Classic', 'Mine'], $names);
+        $this->assertSame(['Spotlight', 'Hormozi Style', 'Word Box', 'Modern', 'Bold', 'Minimal', 'Cinema', 'YouTube', 'TikTok', 'Classic', 'Mine'], $names);
         $this->assertSame('#FFD400', $res->json('data.templates.0.style.highlightColor'));
         $this->assertSame('karaoke', $res->json('data.templates.0.style.animation'));
-        $this->assertSame(68, $res->json('data.templates.3.style.fontSize'));
+        $this->assertSame(68, $res->json('data.templates.4.style.fontSize'));
         $presets = $this->presetCount();
         $this->assertTrue($res->json("data.templates.{$presets}.is_owner"));
         $this->assertArrayNotHasKey('user_id', $res->json("data.templates.{$presets}"));

@@ -80,11 +80,11 @@ export const captionService = {
       style_override?: Record<string, unknown> | null;
       metadata?: Record<string, unknown> | null;
     }>,
-    options: { silent?: boolean } = {}
+    options: { silent?: boolean; confirmEmpty?: boolean } = {}
   ): Promise<{ captions: Caption[]; count: number }> {
     const res = await apiClient.put<ApiResponse<{ captions: Caption[]; count: number }>>(
       `/projects/${projectUuid}/captions/sync`,
-      { captions },
+      { captions, ...(options.confirmEmpty ? { confirm_empty: true } : {}) },
       { silent: options.silent }
     );
     return res.data.data;

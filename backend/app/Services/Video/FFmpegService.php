@@ -67,8 +67,9 @@ class FFmpegService implements VideoServiceInterface
         ];
     }
 
-    public function extractAudio(string $videoPath, string $outputPath): string
+    public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string
     {
+        $filter = $leadInSeconds > 0 ? ['-af', sprintf('adelay=%d:all=1', (int) round($leadInSeconds * 1000))] : [];
         if (! is_dir(dirname($outputPath))) {
             mkdir(dirname($outputPath), 0700, true);
         }
@@ -76,7 +77,7 @@ class FFmpegService implements VideoServiceInterface
         $result = $this->run([
             $this->ffmpegBinary, '-hide_banner', '-nostdin', '-y',
             '-i', $videoPath,
-            '-vn', '-map', '0:a:0',
+            '-vn', '-map', '0:a:0', ...$filter,
             '-acodec', 'libmp3lame', '-ar', '16000', '-ac', '1', '-b:a', '64k',
             $outputPath,
         ], 900, 'ffmpeg');

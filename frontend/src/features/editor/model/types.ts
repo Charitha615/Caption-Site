@@ -27,6 +27,8 @@ export type TextAlign = 'left' | 'center' | 'right';
 
 export type FontStyle = 'normal' | 'italic';
 
+export type TextTransform = 'none' | 'uppercase';
+
 export type CanvasAspect = 'source' | '16:9' | '9:16' | '1:1' | '4:5';
 
 export interface CaptionWord {
@@ -64,6 +66,8 @@ export interface CaptionStyle {
   highlightTextColor: string;
   /** Size of the spoken word in % (100 = no zoom) for karaoke / word box. */
   activeWordScale: number;
+  /** 'uppercase' capitalises Latin letters (Sinhala has no case). */
+  textTransform: TextTransform;
 
   /** Stroke ("outline") — names kept for compatibility with stored overrides. */
   outlineColor: string;

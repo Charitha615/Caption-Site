@@ -45,7 +45,7 @@ class CaptionPipelineTest extends TestCase
                 return ['duration' => $this->duration, 'width' => 1080, 'height' => 1920, 'fps' => 30.0, 'codec' => 'h264', 'audio_codec' => 'aac', 'sample_rate' => 48000, 'channels' => 2, 'has_audio' => $this->hasAudio];
             }
 
-            public function extractAudio(string $videoPath, string $outputPath): string
+            public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string
             {
                 file_put_contents($outputPath, 'ID3-audio');
 

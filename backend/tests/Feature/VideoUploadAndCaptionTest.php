@@ -345,8 +345,12 @@ class VideoUploadAndCaptionTest extends TestCase
             ->putJson("/api/projects/{$project->uuid}/captions/sync", ['captions' => $captions]);
 
         $sync([$caption])->assertStatus(200);
-        // Editor deletes every caption (empty list must be accepted)...
-        $sync([])->assertStatus(200);
+        // Editor deletes every caption: allowed, but only when explicitly confirmed...
+        $sync([])->assertStatus(409);
+        $this->assertNotSoftDeleted('captions', ['uuid' => $uuid]);
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->putJson("/api/projects/{$project->uuid}/captions/sync", ['captions' => [], 'confirm_empty' => true])
+            ->assertStatus(200);
         $this->assertSoftDeleted('captions', ['uuid' => $uuid]);
 
         // ...then the user presses undo, which re-sends the same client UUID.

@@ -128,7 +128,8 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                 $this->phase($project, Project::STATUS_EXTRACTING_AUDIO);
                 $audioTmp = $storage->tempPath('mp3');
                 try {
-                    $video->extractAudio($videoPath, $audioTmp);
+                    $leadIn = max(0.0, (float) config('ai.audio_lead_in_seconds', 1.0));
+                    $video->extractAudio($videoPath, $audioTmp, $leadIn);
                     $audioKey = "audio/{$project->uuid}.mp3";
                     $storage->putLocalFile($audioTmp, $audioKey, $media->disk);
                     $media->update(['audio_path' => $audioKey]);
@@ -136,7 +137,8 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                     // 4. Transcribe (Gemini 3.5 Transcribe → text-model fallback), in chunks for long audio.
                     $this->phase($project, Project::STATUS_TRANSCRIBING);
                     $usage->ensureCanRequestAI($user);
-                    $result = $this->transcribe($ai, $video, $storage, $usage, $user, $project, $audioTmp, (float) $meta['duration']);
+                    $result = $this->transcribe($ai, $video, $storage, $usage, $user, $project, $audioTmp, (float) $meta['duration'] + $leadIn);
+                    $result = self::shiftTimeline($result, -$leadIn, (float) $meta['duration']);
                 } finally {
                     @unlink($audioTmp);
                 }
@@ -208,6 +210,34 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         if ($project && $project->isProcessing()) {
             $this->markFailed($project, 'Processing took too long or was interrupted. Please try again.');
         }
+    }
+
+    /**
+     * Moves every caption and word by $delta seconds (removing the silent lead-in), clamped to
+     * [0, duration]. Lines that end up empty in time are dropped.
+     */
+    public static function shiftTimeline(array $result, float $delta, float $duration): array
+    {
+        if ($delta == 0.0) {
+            return $result;
+        }
+        $clamp = fn (float $t) => round(min(max($t + $delta, 0.0), $duration), 3);
+        $segments = [];
+        foreach ($result['segments'] as $seg) {
+            $seg['start'] = $clamp((float) $seg['start']);
+            $seg['end'] = $clamp((float) $seg['end']);
+            if ($seg['end'] - $seg['start'] < 0.05) {
+                if ($seg['start'] >= $duration) {
+                    continue;
+                }
+                $seg['end'] = min($duration, $seg['start'] + 0.3);
+            }
+            $seg['words'] = array_map(fn ($w) => ['start' => $clamp((float) $w['start']), 'end' => $clamp((float) $w['end'])] + $w, $seg['words'] ?? []);
+            $segments[] = $seg;
+        }
+        $result['segments'] = $segments;
+
+        return $result;
     }
 
     /**

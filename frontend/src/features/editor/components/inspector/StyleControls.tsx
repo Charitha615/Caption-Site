@@ -59,6 +59,18 @@ export const StyleControls = memo(function StyleControls({ value, target }: { va
         </div>
       </Section>
 
+      <Section title="Letter case">
+        <Segmented<'none' | 'uppercase'>
+          ariaLabel="Letter case"
+          value={value.textTransform}
+          onChange={(v) => set('textTransform', v)}
+          options={[
+            { value: 'none', label: 'As typed' },
+            { value: 'uppercase', label: 'ENGLISH CAPS', tip: 'Capitalises English letters; Sinhala is unchanged' },
+          ]}
+        />
+      </Section>
+
       <Section title="Colour & stroke">
         <div className="ed-grid-2">
           <ColorField label="Text" value={value.textColor} onChange={(v) => set('textColor', v)} />

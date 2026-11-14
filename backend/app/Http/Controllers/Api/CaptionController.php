@@ -194,6 +194,14 @@ class CaptionController extends Controller
             'captions.*.text' => ['nullable', 'string', 'max:'.self::MAX_TEXT_LENGTH],
         ] + $this->captionRules('captions.*.'));
 
+        // Safety net: an empty list would delete every caption. Require the client to say so explicitly,
+        // so a stale/placeholder document from a loading editor can never wipe a project.
+        if ($validated['captions'] === [] && ! $request->boolean('confirm_empty') && $project->captions()->exists()) {
+            AppLog::warning('captions.empty_sync_refused', ['project' => $project->uuid]);
+
+            return $this->errorResponse('Refused to delete every caption without confirmation.', 409);
+        }
+
         $incomingUuids = [];
         $syncedCaptions = [];
 

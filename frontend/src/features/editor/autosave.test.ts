@@ -38,7 +38,7 @@ describe('autosave', () => {
 
     expect(sync).toHaveBeenCalledTimes(1);
     expect(sync.mock.calls[0][1][0].text).toBe('hey');
-    expect(sync.mock.calls[0][2]).toEqual({ silent: true });
+    expect(sync.mock.calls[0][2]).toMatchObject({ silent: true, confirmEmpty: false });
     expect(update).not.toHaveBeenCalled(); // style untouched → no settings PATCH
     expect(useEditorProjectStore.getState().saveStatus).toBe('saved');
   });
@@ -53,5 +53,29 @@ describe('autosave', () => {
     await vi.advanceTimersByTimeAsync(3500);
     expect(sync).toHaveBeenCalledTimes(2);
     expect(useEditorProjectStore.getState().saveStatus).toBe('saved');
+  });
+});
+
+describe('autosave never wipes captions while a project is loading', () => {
+  beforeEach(() => {
+    sync.mockReset().mockResolvedValue({ captions: [], count: 0 });
+    update.mockReset().mockResolvedValue({});
+  });
+
+  it('does not sync the empty placeholder document of a project that is still loading', async () => {
+    // Session 1: a project with captions was open and saved.
+    useCaptionStore.getState().load({ ...EMPTY_DOCUMENT, captions: [{ id: 'c1', start: 0, end: 2, text: 'hello', language: 'en' }] });
+    useEditorProjectStore.getState().setLoaded({ uuid: 'p1', name: 'P', duration: 30, settings: {}, isDemo: false, sourceWidth: 1920, sourceHeight: 1080, hasServerVideo: true });
+    startAutosave();
+
+    // Opening (another or the same) project: stores reset to an empty doc while captions load…
+    stopAutosave();
+    useCaptionStore.getState().load(EMPTY_DOCUMENT);
+    useEditorProjectStore.getState().setLoading('p2');
+
+    // …and something flushes in that window (leaving the editor, StrictMode remount).
+    await flush();
+
+    expect(sync).not.toHaveBeenCalled();
   });
 });
