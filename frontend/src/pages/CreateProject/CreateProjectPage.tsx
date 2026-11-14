@@ -66,7 +66,9 @@ export const CreateProjectPage: React.FC = () => {
     if (settled.is_ready) {
       setStage('ready');
       void reloadUsage(true).catch(() => undefined);
-      addToast({ type: 'success', title: 'Captions ready', message: `${settled.captions_count} caption lines were generated.` });
+      addToast({ type: 'success', title: 'Captions ready', message: `${settled.captions_count} caption lines were generated — opening the editor.` });
+      // Processing finished: go straight to the studio editor.
+      navigate(`/projects/${settled.uuid}/editor`);
     } else if (settled.is_failed) {
       setStage('failed');
       setErrorMessage(settled.error ?? 'Processing failed. Please try again.');

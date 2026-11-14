@@ -100,7 +100,15 @@ export const ProjectDetailsPage: React.FC = () => {
 
   const polling = isCurrent && isProcessing(project);
   // When processing finishes, reload captions and the full project (thumbnail, video URL).
-  const { status, restart } = useProjectStatus(uuid, polling, () => void load());
+  // When processing finishes: open the editor if captions are ready, otherwise reload (failure reason etc.).
+  const { status, restart } = useProjectStatus(uuid, polling, (settled) => {
+    if (settled.is_ready) {
+      addToast({ type: 'success', title: 'Captions ready', message: 'Opening the editor…' });
+      navigate(`/projects/${settled.uuid}/editor`);
+    } else {
+      void load();
+    }
+  });
 
   const startRegenerate = async () => {
     if (!uuid) return;

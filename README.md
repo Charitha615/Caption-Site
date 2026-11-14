@@ -30,7 +30,7 @@ You need PHP 8.3+, Composer, Node 20+, MySQL 8 (or PostgreSQL) and FFmpeg with l
 
 - **Uploads:** chunked and resumable (survives network drops), progress with speed/ETA, cancel, content-based file validation.
 - **AI captions:** one Gemini request per video, word-level timings, Sinhala Unicode preserved (ZWJ conjuncts such as ශ්‍රී).
-- **Studio editor:** timeline with drag-to-retime, split/merge, undo/redo, keyboard shortcuts, 7 style presets and saved templates, debounced autosave.
+- **Studio editor:** timeline with drag-to-retime, split/merge, undo/redo, keyboard shortcuts, 8 style presets (default **Spotlight**: white text, spoken word in yellow) and saved templates, debounced autosave.
 - **Exports:** SRT, VTT, TXT, JSON instantly; MP4 renders on a background queue at 720p/1080p/4K, matching the editor preview.
 - **SaaS foundation:** per-user authorization, rate limits, private storage with signed URLs, usage ledger and plan limits, structured logs, Horizon.
 
