@@ -13,14 +13,15 @@ use Tests\TestCase;
 class CaptionStylingTest extends TestCase
 {
     private CaptionStyleNormalizer $normalizer;
+
     private AssCaptionRenderer $renderer;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->normalizer = new CaptionStyleNormalizer();
+        $this->normalizer = new CaptionStyleNormalizer;
         // Empty fonts dir → deterministic default size factor.
-        $this->renderer = new AssCaptionRenderer($this->normalizer, new FontRegistry(sys_get_temp_dir() . '/no-fonts-here'));
+        $this->renderer = new AssCaptionRenderer($this->normalizer, new FontRegistry(sys_get_temp_dir().'/no-fonts-here'));
     }
 
     public function test_normalizer_fills_defaults_and_drops_unknown_keys(): void
@@ -73,13 +74,13 @@ class CaptionStylingTest extends TestCase
     {
         $backend = json_decode(file_get_contents(resource_path('captions/presets.json')), true);
         $keys = array_column($backend['presets'], 'key');
-        $this->assertSame(['modern', 'bold', 'minimal', 'cinema', 'youtube', 'tiktok', 'classic'], $keys);
+        $this->assertSame(['spotlight', 'modern', 'bold', 'minimal', 'cinema', 'youtube', 'tiktok', 'classic'], $keys);
         foreach ($backend['presets'] as $preset) {
             $this->assertSame([], $this->normalizer->errors($preset['style']), "preset {$preset['key']}");
         }
 
         $frontendPath = base_path('../frontend/src/features/editor/model/presets.json');
-        if (!is_file($frontendPath)) {
+        if (! is_file($frontendPath)) {
             $this->markTestSkipped('Frontend not present in this checkout.');
         }
         $this->assertSame($backend, json_decode(file_get_contents($frontendPath), true), 'presets.json copies have drifted');
@@ -99,7 +100,7 @@ class CaptionStylingTest extends TestCase
         $ass = $this->renderer->render(
             [['start' => 1, 'end' => 3, 'text' => 'Hello']],
             ['fontSize' => 54, 'padding' => 10, 'alignMatrix' => 'bottom-center', 'positionX' => 50, 'positionY' => 90,
-             'maxWidth' => 80, 'animation' => 'fade', 'outlineWidth' => 3, 'backgroundOpacity' => 50, 'shadowOpacity' => 0],
+                'maxWidth' => 80, 'animation' => 'fade', 'outlineWidth' => 3, 'backgroundOpacity' => 50, 'shadowOpacity' => 0],
             1920, 1080,
         );
 
@@ -114,7 +115,7 @@ class CaptionStylingTest extends TestCase
         $this->assertStringContainsString('{\an2\pos(960,966)\fad(280,0)', $text);
         $this->assertStringContainsString('\bord3', $text);
         // Font size = 54px × size factor (no font files → default factor).
-        $this->assertStringContainsString('\fs' . rtrim(rtrim(number_format(54 * FontRegistry::DEFAULT_SIZE_FACTOR, 2, '.', ''), '0'), '.'), $text);
+        $this->assertStringContainsString('\fs'.rtrim(rtrim(number_format(54 * FontRegistry::DEFAULT_SIZE_FACTOR, 2, '.', ''), '0'), '.'), $text);
         // Wrap width 80% of frame minus padding → margins on both sides.
         $this->assertStringContainsString(',0202,0202,0000,', $text);
     }
@@ -132,7 +133,7 @@ class CaptionStylingTest extends TestCase
             ['script' => 'sinhala', 'text' => 'සිංහල'],
         ], $runs);
 
-        $ass = $this->renderer->render([['start' => 0, 'end' => 1, 'text' => 'ලංකාව AI']], ['backgroundOpacity' => 0, 'shadowOpacity' => 0], 1280, 720);
+        $ass = $this->renderer->render([['start' => 0, 'end' => 1, 'text' => 'ලංකාව AI']], ['englishFontFamily' => '"Inter", sans-serif', 'fontWeight' => 600, 'animation' => 'none', 'backgroundOpacity' => 0, 'shadowOpacity' => 0], 1280, 720);
         $this->assertMatchesRegularExpression('/\{\\\\fnNoto Sans Sinhala\\\\fs[\d.]+\\\\b600\\\\i0\}ලංකාව\{\\\\fnInter\\\\fs[\d.]+\\\\b600\\\\i0\} AI$/m', $ass);
     }
 
@@ -163,7 +164,7 @@ class CaptionStylingTest extends TestCase
 
     public function test_font_weight_resolves_to_installed_face_like_css(): void
     {
-        $dir = sys_get_temp_dir() . '/fonts-' . bin2hex(random_bytes(3));
+        $dir = sys_get_temp_dir().'/fonts-'.bin2hex(random_bytes(3));
         mkdir($dir);
         $fonts = new FontRegistry($dir);
         // No files installed: fall back to family + requested weight.

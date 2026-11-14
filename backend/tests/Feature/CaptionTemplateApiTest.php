@@ -16,7 +16,7 @@ class CaptionTemplateApiTest extends TestCase
         // Sanctum caches the resolved user per test; reset it so each call really is that user.
         $this->app['auth']->forgetGuards();
 
-        return $this->withHeader('Authorization', 'Bearer ' . $user->createToken('t')->plainTextToken);
+        return $this->withHeader('Authorization', 'Bearer '.$user->createToken('t')->plainTextToken);
     }
 
     public function test_lists_system_templates_and_only_own_custom_templates(): void
@@ -29,10 +29,13 @@ class CaptionTemplateApiTest extends TestCase
         $res = $this->as($me)->getJson('/api/caption-templates')->assertOk();
         $names = array_column($res->json('data.templates'), 'name');
 
-        $this->assertSame(['Modern', 'Bold', 'Minimal', 'Cinema', 'YouTube', 'TikTok', 'Classic', 'Mine'], $names);
-        $this->assertSame(68, $res->json('data.templates.1.style.fontSize'));
-        $this->assertTrue($res->json('data.templates.7.is_owner'));
-        $this->assertArrayNotHasKey('user_id', $res->json('data.templates.7'));
+        $this->assertSame(['Spotlight', 'Modern', 'Bold', 'Minimal', 'Cinema', 'YouTube', 'TikTok', 'Classic', 'Mine'], $names);
+        $this->assertSame('#FFD400', $res->json('data.templates.0.style.highlightColor'));
+        $this->assertSame('karaoke', $res->json('data.templates.0.style.animation'));
+        $this->assertSame(68, $res->json('data.templates.2.style.fontSize'));
+        $presets = $this->presetCount();
+        $this->assertTrue($res->json("data.templates.{$presets}.is_owner"));
+        $this->assertArrayNotHasKey('user_id', $res->json("data.templates.{$presets}"));
     }
 
     public function test_create_normalises_style_and_rejects_invalid_values(): void
@@ -72,6 +75,11 @@ class CaptionTemplateApiTest extends TestCase
         CaptionTemplate::syncSystemTemplates();
         CaptionTemplate::syncSystemTemplates();
 
-        $this->assertSame(7, CaptionTemplate::where('is_system', true)->count());
+        $this->assertSame($this->presetCount(), CaptionTemplate::where('is_system', true)->count());
+    }
+
+    private function presetCount(): int
+    {
+        return count(json_decode(file_get_contents(resource_path('captions/presets.json')), true)['presets']);
     }
 }

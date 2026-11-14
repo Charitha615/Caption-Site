@@ -15,33 +15,33 @@ namespace App\Services\Caption;
 class CaptionStyleNormalizer
 {
     public const DEFAULTS = [
-        'preset' => 'modern',
-        'englishFontFamily' => '"Inter", sans-serif',
+        'preset' => 'spotlight',
+        'englishFontFamily' => '"Poppins", sans-serif',
         'fontFamily' => '"Noto Sans Sinhala", sans-serif',
-        'fontSize' => 56,
-        'fontWeight' => 600,
+        'fontSize' => 64,
+        'fontWeight' => 800,
         'fontStyle' => 'normal',
-        'lineHeight' => 1.3,
+        'lineHeight' => 1.35,
         'letterSpacing' => 0,
         'textColor' => '#FFFFFF',
-        'highlightColor' => '#F97316',
+        'highlightColor' => '#FFD400',
         'outlineColor' => '#000000',
-        'outlineWidth' => 0,
+        'outlineWidth' => 6,
         'shadowColor' => '#000000',
-        'shadowOpacity' => 50,
-        'shadowBlur' => 12,
+        'shadowOpacity' => 60,
+        'shadowBlur' => 8,
         'shadowOffsetX' => 0,
-        'shadowOffsetY' => 4,
-        'backgroundColor' => '#111827',
-        'backgroundOpacity' => 82,
-        'borderRadius' => 16,
-        'padding' => 18,
+        'shadowOffsetY' => 3,
+        'backgroundColor' => '#000000',
+        'backgroundOpacity' => 0,
+        'borderRadius' => 12,
+        'padding' => 12,
         'textAlign' => 'center',
         'alignMatrix' => 'bottom-center',
         'positionX' => 50,
         'positionY' => 92,
         'maxWidth' => 80,
-        'animation' => 'fade',
+        'animation' => 'karaoke',
     ];
 
     /** [min, max] for numeric properties. */
@@ -91,13 +91,13 @@ class CaptionStyleNormalizer
      */
     public function normalizePartial(mixed $raw): array
     {
-        if (!is_array($raw)) {
+        if (! is_array($raw)) {
             return [];
         }
 
         $out = [];
         foreach ($raw as $key => $value) {
-            if (!array_key_exists($key, self::DEFAULTS)) {
+            if (! array_key_exists($key, self::DEFAULTS)) {
                 continue;
             }
             $clean = $this->cleanValue($key, $value);
@@ -122,12 +122,12 @@ class CaptionStyleNormalizer
      */
     public function errors(mixed $raw): array
     {
-        if (!is_array($raw)) {
+        if (! is_array($raw)) {
             return ['Style must be an object.'];
         }
         $errors = [];
         foreach ($raw as $key => $value) {
-            if (!array_key_exists($key, self::DEFAULTS)) {
+            if (! array_key_exists($key, self::DEFAULTS)) {
                 continue; // unknown keys are ignored, not rejected (forward compatible)
             }
             if ($this->cleanValue($key, $value) === null) {
@@ -141,7 +141,7 @@ class CaptionStyleNormalizer
     protected function cleanValue(string $key, mixed $value): mixed
     {
         if (isset(self::RANGES[$key])) {
-            if (!is_numeric($value)) {
+            if (! is_numeric($value)) {
                 return null;
             }
             [$min, $max] = self::RANGES[$key];
@@ -179,7 +179,7 @@ class CaptionStyleNormalizer
             return strtoupper("#{$h[0]}{$h[0]}{$h[1]}{$h[1]}{$h[2]}{$h[2]}");
         }
         if (preg_match('/^#([0-9a-f]{6})([0-9a-f]{2})?$/i', $value, $m)) {
-            return '#' . strtoupper($m[1]);
+            return '#'.strtoupper($m[1]);
         }
         if (preg_match('/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$/i', $value, $m)) {
             [$r, $g, $b] = array_map(fn ($c) => min(255, (int) $c), [$m[1], $m[2], $m[3]]);

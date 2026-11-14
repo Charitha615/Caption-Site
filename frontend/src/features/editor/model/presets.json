@@ -2,6 +2,35 @@
   "version": 1,
   "presets": [
     {
+      "key": "spotlight",
+      "label": "Spotlight",
+      "description": "White text; the word being spoken lights up yellow.",
+      "sample": "ලංකාවේ අලුත් Story",
+      "style": {
+        "englishFontFamily": "\"Poppins\", sans-serif",
+        "fontFamily": "\"Noto Sans Sinhala\", sans-serif",
+        "fontSize": 64,
+        "fontWeight": 800,
+        "fontStyle": "normal",
+        "lineHeight": 1.35,
+        "letterSpacing": 0,
+        "textColor": "#FFFFFF",
+        "highlightColor": "#FFD400",
+        "outlineColor": "#000000",
+        "outlineWidth": 6,
+        "shadowColor": "#000000",
+        "shadowOpacity": 60,
+        "shadowBlur": 8,
+        "shadowOffsetX": 0,
+        "shadowOffsetY": 3,
+        "backgroundColor": "#000000",
+        "backgroundOpacity": 0,
+        "borderRadius": 12,
+        "padding": 12,
+        "animation": "karaoke"
+      }
+    },
+    {
       "key": "modern",
       "label": "Modern",
       "description": "Rounded dark pill, crisp white text.",
