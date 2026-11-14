@@ -72,19 +72,21 @@ class CaptionTemplate extends Model
         $normalizer = app(CaptionStyleNormalizer::class);
 
         foreach ($data['presets'] as $i => $preset) {
-            static::withTrashed()->updateOrCreate(
-                ['slug' => $preset['key'], 'user_id' => null],
-                [
-                    'name' => $preset['label'],
-                    'description' => $preset['description'] ?? null,
-                    'category' => 'preset',
-                    'is_system' => true,
-                    'style' => $normalizer->normalize(['preset' => $preset['key']] + $preset['style']),
-                    'preview_text' => $preset['sample'] ?? null,
-                    'sort_order' => $i,
-                    'deleted_at' => null,
-                ],
-            );
+            // firstOrNew + explicit uuid: model events may be muted (e.g. seeders using
+            // WithoutModelEvents), so we can't rely on the `creating` hook here.
+            $template = static::withTrashed()->firstOrNew(['slug' => $preset['key'], 'user_id' => null]);
+            $template->uuid ??= (string) Str::uuid();
+            $template->fill([
+                'name' => $preset['label'],
+                'description' => $preset['description'] ?? null,
+                'category' => 'preset',
+                'is_system' => true,
+                'style' => $normalizer->normalize(['preset' => $preset['key']] + $preset['style']),
+                'preview_text' => $preset['sample'] ?? null,
+                'sort_order' => $i,
+            ]);
+            $template->deleted_at = null;
+            $template->save();
         }
 
         return count($data['presets']);

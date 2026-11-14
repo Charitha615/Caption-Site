@@ -1,5 +1,15 @@
 # SampleCap
 
+## Quick start
+
+After the one-time setup below, start the API, queue worker and frontend together:
+
+```bash
+./dev.sh
+```
+
+It uses MAMP's PHP automatically if `php` isn't on your PATH.
+
 ## Run the backend (Laravel API — http://localhost:8000)
 
 ```bash
