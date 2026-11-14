@@ -32,6 +32,8 @@ class GeminiAIProvider implements AIProviderInterface
         protected ?string $model = null,
         protected ?string $baseUrl = null,
         protected ?string $uploadUrl = null,
+        /** True when the key belongs to the user (BYOK) — changes the wording of key errors. */
+        protected bool $isUserKey = false,
     ) {
         $this->apiKey ??= config('ai.gemini.api_key');
         $this->model ??= (string) config('ai.gemini.model');
@@ -170,17 +172,32 @@ class GeminiAIProvider implements AIProviderInterface
         }
 
         $status = $response->status();
+        $providerError = $response->json('error.message') ?? mb_substr($response->body(), 0, 500);
+        $reason = collect($response->json('error.details') ?? [])->pluck('reason')->filter()->first();
+        $keyRejected = GeminiKeyVerifier::isKeyRejection($status, $providerError, $reason);
         AppLog::error('ai.request_failed', [
             'provider' => 'gemini',
             'model' => $this->model,
             'stage' => $stage,
             'status' => $status,
-            'provider_error' => $response->json('error.message') ?? mb_substr($response->body(), 0, 500),
+            'user_key' => $this->isUserKey,
+            'key_rejected' => $keyRejected,
+            'provider_error' => $providerError,
         ]);
 
+        if ($keyRejected) {
+            throw new AIProviderException(
+                $this->isUserKey
+                    ? 'Google rejected your AI API key. Update or verify it in Account & usage, then retry.'
+                    : 'AI captioning is temporarily unavailable. Please contact support.',
+                ['status' => $status, 'stage' => $stage, 'key_rejected' => true],
+            );
+        }
+
         $message = match (true) {
-            $status === 429 => 'The AI service is busy right now. Please try again in a few minutes.',
-            in_array($status, [401, 403], true) => 'AI captioning is temporarily unavailable. Please contact support.',
+            $status === 429 => $this->isUserKey
+                ? 'Your Google AI key has run out of quota. Check your limits in Google AI Studio, then retry.'
+                : 'The AI service is busy right now. Please try again in a few minutes.',
             $status === 400 => 'The AI service could not process this audio.',
             default => 'The AI service failed to respond. Please try again.',
         };

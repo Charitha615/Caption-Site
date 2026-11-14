@@ -138,6 +138,7 @@ Indexes cover the hot queries: `(user_id, status)`, `(user_id, created_at)` on p
 The job works on a **local copy** (`MediaStorage::withLocalCopy`) so the media disk can be S3. Failures are logged as `pipeline.failed` / `pipeline.crashed` with the project id and technical context.
 
 ### AI provider
+- **Bring your own key.** Each user saves their own Google AI key on Account & usage (created at https://aistudio.google.com/app/api-keys). `AiKeyController` checks it with Google (`GeminiKeyVerifier` fetches the configured model — free, and proves the key can use that model) before storing it with Eloquent's `encrypted` cast; only the last 4 characters are ever returned. `AIProviderFactory::forUser()` builds a Gemini provider with the project owner's key. Uploads and regeneration are refused up front (`422 ai_key_required`) when the user has no usable key. If Google rejects the key during processing, the project fails with a pointer to Account & usage and the key is marked `invalid`. `AI_ALLOW_SERVER_KEY=true` lets keyless users fall back to the server's `GEMINI_API_KEY`.
 - `GeminiAIProvider`: API key in the `x-goog-api-key` header (never in URLs), inline audio up to `GEMINI_INLINE_MAX_BYTES`, otherwise the Gemini **Files API** (streamed resumable upload, deleted afterwards). JSON response schema enforced; retries 408/429/5xx with backoff; safety blocks, truncated output and malformed JSON all raise `AIProviderException`. It **never** invents captions.
 - `SegmentNormalizer` cleans output: drops empty and out-of-range lines, clamps to the media duration, sorts, removes overlaps, keeps Sinhala ZWJ conjuncts.
 - `FakeAIProvider` returns clearly-labelled sample lines. Used when `AI_PROVIDER=fake`, or when no key is set **outside production**. Tests force it (`phpunit.xml`) and block real HTTP (`Http::preventStrayRequests()`).
@@ -280,6 +281,7 @@ API: `GET/POST /api/caption-templates`, `DELETE /api/caption-templates/{uuid}`. 
 | CSRF | Not applicable: no cookie authentication (Sanctum stateful domains are empty, CORS `supports_credentials=false`). |
 | CORS | Only `CORS_ALLOWED_ORIGINS`; limited methods/headers. |
 | Headers | `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, HSTS on HTTPS, `X-Request-Id`. |
+| User AI keys | Encrypted at rest with `APP_KEY`, `$hidden` on the model, only the last 4 characters leave the server, sent to Google only in a header, save/verify rate-limited (10/min). Rotating `APP_KEY` makes saved keys unreadable — users must re-enter them. |
 | Secrets | Never logged: `AppLog` redacts keys/tokens/passwords/signatures and Google keys in any string. Gemini key travels in a header. Stack traces never reach clients. |
 | Queues | Jobs carry model ids only (SerializesModels); Horizon dashboard requires HTTP Basic credentials outside local. |
 

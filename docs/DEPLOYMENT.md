@@ -66,8 +66,9 @@ CACHE_STORE=redis
 RENDER_QUEUE=renders
 HORIZON_BASIC_AUTH_USER=ops
 HORIZON_BASIC_AUTH_PASSWORD=<long random>
-GEMINI_API_KEY=<server key>
 AI_PROVIDER=gemini
+AI_ALLOW_SERVER_KEY=false         # users bring their own Google AI key
+GEMINI_API_KEY=                   # only needed if AI_ALLOW_SERVER_KEY=true
 FFMPEG_BINARY=/usr/bin/ffmpeg
 FFPROBE_BINARY=/usr/bin/ffprobe
 LOG_LEVEL=info
@@ -209,7 +210,7 @@ cd ../frontend && npm ci && npm run build   # then publish dist/
 
 ## 9. Security checklist
 
-- [ ] `APP_DEBUG=false`, `APP_ENV=production`, strong unique `APP_KEY`
+- [ ] `APP_DEBUG=false`, `APP_ENV=production`, strong unique `APP_KEY` — back it up: users' saved Google AI keys are encrypted with it
 - [ ] HTTPS everywhere; `APP_URL` uses `https://`
 - [ ] `CORS_ALLOWED_ORIGINS` lists only your web app
 - [ ] DB/Redis reachable only from the app servers; strong passwords

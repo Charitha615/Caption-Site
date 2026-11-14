@@ -9,7 +9,9 @@ use App\Models\MediaFile;
 use App\Models\Project;
 use App\Models\Transcript;
 use App\Models\UsageRecord;
-use App\Services\AI\AIProviderInterface;
+use App\Models\User;
+use App\Services\AI\AIProviderFactory;
+use App\Services\AI\GeminiAIProvider;
 use App\Services\Media\MediaStorage;
 use App\Services\Usage\UsageService;
 use App\Services\Video\Contracts\VideoServiceInterface;
@@ -62,7 +64,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         return $this->timeout + 60;
     }
 
-    public function handle(VideoServiceInterface $video, AIProviderInterface $ai, MediaStorage $storage, UsageService $usage): void
+    public function handle(VideoServiceInterface $video, AIProviderFactory $providers, MediaStorage $storage, UsageService $usage): void
     {
         $project = $this->project->fresh();
         $media = $project?->primaryMediaFile;
@@ -73,6 +75,13 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         }
         $user = $project->user;
         $started = microtime(true);
+        try {
+            $ai = $providers->forUser($user);
+        } catch (UserFacingException $e) {
+            $this->markFailed($project, $e->getMessage());
+
+            return;
+        }
         $context = ['project' => $project->uuid, 'media' => $media->uuid, 'language' => $this->targetLanguage, 'provider' => $ai->name()];
         AppLog::info('pipeline.started', $context);
 
@@ -138,6 +147,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             AppLog::info('pipeline.completed', $context + ['seconds' => round(microtime(true) - $started, 1)]);
         } catch (UserFacingException $e) {
             AppLog::error('pipeline.failed', $context + ['reason' => $e->getMessage()] + $e->context);
+            if (($e->context['key_rejected'] ?? false) && $ai instanceof GeminiAIProvider) {
+                $this->flagRejectedKey($user);
+            }
             $this->markFailed($project, $e->getMessage());
         } catch (Throwable $e) {
             AppLog::error('pipeline.crashed', $context, $e);
@@ -198,6 +210,14 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 
             return count($rows);
         });
+    }
+
+    /** Google refused the user's key mid-pipeline: show it as invalid on the Account page. */
+    private function flagRejectedKey(User $user): void
+    {
+        if ($user->hasAiKey()) {
+            $user->forceFill(['gemini_key_status' => User::AI_KEY_INVALID, 'gemini_key_checked_at' => now()])->save();
+        }
     }
 
     private function phase(Project $project, string $status): void

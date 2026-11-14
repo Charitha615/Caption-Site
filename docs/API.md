@@ -23,6 +23,7 @@ Errors:
 |---|---|---|
 | 401 | `unauthenticated` | Missing/expired token |
 | 402 | `usage_limit_exceeded` | Plan limit reached (message says which) |
+| 422 | `ai_key_required` | Add a Google AI key (`PUT /me/ai-key`) before uploading or generating |
 | 403 | `forbidden` / `http_403` | Not your resource, or an invalid/expired signed URL |
 | 404 | `not_found` | Unknown resource |
 | 409 | `http_409` | Conflicting state (e.g. project already processing, chunks missing) |
@@ -65,6 +66,10 @@ Signed (no token — the URL itself is the credential, issued only to the owner)
 | GET | `/settings` | `{settings: {default_language, default_export_resolution, default_export_quality}}` |
 | PUT | `/settings` | Any subset of the above |
 | GET | `/usage` | See below |
+| GET | `/me/ai-key` | `{ai_key: {configured, hint (last 4), status: valid\|unverified\|invalid, checked_at, required, can_caption, help_url}}` — the key itself is never returned |
+| PUT | `/me/ai-key` | `{api_key}` → checked with Google, then stored encrypted. `422` on `api_key` if Google rejects it. Saved as `unverified` if Google is unreachable. 10/min |
+| POST | `/me/ai-key/verify` | Re-checks the saved key → `{ai_key, verification: {result: valid\|invalid\|unreachable, message}}`. 10/min |
+| DELETE | `/me/ai-key` | Removes the key |
 | GET | `/dashboard` | `{summary, usage, recent_projects}` |
 
 `GET /usage`:

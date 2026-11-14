@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
+use App\Services\AI\AIProviderFactory;
 use App\Services\Media\MediaIngestService;
 use App\Services\Usage\UsageService;
 use App\Traits\ApiResponseTrait;
@@ -40,6 +41,7 @@ class VideoUploadController extends Controller
         ]);
 
         $file = $request->file('video');
+        app(AIProviderFactory::class)->ensureCanCaption($request->user());
         $usage->ensureCanUpload($request->user(), (int) $file->getSize());
 
         $media = $ingest->ingest(

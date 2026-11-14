@@ -23,17 +23,10 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(AIProviderInterface::class, function ($app) {
-            $provider = config('ai.provider', 'gemini');
-            $hasKey = ! empty(config('ai.gemini.api_key'));
-
-            // Sample captions are only ever produced outside production.
-            if ($provider === 'fake' || (! $hasKey && ! $app->environment('production'))) {
-                return $app->make(FakeAIProvider::class);
-            }
-
-            return $app->make(GeminiAIProvider::class);
-        });
+        // Default/fallback provider. Per-user Gemini providers come from AIProviderFactory.
+        $this->app->singleton(AIProviderInterface::class, fn ($app) => config('ai.provider') === 'fake'
+            ? $app->make(FakeAIProvider::class)
+            : $app->make(GeminiAIProvider::class));
         $this->app->singleton(VideoServiceInterface::class, FFmpegService::class);
         $this->app->singleton(SubtitleFormatterInterface::class, SubtitleFormatterService::class);
     }
@@ -79,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('uploads', fn (Request $request) => Limit::perHour(60)->by($byUser($request)));
         // 600 chunks/min ≈ 3 GB/min at 5 MB chunks — generous, but bounds abuse.
         RateLimiter::for('upload-chunks', fn (Request $request) => Limit::perMinute(600)->by($byUser($request)));
+        RateLimiter::for('ai-key', fn (Request $request) => Limit::perMinute(10)->by($byUser($request)));
         RateLimiter::for('ai', fn (Request $request) => Limit::perHour(20)->by($byUser($request)));
         RateLimiter::for('exports', fn (Request $request) => Limit::perMinute(20)->by($byUser($request)));
         RateLimiter::for('media', fn (Request $request) => Limit::perMinute(600)->by($request->ip()));

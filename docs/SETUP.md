@@ -46,7 +46,7 @@ php artisan migrate --seed    # demo user: demo@samplecap.com / password123
 php artisan captions:install-fonts   # caption fonts for MP4 rendering (one-time download)
 ```
 
-- **Gemini:** put your key in `GEMINI_API_KEY`. Without a key, local environments use sample captions (clearly labelled) so you can work on the UI.
+- **Gemini:** every user adds their own Google AI key in the app (**Account & usage → Google AI API key**, created at https://aistudio.google.com/app/api-keys). To work on the UI without a key, set `AI_PROVIDER=fake` (sample captions). `GEMINI_API_KEY` is only used if you set `AI_ALLOW_SERVER_KEY=true`.
 - **FFmpeg:** if it isn't on your PATH or lacks libass, point `FFMPEG_BINARY` / `FFPROBE_BINARY` at a full build (macOS: `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`). Check with `ffmpeg -hide_banner -filters | grep " ass "`.
 - `php artisan storage:link` is **not** needed: user media is private and served through signed URLs.
 

@@ -24,7 +24,7 @@ cd frontend && npm install && cp .env.example .env && cd ..
 
 Open http://localhost:5173. Demo login: `demo@samplecap.com` / `password123`.
 
-You need PHP 8.3+, Composer, Node 20+, MySQL 8 (or PostgreSQL) and FFmpeg with libass. Set `GEMINI_API_KEY` in `backend/.env` for real captions; without it, local environments produce clearly-labelled sample captions. Details: [docs/SETUP.md](docs/SETUP.md).
+You need PHP 8.3+, Composer, Node 20+, MySQL 8 (or PostgreSQL) and FFmpeg with libass. Each user adds their own Google AI key under **Account & usage** (get one at https://aistudio.google.com/app/api-keys); for UI work without a key set `AI_PROVIDER=fake`. Details: [docs/SETUP.md](docs/SETUP.md).
 
 ## Features
 

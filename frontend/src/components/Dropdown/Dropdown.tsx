@@ -44,7 +44,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ trigger, label, items, align
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    requestAnimationFrame(() => focusItem('first'));
+    focusItem('first'); // menu is in the DOM once this effect runs
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 

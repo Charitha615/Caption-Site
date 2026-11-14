@@ -13,6 +13,7 @@ import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { passwordProblem } from '../../utils/validation';
 import { formatDate } from '../../utils/formatters';
 import type { UsageMeter } from '../../types/project';
+import { AiKeyCard } from '../../features/account/AiKeyCard';
 import './ProfilePage.css';
 
 const UsageRow: React.FC<{ label: string; meter: UsageMeter; unit?: string }> = ({ label, meter, unit = '' }) => {
@@ -90,6 +91,8 @@ export const ProfilePage: React.FC = () => {
           {user?.created_at && <span className="profile-since">Member since {formatDate(user.created_at)}</span>}
         </div>
       </div>
+
+      <AiKeyCard />
 
       <section className="card profile-card" aria-labelledby="usage-heading">
         <h3 id="usage-heading" className="profile-card-title"><Gauge size={18} aria-hidden="true" /> Plan &amp; usage</h3>

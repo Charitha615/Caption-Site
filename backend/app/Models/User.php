@@ -28,7 +28,14 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'gemini_api_key',
     ];
+
+    public const AI_KEY_UNVERIFIED = 'unverified';
+
+    public const AI_KEY_VALID = 'valid';
+
+    public const AI_KEY_INVALID = 'invalid';
 
     protected $attributes = [
         'role' => 'user',
@@ -50,6 +57,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            // Encrypted at rest with APP_KEY. Never serialised (see $hidden).
+            'gemini_api_key' => 'encrypted',
+            'gemini_key_checked_at' => 'datetime',
         ];
     }
 
@@ -78,6 +88,22 @@ class User extends Authenticatable
         $plan = $this->plan ?: config('plans.default');
 
         return array_key_exists($plan, config('plans.plans')) ? $plan : config('plans.default');
+    }
+
+    public function hasAiKey(): bool
+    {
+        return ! empty($this->gemini_api_key);
+    }
+
+    /** Public, non-secret description of the user's AI key. */
+    public function aiKeyStatus(): array
+    {
+        return [
+            'configured' => $this->hasAiKey(),
+            'hint' => $this->hasAiKey() ? $this->gemini_key_hint : null,
+            'status' => $this->hasAiKey() ? ($this->gemini_key_status ?: self::AI_KEY_UNVERIFIED) : null,
+            'checked_at' => $this->gemini_key_checked_at?->toISOString(),
+        ];
     }
 
     public function isAdmin(): bool

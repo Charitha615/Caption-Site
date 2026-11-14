@@ -11,7 +11,9 @@ import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
 import { Progress } from '../../components/Progress/Progress';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
-import { ProcessingSteps } from '../../features/projects/ProcessingSteps';
+import { ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { AiKeyNotice } from '../../features/account/AiKeyNotice';
+import { useAiKeyMissing } from '../../stores/aiKeyStore';
 import { ChunkedUpload, UploadCancelledError, type UploadProgress } from '../../services/uploadService';
 import { captionService } from '../../services/captionService';
 import { toAppError } from '../../services/errors';
@@ -49,6 +51,7 @@ export const CreateProjectPage: React.FC = () => {
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  const aiKeyMissing = useAiKeyMissing();
   const [stage, setStage] = useState<Stage>('setup');
   const [project, setProject] = useState<Project | null>(null);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
@@ -159,6 +162,8 @@ export const CreateProjectPage: React.FC = () => {
         <h2 className="page-heading">{heading[stage][0]}</h2>
         <p className="page-subheading">{heading[stage][1]}</p>
       </div>
+
+      {(stage === 'setup' || stage === 'failed') && <AiKeyNotice />}
 
       {stage === 'setup' && (
         <form onSubmit={handleSubmit} className="create-form-card" noValidate>
@@ -283,7 +288,7 @@ export const CreateProjectPage: React.FC = () => {
             <Button type="button" variant="secondary" onClick={() => navigate('/projects')}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="lg" disabled={!file || !name.trim()} isLoading={isSubmitting} startIcon={<Sparkles size={18} aria-hidden="true" />}>
+            <Button type="submit" variant="primary" size="lg" disabled={!file || !name.trim() || aiKeyMissing} isLoading={isSubmitting} startIcon={<Sparkles size={18} aria-hidden="true" />}>
               Upload &amp; generate captions
             </Button>
           </div>
@@ -334,6 +339,7 @@ export const CreateProjectPage: React.FC = () => {
         <div className="processing-card">
           <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
           <ProcessingSteps status={status?.status ?? 'uploaded'} />
+          <QueueStalledNotice queuedSeconds={status?.queued_seconds} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => project && navigate(`/projects/${project.uuid}`)}>
               Continue in the background

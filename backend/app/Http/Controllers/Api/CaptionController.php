@@ -9,6 +9,7 @@ use App\Jobs\ProcessUploadedVideoJob;
 use App\Models\Caption;
 use App\Models\Project;
 use App\Rules\JsonSize;
+use App\Services\AI\AIProviderFactory;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
 use App\Traits\ApiResponseTrait;
@@ -158,6 +159,7 @@ class CaptionController extends Controller
             return $this->errorResponse('Captions are already being generated for this project.', 409);
         }
 
+        app(AIProviderFactory::class)->ensureCanCaption($request->user());
         $usage->ensureCanRequestAI($request->user());
         $usage->ensureCaptionMinutesRemain($request->user(), (float) ($mediaFile->duration ?: $project->duration ?: 0));
 

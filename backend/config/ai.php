@@ -15,6 +15,14 @@
 return [
     'provider' => env('AI_PROVIDER', 'gemini'),
 
+    // Each user brings their own Google AI key (Account & usage). When true, users
+    // without a key fall back to GEMINI_API_KEY (the server's key) instead of being
+    // asked to add one. Keep false unless the platform pays for everyone's AI usage.
+    'allow_server_key' => (bool) env('AI_ALLOW_SERVER_KEY', false),
+
+    // Where users create a key (linked from the Account page).
+    'key_help_url' => 'https://aistudio.google.com/app/api-keys',
+
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),

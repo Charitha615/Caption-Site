@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clapperboard, FolderOpen, Loader, Plus, Timer, UploadCloud, Wand2, Download } from 'lucide-react';
+import { CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Plus, Timer, UploadCloud, Wand2, Download } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUsageStore, meterPercent } from '../../stores/usageStore';
@@ -13,6 +13,7 @@ import { RetryState } from '../../components/RetryState/RetryState';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { Progress } from '../../components/Progress/Progress';
 import { ProjectCard } from '../../features/projects/ProjectCard';
+import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { toAppError } from '../../services/errors';
 import type { Project, UsageMeter } from '../../types/project';
 import './DashboardPage.css';
@@ -100,6 +101,8 @@ export const DashboardPage: React.FC = () => {
         </Button>
       </header>
 
+      <AiKeyNotice />
+
       <section className="dash-stats" aria-label="Project summary">
         {summary ? (
           <>
@@ -133,8 +136,9 @@ export const DashboardPage: React.FC = () => {
         </section>
 
         <section className="dash-card dash-howto" aria-labelledby="howto-title">
-          <h3 id="howto-title" className="dash-card-head">Three steps to captions</h3>
+          <h3 id="howto-title" className="dash-card-head">Getting started</h3>
           <ol className="dash-steps">
+            <li><KeyRound size={18} aria-hidden="true" /> <span><strong>Add</strong> your Google AI key in <Link to="/profile#ai-key">Account &amp; usage</Link></span></li>
             <li><UploadCloud size={18} aria-hidden="true" /> <span><strong>Upload</strong> a video (resumable, up to {usage?.max_upload_mb ?? 500} MB)</span></li>
             <li><Wand2 size={18} aria-hidden="true" /> <span><strong>Review</strong> the AI captions in the studio editor</span></li>
             <li><Download size={18} aria-hidden="true" /> <span><strong>Export</strong> SRT, VTT, TXT or a captioned MP4</span></li>

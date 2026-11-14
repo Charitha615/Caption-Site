@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { STORAGE_KEYS } from '../config/constants';
 import { authService } from '../services/authService';
 import { safeStorage } from '../utils/storage';
+import { useAiKeyStore } from './aiKeyStore';
+import { useUsageStore } from './usageStore';
+import { useSettingsStore } from './settingsStore';
 import type { LoginCredentials, RegisterCredentials, User } from '../types/auth';
 
 interface AuthState {
@@ -77,6 +80,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         token: null,
         isAuthenticated: false,
       });
+      // Per-user caches must not leak into the next account signed in on this tab.
+      useAiKeyStore.setState({ aiKey: null });
+      useUsageStore.setState({ usage: null, loadedAt: 0 });
+      useSettingsStore.setState({ settings: null });
     }
   },
 

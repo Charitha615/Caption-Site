@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\AiKeyController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\CaptionController;
@@ -56,6 +57,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'show']);
     Route::put('/settings', [SettingsController::class, 'update']);
     Route::get('/usage', [UsageController::class, 'show']);
+    Route::get('/me/ai-key', [AiKeyController::class, 'show']);
+    Route::put('/me/ai-key', [AiKeyController::class, 'update'])->middleware('throttle:ai-key');
+    Route::post('/me/ai-key/verify', [AiKeyController::class, 'verify'])->middleware('throttle:ai-key');
+    Route::delete('/me/ai-key', [AiKeyController::class, 'destroy']);
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
 

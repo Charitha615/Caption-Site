@@ -68,8 +68,9 @@ Templates: `backend/.env.example` and `frontend/.env.example`. **Never commit `.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AI_PROVIDER` | `gemini` | `gemini` or `fake` (sample captions; never use in production) |
-| `GEMINI_API_KEY` | — | Google AI Studio / Vertex key. Server-side only |
+| `AI_PROVIDER` | `gemini` | `gemini` or `fake` (sample captions without any key; development/tests only) |
+| `AI_ALLOW_SERVER_KEY` | `false` | Each user adds their **own** Google AI key in Account & usage. Set `true` to let users without a key fall back to `GEMINI_API_KEY` (the platform then pays for their AI usage) |
+| `GEMINI_API_KEY` | — | Server's own key; only used when `AI_ALLOW_SERVER_KEY=true` |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Model id |
 | `GEMINI_BASE_URL`, `GEMINI_UPLOAD_URL` | Google endpoints | Override for proxies |
 | `GEMINI_TIMEOUT` | `300` | Seconds per request |

@@ -26,7 +26,13 @@ If a user reports an error with a reference ("Ref: 6b1c2d3e"), search for it: `g
 | Project stuck on "Uploaded" | No worker on the `default` queue. Run `./dev.sh`, `php artisan queue:work --queue=default,renders`, or Horizon. Check `php artisan queue:failed`. |
 | "Video processing is temporarily unavailable" | FFmpeg/FFprobe not found. Set `FFMPEG_BINARY` / `FFPROBE_BINARY`; test `$FFPROBE_BINARY -version` as the worker user. Event: `ffmpeg.unavailable`. |
 | "This video has no audio track" | The file really has no audio stream. |
-| "AI captioning is not configured" | `GEMINI_API_KEY` empty in production. Set it and `php artisan config:cache`, restart workers. |
+| "Add your Google AI API key in Account & usage" | The user has no key saved. They create one at https://aistudio.google.com/app/api-keys and paste it on the Account page. (Or set `AI_ALLOW_SERVER_KEY=true` to use the server key.) |
+| "Google rejected this key" when saving | Key copied incompletely, deleted in AI Studio, or the Gemini API isn't enabled for its Google Cloud project. |
+| "This key works, but it cannot use the … model" | The key's project has no access to `GEMINI_MODEL`. Enable it, or pick a model the key can use. |
+| "Google rejected your AI API key… retry" during processing | The saved key stopped working (revoked/quota project disabled). Replace it on the Account page, then Retry on the project. |
+| "Your Google AI key has run out of quota" | The user's own Google quota/billing limit. They check it in Google AI Studio. |
+| Saved keys stopped working after a deploy | `APP_KEY` changed — encrypted keys can't be decrypted. Restore the old key or ask users to re-enter theirs. |
+| "AI captioning is not configured" | Only with `AI_ALLOW_SERVER_KEY=true` and an empty `GEMINI_API_KEY`. |
 | "The AI service is busy…" | Gemini returned 429 (quota). Check your Google quota; event `ai.request_failed` has `status`. |
 | "AI captioning is temporarily unavailable" | Gemini 401/403: wrong key, key restricted to other APIs, or model not enabled. |
 | "This video has too much speech to caption in one pass" | Output hit `GEMINI_MAX_OUTPUT_TOKENS`. Use a shorter clip or raise the limit if the model allows it. |

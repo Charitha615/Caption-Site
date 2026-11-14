@@ -131,6 +131,17 @@ class VideoUploadAndCaptionTest extends TestCase
             ]);
     }
 
+    public function test_status_reports_how_long_a_job_has_waited_for_a_worker(): void
+    {
+        [$user, $headers] = $this->userWithToken();
+        $project = Project::factory()->create(['user_id' => $user->id, 'status' => Project::STATUS_UPLOADED]);
+        $project->forceFill(['updated_at' => now()->subMinutes(2)])->saveQuietly();
+
+        $seconds = $this->withHeaders($headers)->getJson("/api/projects/{$project->uuid}/status")->json('data.queued_seconds');
+
+        $this->assertGreaterThanOrEqual(119, $seconds);
+    }
+
     public function test_caption_crud_lifecycle_and_ownership(): void
     {
         $user = User::factory()->create();
@@ -262,18 +273,13 @@ class VideoUploadAndCaptionTest extends TestCase
         $this->assertDatabaseCount('media_files', 0);
     }
 
-    public function test_ai_provider_resolves_to_fake_without_api_key_outside_production(): void
+    public function test_fake_provider_returns_normalized_sinhala_segments(): void
     {
-        config(['ai.gemini.api_key' => null, 'ai.provider' => 'gemini']);
-        $this->app->forgetInstance(AIProviderInterface::class);
-
         $result = app(AIProviderInterface::class)->transcribe('dummy_audio.mp3', 'si');
 
         $this->assertSame('fake', app(AIProviderInterface::class)->name());
         $this->assertSame('si', $result['language']);
-        $first = $result['segments'][0];
-        $this->assertArrayHasKey('words', $first);
-        $this->assertGreaterThan(0, count($first['words']));
+        $this->assertGreaterThan(0, count($result['segments'][0]['words']));
     }
 
     public function test_caption_sync_endpoint_persists_full_timeline_batch(): void

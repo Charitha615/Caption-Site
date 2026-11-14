@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
 use App\Models\UploadSession;
+use App\Services\AI\AIProviderFactory;
 use App\Services\Media\MediaIngestService;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
@@ -52,6 +53,7 @@ class UploadSessionController extends Controller
         if ($project->isProcessing()) {
             return $this->errorResponse('This project is still processing. Please wait for it to finish.', 409);
         }
+        app(AIProviderFactory::class)->ensureCanCaption($request->user());
         $usage->ensureCanUpload($request->user(), (int) $validated['file_size']);
 
         $language = $validated['language'] ?? ($project->language ?: 'si');

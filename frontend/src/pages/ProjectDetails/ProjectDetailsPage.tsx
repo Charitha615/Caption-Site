@@ -17,7 +17,9 @@ import { ErrorState } from '../../components/ErrorState/ErrorState';
 import { LoadingState } from '../../components/LoadingState/LoadingState';
 import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { Progress } from '../../components/Progress/Progress';
-import { ProcessingSteps } from '../../features/projects/ProcessingSteps';
+import { ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { AiKeyNotice } from '../../features/account/AiKeyNotice';
+import { useAiKeyMissing } from '../../stores/aiKeyStore';
 import { validateVideoFile } from '../../utils/video';
 import { PROCESSING_STATUSES, VIDEO_UPLOAD } from '../../config/constants';
 import type { Caption, Project } from '../../types/project';
@@ -63,6 +65,7 @@ export const ProjectDetailsPage: React.FC = () => {
   const uploadRef = useRef<ChunkedUpload | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  const aiKeyMissing = useAiKeyMissing();
   const isCurrent = project?.uuid === uuid;
   useDocumentTitle(isCurrent && project ? project.name : 'Project');
 
@@ -201,8 +204,11 @@ export const ProjectDetailsPage: React.FC = () => {
         <section className="status-panel" aria-label="Processing status">
           <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
           <ProcessingSteps status={status?.status ?? project.status} />
+          <QueueStalledNotice queuedSeconds={status?.queued_seconds} />
         </section>
       )}
+
+      {(project.status === 'failed' || project.status === 'draft' || captions.length === 0) && !polling && <AiKeyNotice compact />}
 
       {project.status === 'failed' && (
         <div className="status-failed-banner" role="alert">
@@ -236,7 +242,7 @@ export const ProjectDetailsPage: React.FC = () => {
 
         <div className="project-actions-row">
           {hasVideo && (
-            <Button variant="secondary" onClick={() => setRegenOpen(true)} disabled={polling} startIcon={<Sparkles size={16} aria-hidden="true" />}>
+            <Button variant="secondary" onClick={() => setRegenOpen(true)} disabled={polling || aiKeyMissing} startIcon={<Sparkles size={16} aria-hidden="true" />}>
               Regenerate captions
             </Button>
           )}
@@ -276,7 +282,7 @@ export const ProjectDetailsPage: React.FC = () => {
                   <Button variant="secondary" size="sm" onClick={() => uploadRef.current?.cancel()}>Cancel upload</Button>
                 </>
               ) : (
-                <Button variant="primary" startIcon={<UploadCloud size={16} aria-hidden="true" />} onClick={() => fileInput.current?.click()}>
+                <Button variant="primary" disabled={aiKeyMissing} startIcon={<UploadCloud size={16} aria-hidden="true" />} onClick={() => fileInput.current?.click()}>
                   Upload a video
                 </Button>
               )}

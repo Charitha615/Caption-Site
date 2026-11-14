@@ -69,6 +69,8 @@ export interface ProjectStatusResponse {
   is_ready: boolean;
   is_failed: boolean;
   error?: string | null;
+  /** While status is 'uploaded': seconds spent waiting for a queue worker. */
+  queued_seconds?: number | null;
   duration?: number | null;
   width?: number | null;
   height?: number | null;

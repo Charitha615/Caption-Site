@@ -20,6 +20,16 @@ export interface ProcessingStepsProps {
 }
 
 /** Ordered list of pipeline phases. State is conveyed by icon and text, not colour alone. */
+/** Shown when a job has waited for a worker longer than this. */
+export const STALLED_QUEUE_SECONDS = 45;
+
+export const QueueStalledNotice: React.FC<{ queuedSeconds?: number | null }> = ({ queuedSeconds }) =>
+  queuedSeconds && queuedSeconds >= STALLED_QUEUE_SECONDS ? (
+    <p className="proc-stalled" role="status">
+      Processing hasn’t started yet. The server may be busy — if this persists, the background worker may not be running.
+    </p>
+  ) : null;
+
 export const ProcessingSteps: React.FC<ProcessingStepsProps> = ({ status, failed = false }) => {
   const current = status ? ORDER.indexOf(status === 'completed' ? 'ready' : status) : 0;
 
