@@ -30,7 +30,7 @@ export interface RegisterCredentials {
 
 export interface UserSettings {
   default_language: 'si' | 'en' | 'auto';
-  default_export_resolution: 'source' | '720' | '1080' | '2160';
+  default_export_resolution: 'source' | '720' | '1080' | '1440' | '2160';
   default_export_quality: 'high' | 'standard' | 'small';
 }
 

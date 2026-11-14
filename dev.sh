@@ -19,7 +19,10 @@ command -v php >/dev/null || { echo "PHP >= 8.3 not found"; exit 1; }
 
 trap 'kill 0' EXIT INT TERM
 
-(cd "$ROOT/backend"  && php artisan serve --port=8000 2>&1 | sed 's/^/[api]   /') &
+# Several PHP workers: the editor's video stream holds a connection open, and a single
+# worker would make every other API call wait (and time out). --no-reload is required for
+# workers, so restart dev.sh after editing backend/.env.
+(cd "$ROOT/backend"  && PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-6}" php artisan serve --port=8000 --no-reload 2>&1 | sed 's/^/[api]   /') &
 (cd "$ROOT/backend"  && php artisan queue:work --queue=default,renders --tries=1 --timeout=3700 2>&1 | sed 's/^/[queue] /') &
 (cd "$ROOT/backend"  && php artisan schedule:work 2>&1 | sed 's/^/[cron]  /') &
 (cd "$ROOT/frontend" && npm run dev 2>&1 | sed 's/^/[web]   /') &

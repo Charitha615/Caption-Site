@@ -25,6 +25,8 @@ class CaptionStyleNormalizer
         'letterSpacing' => 0,
         'textColor' => '#FFFFFF',
         'highlightColor' => '#FFD400',
+        'highlightTextColor' => '#000000',
+        'activeWordScale' => 115,
         'outlineColor' => '#000000',
         'outlineWidth' => 6,
         'shadowColor' => '#000000',
@@ -61,6 +63,7 @@ class CaptionStyleNormalizer
         'positionX' => [0, 100],
         'positionY' => [0, 100],
         'maxWidth' => [10, 100],
+        'activeWordScale' => [100, 150],
     ];
 
     public const ENUMS = [
@@ -74,7 +77,7 @@ class CaptionStyleNormalizer
         'animation' => ['none', 'fade', 'pop', 'bounce', 'slide', 'typewriter', 'karaoke', 'highlight'],
     ];
 
-    public const COLORS = ['textColor', 'highlightColor', 'outlineColor', 'shadowColor', 'backgroundColor'];
+    public const COLORS = ['textColor', 'highlightColor', 'highlightTextColor', 'outlineColor', 'shadowColor', 'backgroundColor'];
 
     public const FONTS = ['englishFontFamily', 'fontFamily'];
 

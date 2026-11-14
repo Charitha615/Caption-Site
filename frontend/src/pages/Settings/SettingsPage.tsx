@@ -131,6 +131,7 @@ export const SettingsPage: React.FC = () => {
               options={[
                 { value: '720', label: '720p' },
                 { value: '1080', label: '1080p', hint: 'Recommended' },
+                { value: '1440', label: '2K', hint: 'Needs a 1440p+ source' },
                 { value: '2160', label: '4K', hint: 'Needs a 4K source' },
                 { value: 'source', label: 'Same as source' },
               ]}

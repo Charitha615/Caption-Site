@@ -1,48 +1,44 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSettingsStore } from '../../../../stores/settingsStore';
-import {
-  AlertTriangle,
-  Braces,
-  CheckCircle2,
-  Clock,
-  Download,
-  FileText,
-  Film,
-  Loader2,
-  RotateCcw,
-  Subtitles,
-  Trash2,
-} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Download, FileText, Film, Loader2, RotateCcw, Subtitles, Trash2, X } from 'lucide-react';
 import { Modal } from '../../../../components/Modal/Modal';
 import { ConfirmDialog } from '../../../../components/ConfirmDialog/ConfirmDialog';
 import { apiErrorMessage, exportService } from '../../../../services/exportService';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useEditorProjectStore } from '../../../../stores/editor/editorProjectStore';
-import { useTemplateStore } from '../../../../stores/editor/templateStore';
+import { useSettingsStore } from '../../../../stores/settingsStore';
 import { useUIStore } from '../../../../stores/editor/uiStore';
 import { useVideoStore } from '../../../../stores/editor/videoStore';
-import type { CreateExportPayload, ExportItem, ExportQuality, ExportResolution, ExportType } from '../../../../types/export';
+import type { CreateExportPayload, ExportItem, ExportResolution, ExportType } from '../../../../types/export';
 import { flush } from '../../services/autosave';
-import { Segmented } from '../controls';
 
-const FORMATS: Array<{ type: ExportType; title: string; desc: string; Icon: typeof Film }> = [
-  { type: 'mp4', title: 'MP4 video', desc: 'Captions burned in with your styles and animations', Icon: Film },
-  { type: 'srt', title: 'SRT', desc: 'YouTube, Facebook, Premiere, VLC', Icon: Subtitles },
-  { type: 'vtt', title: 'WebVTT', desc: 'HTML5 and web video players', Icon: Subtitles },
-  { type: 'txt', title: 'Text', desc: 'Plain transcript, no timings', Icon: FileText },
-  { type: 'json', title: 'JSON', desc: 'Timings, words and styles for developers', Icon: Braces },
+const RESOLUTIONS: Array<{ value: Exclude<ExportResolution, 'source'>; label: string; short: number }> = [
+  { value: '720', label: '720p', short: 720 },
+  { value: '1080', label: '1080p', short: 1080 },
+  { value: '1440', label: '2K', short: 1440 },
+  { value: '2160', label: '4K', short: 2160 },
 ];
 
-const QUALITY_LABEL: Record<ExportQuality, string> = { high: 'High', standard: 'Standard', small: 'Small file' };
+const SUBTITLES: Array<{ type: Exclude<ExportType, 'mp4' | 'json'>; label: string; hint: string; Icon: typeof Film }> = [
+  { type: 'srt', label: 'SRT', hint: 'YouTube, Facebook, Premiere', Icon: Subtitles },
+  { type: 'vtt', label: 'VTT', hint: 'Web players', Icon: Subtitles },
+  { type: 'txt', label: 'TXT', hint: 'Plain transcript', Icon: FileText },
+];
+
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 };
+const NAMED_RATIOS: Array<[number, string]> = [[16 / 9, '16:9'], [9 / 16, '9:16'], [1, '1:1'], [4 / 5, '4:5'], [4 / 3, '4:3'], [3 / 4, '3:4'], [21 / 9, '21:9']];
+
+const even = (v: number) => Math.max(16, Math.round(v / 2) * 2);
 
 /** Mirrors backend VideoRendererService::outputSize so the dialog shows the real output size. */
-function outputSize(srcW: number, srcH: number, aspect: string, resolution: ExportResolution): [number, number] {
+function outputSize(srcW: number, srcH: number, aspect: string, short: number): [number, number] {
   const ratio = ASPECT[aspect] ?? srcW / srcH;
-  const even = (v: number) => Math.max(16, Math.round(v / 2) * 2);
-  if (resolution === 'source' && aspect === 'source') return [even(srcW), even(srcH)];
-  const short = resolution === 'source' ? Math.min(srcW, srcH) : Number(resolution);
   return ratio >= 1 ? [even(short * ratio), even(short)] : [even(short), even(short / ratio)];
+}
+
+function ratioLabel(w: number, h: number): string {
+  const r = w / h;
+  const named = NAMED_RATIOS.find(([v]) => Math.abs(v - r) < 0.02);
+  return named ? named[1] : `${w}:${h}`;
 }
 
 function formatBytes(bytes: number | null) {
@@ -57,85 +53,103 @@ function formatBytes(bytes: number | null) {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-function timeAgo(iso: string) {
-  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  return new Date(iso).toLocaleDateString();
-}
-
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.round(s)) % 60).padStart(2, '0')}`;
 const isActive = (e: ExportItem) => e.status === 'queued' || e.status === 'processing';
+const resLabel = (r?: string) => RESOLUTIONS.find((x) => x.value === r)?.label ?? (r === 'source' ? 'Source' : r ? `${r}p` : '');
 
-function describe(e: ExportItem) {
-  if (e.type !== 'mp4') return e.type.toUpperCase();
-  const res = e.options.resolution === '2160' ? '4K' : e.options.resolution === 'source' ? 'Source' : `${e.options.resolution}p`;
-  return `MP4 · ${res}${e.options.width ? ` · ${e.options.width}×${e.options.height}` : ''}`;
-}
-
-function ExportRow({ item, onRetry, onDelete }: { item: ExportItem; onRetry: (e: ExportItem) => void; onDelete: (e: ExportItem) => void }) {
-  const [busy, setBusy] = useState(false);
+/** Big, focused view of one MP4 render: waiting → rendering (progress, time) → ready (download) / failed (retry). */
+function RenderPanel({ item, onCancel, onRetry, onDone }: { item: ExportItem; onCancel: () => void; onRetry: () => void; onDone: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isActive(item)) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [item]);
+
+  const started = item.started_at ? new Date(item.started_at).getTime() : null;
+  const elapsed = started ? (now - started) / 1000 : 0;
+  const eta = started && item.progress > 3 ? (elapsed * (100 - item.progress)) / item.progress : null;
+  const size = item.options.width ? `${item.options.width}×${item.options.height}` : '';
+
   const download = async () => {
-    setBusy(true);
+    setDownloading(true);
     setError(null);
     try {
       await exportService.download(item.uuid);
     } catch (err) {
       setError(apiErrorMessage(err, 'Download failed.'));
     } finally {
-      setBusy(false);
+      setDownloading(false);
     }
   };
 
   return (
-    <li className={`ed-export-row is-${item.status}`}>
-      <div className="ed-export-row-main">
-        <span className="ed-export-row-title">{describe(item)}</span>
-        <span className="ed-export-row-meta">
-          {item.options.template && <>{item.options.template} · </>}
-          {item.status === 'completed' && formatBytes(item.file_size) && <>{formatBytes(item.file_size)} · </>}
-          {timeAgo(item.created_at)}
+    <section className={`ed-render is-${item.status}`} aria-live="polite" aria-label="Video export">
+      <div className="ed-render-head">
+        <span className="ed-render-icon" aria-hidden="true">
+          {item.status === 'completed' ? <CheckCircle2 size={22} /> : item.status === 'failed' ? <AlertTriangle size={22} /> : <Film size={22} />}
         </span>
-        {item.status === 'queued' && (
-          <span className="ed-export-status"><Clock size={13} /> Exporting… waiting for a renderer</span>
-        )}
-        {item.status === 'processing' && (
-          <>
-            <span className="ed-export-status"><Loader2 size={13} className="ed-spin" /> Rendering… {item.progress}%</span>
-            <div className="ed-progress" role="progressbar" aria-valuenow={item.progress} aria-valuemin={0} aria-valuemax={100}>
-              <div style={{ width: `${Math.max(2, item.progress)}%` }} />
-            </div>
-          </>
-        )}
-        {item.status === 'completed' && <span className="ed-export-status is-ok"><CheckCircle2 size={13} /> Completed</span>}
-        {item.status === 'failed' && (
-          <span className="ed-export-status is-error"><AlertTriangle size={13} /> Failed — {item.error_message ?? 'unknown error'}</span>
-        )}
-        {error && <span className="ed-export-status is-error">{error}</span>}
+        <div>
+          <h3 className="ed-render-title">
+            {item.status === 'queued' && 'Getting ready to render…'}
+            {item.status === 'processing' && 'Rendering your video'}
+            {item.status === 'completed' && 'Your video is ready'}
+            {item.status === 'failed' && 'Rendering failed'}
+          </h3>
+          <p className="ed-render-sub">
+            MP4 · {resLabel(item.options.resolution)} {size && `· ${size}`} {item.options.aspect && item.options.aspect !== 'source' ? `· ${item.options.aspect}` : ''}
+          </p>
+        </div>
       </div>
-      <div className="ed-export-row-actions">
-        {item.status === 'completed' && (
-          <button type="button" className="ed-btn is-primary" onClick={() => void download()} disabled={busy}>
-            {busy ? <Loader2 size={14} className="ed-spin" /> : <Download size={14} />} Download
-          </button>
-        )}
-        {item.status === 'failed' && (
-          <button type="button" className="ed-btn" onClick={() => onRetry(item)}>
-            <RotateCcw size={14} /> Retry
-          </button>
-        )}
-        <button
-          type="button"
-          className="ed-icon-btn is-danger"
-          onClick={() => onDelete(item)}
-          aria-label={isActive(item) ? 'Cancel export' : 'Delete export'}
-          data-tip={isActive(item) ? 'Cancel' : 'Delete'}
-        >
-          <Trash2 size={15} />
-        </button>
-      </div>
-    </li>
+
+      {isActive(item) && (
+        <>
+          <div className="ed-render-bar" role="progressbar" aria-label="Render progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.progress}>
+            <div className={item.status === 'queued' ? 'is-waiting' : ''} style={item.status === 'queued' ? undefined : { width: `${Math.max(2, item.progress)}%` }} />
+          </div>
+          <div className="ed-render-stats">
+            <span className="ed-render-pct">{item.status === 'queued' ? 'Queued' : `${item.progress}%`}</span>
+            <span>
+              {item.status === 'queued' ? 'Waiting for a free renderer' : `${clock(elapsed)} elapsed${eta !== null ? ` · about ${clock(eta)} left` : ''}`}
+            </span>
+          </div>
+          <p className="ed-help">You can keep editing or close this window — rendering continues in the background. Edits made now are not included.</p>
+          <div className="ed-render-actions">
+            <button type="button" className="ed-btn" onClick={onCancel}>
+              <X size={15} aria-hidden="true" /> Cancel render
+            </button>
+          </div>
+        </>
+      )}
+
+      {item.status === 'completed' && (
+        <>
+          <p className="ed-render-sub">{formatBytes(item.file_size)} · {item.download_name}</p>
+          {error && <p className="ed-notice is-error"><AlertTriangle size={14} aria-hidden="true" /> {error}</p>}
+          <div className="ed-render-actions">
+            <button type="button" className="ed-btn" onClick={onDone}>Export another</button>
+            <button type="button" className="ed-btn is-accent is-lg" onClick={() => void download()} disabled={downloading}>
+              {downloading ? <Loader2 size={16} className="ed-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Download MP4
+            </button>
+          </div>
+        </>
+      )}
+
+      {item.status === 'failed' && (
+        <>
+          <p className="ed-notice is-error"><AlertTriangle size={14} aria-hidden="true" /> {item.error_message ?? 'Something went wrong while rendering.'}</p>
+          <div className="ed-render-actions">
+            <button type="button" className="ed-btn" onClick={onDone}>Back</button>
+            <button type="button" className="ed-btn is-accent" onClick={onRetry}>
+              <RotateCcw size={15} aria-hidden="true" /> Try again
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -151,18 +165,21 @@ export function ExportDialog() {
   const videoH = useVideoStore((s) => s.videoHeight);
   const aspect = useCaptionStore((s) => s.canvas.aspect);
   const captionCount = useCaptionStore((s) => s.captions.length);
-  const templates = useTemplateStore((s) => s.templates);
-  const loadTemplates = useTemplateStore((s) => s.load);
-
-  const [type, setType] = useState<ExportType>('mp4');
   const preferences = useSettingsStore((st) => st.settings);
-  const [resolution, setResolution] = useState<ExportResolution>(preferences?.default_export_resolution ?? '1080');
-  const [quality, setQuality] = useState<ExportQuality>(preferences?.default_export_quality ?? 'standard');
-  const [template, setTemplate] = useState<string>('');
+
+  const srcW = (!isLocalPreview && videoW) || projectW || 1920;
+  const srcH = (!isLocalPreview && videoH) || projectH || 1080;
+  const srcShort = Math.min(srcW, srcH);
+  const allowed = (short: number) => short <= 1080 || short <= srcShort;
+  const preferred = preferences?.default_export_resolution;
+  const initial = RESOLUTIONS.find((r) => r.value === preferred && allowed(r.short))?.value ?? (srcShort >= 1080 ? '1080' : '720');
+
+  const [resolution, setResolution] = useState<Exclude<ExportResolution, 'source'>>(initial);
   const [items, setItems] = useState<ExportItem[]>([]);
-  const [listError, setListError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [focusUuid, setFocusUuid] = useState<string | null>(null);
+  const [busy, setBusy] = useState<ExportType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingCancel, setPendingCancel] = useState<ExportItem | null>(null);
   const itemsRef = useRef(items);
   useEffect(() => {
     itemsRef.current = items;
@@ -170,31 +187,29 @@ export function ExportDialog() {
 
   const close = () => useUIStore.getState().setExportOpen(false);
 
-  // Source size: what the browser decoded (server video), else what the server probed.
-  const srcW = (!isLocalPreview && videoW) || projectW || 1920;
-  const srcH = (!isLocalPreview && videoH) || projectH || 1080;
-  const can4k = Math.min(srcW, srcH) >= 2160;
-  const mp4Blocked = !hasServerVideo ? 'Upload a video to this project to render an MP4.' : null;
-  const effectiveType = type === 'mp4' && mp4Blocked ? 'srt' : type;
-  const [outW, outH] = outputSize(srcW, srcH, aspect, resolution === '2160' && !can4k ? '1080' : resolution);
+  const outAspect = aspect === 'source' ? srcW / srcH : ASPECT[aspect];
+  const aspectText = aspect === 'source' ? `${ratioLabel(srcW, srcH)} (original)` : aspect;
+  const mp4Blocked = !hasServerVideo ? 'Upload a video to this project to export an MP4.' : null;
 
   const refresh = useCallback(async () => {
     if (!projectUuid) return;
     try {
-      setItems(await exportService.list(projectUuid));
-      setListError(null);
-    } catch (err) {
-      setListError(apiErrorMessage(err, 'Could not load exports.'));
+      const list = await exportService.list(projectUuid);
+      setItems(list);
+      // Re-opening the dialog during a render goes straight back to its progress.
+      const active = list.find((e) => e.type === 'mp4' && isActive(e));
+      if (active) setFocusUuid(active.uuid);
+    } catch {
+      /* the list is secondary; the toast policy handles real outages */
     }
   }, [projectUuid]);
 
   useEffect(() => {
     if (!open || isDemo) return;
     void refresh();
-    void loadTemplates();
-  }, [open, isDemo, refresh, loadTemplates]);
+  }, [open, isDemo, refresh]);
 
-  // Poll active exports while the dialog is open.
+  // Poll active renders while the dialog is open.
   const hasActive = items.some(isActive);
   useEffect(() => {
     if (!open || !hasActive) return;
@@ -208,167 +223,125 @@ export function ExportDialog() {
 
   const start = async (payload: CreateExportPayload) => {
     if (!projectUuid) return;
-    setSubmitting(true);
-    setSubmitError(null);
+    setBusy(payload.type);
+    setError(null);
     try {
-      // Export reads captions/styles from the server, so persist pending edits first.
+      // Exports read captions/styles from the server, so persist pending edits first.
       await flush();
       if (useEditorProjectStore.getState().saveStatus === 'failed') {
-        throw new Error('Your latest changes could not be saved. Fix saving (top bar) before exporting.');
+        throw new Error('Your latest changes could not be saved yet. Wait for "Saved" in the top bar, then export.');
       }
       const created = await exportService.create(projectUuid, payload);
       setItems((prev) => [created, ...prev]);
-      if (created.status === 'completed' && payload.type !== 'mp4') {
+      if (payload.type === 'mp4') {
+        setFocusUuid(created.uuid);
+      } else if (created.status === 'completed') {
         await exportService.download(created.uuid);
       }
     } catch (err) {
-      setSubmitError(apiErrorMessage(err, 'Export failed.'));
+      setError(apiErrorMessage(err, 'Export failed.'));
     } finally {
-      setSubmitting(false);
+      setBusy(null);
     }
   };
 
-  const [pendingCancel, setPendingCancel] = useState<ExportItem | null>(null);
-
-  const remove = async (item: ExportItem, confirmed = false) => {
-    if (isActive(item) && !confirmed) {
-      setPendingCancel(item);
-      return;
-    }
+  const remove = async (item: ExportItem) => {
     setPendingCancel(null);
     try {
       await exportService.remove(item.uuid);
       setItems((prev) => prev.filter((e) => e.uuid !== item.uuid));
+      if (focusUuid === item.uuid) setFocusUuid(null);
     } catch (err) {
-      setListError(apiErrorMessage(err, 'Could not delete export.'));
+      setError(apiErrorMessage(err, 'Could not cancel the export.'));
     }
   };
 
-  const retry = (item: ExportItem) =>
-    void start({
-      type: item.type,
-      resolution: item.options.resolution,
-      quality: item.options.quality,
-    });
-
-  const systemTemplates = useMemo(() => templates.filter((t) => t.is_system), [templates]);
-  const myTemplates = useMemo(() => templates.filter((t) => !t.is_system), [templates]);
-  const format = FORMATS.find((f) => f.type === effectiveType)!;
+  const exportVideo = () => void start({ type: 'mp4', resolution, quality: preferences?.default_export_quality ?? 'standard', template: null });
+  const focused = items.find((e) => e.uuid === focusUuid) ?? null;
+  const recentVideos = items.filter((e) => e.type === 'mp4' && e.status === 'completed' && e.uuid !== focusUuid).slice(0, 3);
 
   return (
-    <Modal isOpen={open} onClose={close} title="Export" size="lg">
+    <Modal isOpen={open} onClose={close} title="Export" size="md">
       {isDemo ? (
         <p className="ed-help">Exports are not available in demo mode — open a saved project to export.</p>
       ) : (
-        <div className="ed-export">
-          <div className="ed-export-formats" role="radiogroup" aria-label="Format">
-            {FORMATS.map(({ type: t, title, desc, Icon }) => {
-              const disabled = t === 'mp4' && !!mp4Blocked;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={effectiveType === t}
-                  disabled={disabled}
-                  className={`ed-export-format ${effectiveType === t ? 'is-selected' : ''}`}
-                  onClick={() => setType(t)}
-                  title={disabled ? mp4Blocked ?? '' : undefined}
-                >
-                  <Icon size={18} />
-                  <span className="ed-export-format-title">{title}</span>
-                  <span className="ed-export-format-desc">{disabled ? mp4Blocked : desc}</span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="ed-export2">
+          {focused ? (
+            <RenderPanel
+              item={focused}
+              onCancel={() => setPendingCancel(focused)}
+              onRetry={() => void start({ type: 'mp4', resolution: (focused.options.resolution as typeof resolution) ?? resolution, quality: focused.options.quality ?? 'standard', template: null })}
+              onDone={() => setFocusUuid(null)}
+            />
+          ) : (
+            <section className="ed-export2-card" aria-labelledby="export-video-title">
+              <div className="ed-export2-head">
+                <h3 id="export-video-title"><Film size={16} aria-hidden="true" /> Video with captions</h3>
+                <span className="ed-export2-aspect" title="Output aspect ratio">
+                  <span className="ed-export2-aspect-shape" style={{ aspectRatio: String(outAspect) }} aria-hidden="true" />
+                  {aspectText}
+                </span>
+              </div>
 
-          {effectiveType === 'mp4' && (
-            <div className="ed-export-options">
-              <div className="ed-field">
-                <span className="ed-field-label">Resolution</span>
-                <Segmented<ExportResolution>
-                  ariaLabel="Resolution"
-                  value={resolution === '2160' && !can4k ? '1080' : resolution}
-                  onChange={setResolution}
-                  options={[
-                    { value: '720', label: '720p' },
-                    { value: '1080', label: '1080p' },
-                    ...(can4k ? [{ value: '2160' as const, label: '4K' }] : []),
-                    { value: 'source', label: 'Source', tip: `${srcW}×${srcH}` },
-                  ]}
-                />
-                {!can4k && <span className="ed-help">4K needs a source video of at least 2160p.</span>}
-              </div>
-              <div className="ed-field">
-                <span className="ed-field-label">Quality</span>
-                <Segmented<ExportQuality>
-                  ariaLabel="Quality"
-                  value={quality}
-                  onChange={setQuality}
-                  options={(['high', 'standard', 'small'] as const).map((q) => ({ value: q, label: QUALITY_LABEL[q] }))}
-                />
-              </div>
-              <div className="ed-field">
-                <label className="ed-field-label" htmlFor="export-style">Caption style</label>
-                <select id="export-style" className="ed-input" value={template} onChange={(e) => setTemplate(e.target.value)}>
-                  <option value="">Project style (as in the editor)</option>
-                  {systemTemplates.length > 0 && (
-                    <optgroup label="Presets">
-                      {systemTemplates.map((t) => <option key={t.uuid} value={t.uuid}>{t.name}</option>)}
-                    </optgroup>
-                  )}
-                  {myTemplates.length > 0 && (
-                    <optgroup label="My templates">
-                      {myTemplates.map((t) => <option key={t.uuid} value={t.uuid}>{t.name}</option>)}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-              <p className="ed-export-summary">
-                <strong>{outW} × {outH}</strong> · MP4 (H.264 + AAC) · {aspect === 'source' ? 'source' : aspect} canvas · {captionCount} captions
-              </p>
+              <fieldset className="ed-export2-res" disabled={!!mp4Blocked}>
+                <legend className="ed-field-label">Resolution</legend>
+                <div className="ed-export2-res-grid">
+                  {RESOLUTIONS.map((r) => {
+                    const ok = allowed(r.short);
+                    const [w, h] = outputSize(srcW, srcH, aspect, r.short);
+                    return (
+                      <label key={r.value} className={`ed-export2-res-option ${resolution === r.value ? 'is-selected' : ''} ${ok ? '' : 'is-disabled'}`} title={ok ? `${w}×${h}` : `Needs a source video of at least ${r.short}p`}>
+                        <input type="radio" name="export-resolution" value={r.value} checked={resolution === r.value} disabled={!ok} onChange={() => setResolution(r.value)} aria-label={ok ? `${r.label}, ${w} by ${h}` : `${r.label}, needs a larger source video`} />
+                        <span className="ed-export2-res-label">{r.label}</span>
+                        <span className="ed-export2-res-size">{ok ? `${w}×${h}` : 'Source too small'}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              {mp4Blocked && <p className="ed-help">{mp4Blocked}</p>}
+              <button type="button" className="ed-btn is-accent is-lg ed-export2-cta" onClick={exportVideo} disabled={!!mp4Blocked || captionCount === 0 || busy !== null}>
+                {busy === 'mp4' ? <Loader2 size={16} className="ed-spin" aria-hidden="true" /> : <Film size={16} aria-hidden="true" />} Export video
+              </button>
+
+              {recentVideos.length > 0 && (
+                <ul className="ed-export2-recent" aria-label="Recent videos">
+                  {recentVideos.map((e) => (
+                    <li key={e.uuid}>
+                      <span>MP4 · {resLabel(e.options.resolution)} · {formatBytes(e.file_size)}</span>
+                      <button type="button" className="ed-link-btn" onClick={() => void exportService.download(e.uuid).catch((err) => setError(apiErrorMessage(err, 'Download failed.')))}>
+                        <Download size={13} aria-hidden="true" /> Download
+                      </button>
+                      <button type="button" className="ed-icon-btn is-danger" aria-label="Delete this video export" onClick={() => void remove(e)}>
+                        <Trash2 size={13} aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          <section className="ed-export2-card" aria-labelledby="export-subs-title">
+            <div className="ed-export2-head">
+              <h3 id="export-subs-title"><Subtitles size={16} aria-hidden="true" /> Subtitle files</h3>
+              <span className="ed-help">Downloads straight away</span>
             </div>
-          )}
-
-          {submitError && (
-            <div className="ed-notice is-error"><AlertTriangle size={14} /> <span>{submitError}</span></div>
-          )}
-
-          <div className="ed-export-actions">
-            <span className="ed-help">
-              {effectiveType === 'mp4'
-                ? 'Rendering runs in the background — you can keep editing. Later edits are not included.'
-                : 'Generated from your saved captions and downloaded right away.'}
-            </span>
-            <button
-              type="button"
-              className="ed-btn is-accent"
-              disabled={submitting || captionCount === 0}
-              onClick={() =>
-                void start(
-                  effectiveType === 'mp4'
-                    ? { type: 'mp4', resolution: resolution === '2160' && !can4k ? '1080' : resolution, quality, template: template || null }
-                    : { type: effectiveType }
-                )
-              }
-            >
-              {submitting ? <Loader2 size={15} className="ed-spin" /> : <format.Icon size={15} />}
-              {effectiveType === 'mp4' ? 'Render MP4' : `Export ${format.title}`}
-            </button>
-          </div>
-
-          <section className="ed-export-history" aria-label="Recent exports">
-            <h4>Recent exports</h4>
-            {listError && <p className="ed-help is-error">{listError}</p>}
-            {items.length === 0 ? (
-              <p className="ed-help">Nothing exported yet.</p>
-            ) : (
-              <ul>
-                {items.map((item) => <ExportRow key={item.uuid} item={item} onRetry={retry} onDelete={remove} />)}
-              </ul>
-            )}
+            <div className="ed-export2-subs">
+              {SUBTITLES.map(({ type, label, hint, Icon }) => (
+                <button key={type} type="button" className="ed-export2-sub" aria-label={`Download ${label}`} onClick={() => void start({ type })} disabled={captionCount === 0 || busy !== null}>
+                  {busy === type ? <Loader2 size={18} className="ed-spin" aria-hidden="true" /> : <Icon size={18} aria-hidden="true" />}
+                  <span className="ed-export2-sub-label">{label}</span>
+                  <span className="ed-export2-sub-hint">{hint}</span>
+                  <Download size={14} className="ed-export2-sub-dl" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
           </section>
+
+          {captionCount === 0 && <p className="ed-help">Add captions before exporting.</p>}
+          {error && <div className="ed-notice is-error" role="alert"><AlertTriangle size={14} aria-hidden="true" /> <span>{error}</span></div>}
         </div>
       )}
       <ConfirmDialog
@@ -378,7 +351,7 @@ export function ExportDialog() {
         confirmLabel="Cancel render"
         cancelLabel="Keep rendering"
         tone="danger"
-        onConfirm={() => pendingCancel && void remove(pendingCancel, true)}
+        onConfirm={() => pendingCancel && void remove(pendingCancel)}
         onCancel={() => setPendingCancel(null)}
       />
     </Modal>

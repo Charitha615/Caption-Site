@@ -24,6 +24,8 @@ export const DEFAULT_STYLE: CaptionStyle = {
   letterSpacing: 0,
   textColor: '#FFFFFF',
   highlightColor: '#FFD400',
+  highlightTextColor: '#000000',
+  activeWordScale: 115,
   outlineColor: '#000000',
   outlineWidth: 6,
   shadowColor: '#000000',

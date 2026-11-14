@@ -72,7 +72,8 @@ class ExportService
         $resolution = $data['resolution'] ?? '1080';
         $shortSide = $resolution === 'source' ? null : (int) config("captions.resolutions.{$resolution}");
         if ($shortSide && $shortSide > 1080 && $shortSide > min($sourceW, $sourceH)) {
-            throw ValidationException::withMessages(['resolution' => '4K export needs a source video that is at least 2160p.']);
+            $label = $shortSide >= 2160 ? '4K' : '2K';
+            throw ValidationException::withMessages(['resolution' => "{$label} export needs a source video that is at least {$shortSide}p."]);
         }
 
         $quality = $data['quality'] ?? 'standard';

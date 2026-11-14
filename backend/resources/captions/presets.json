@@ -4,7 +4,7 @@
     {
       "key": "spotlight",
       "label": "Spotlight",
-      "description": "White text; the word being spoken lights up yellow.",
+      "description": "White text; the spoken word grows slightly and turns yellow.",
       "sample": "ලංකාවේ අලුත් Story",
       "style": {
         "englishFontFamily": "\"Poppins\", sans-serif",
@@ -16,6 +16,8 @@
         "letterSpacing": 0,
         "textColor": "#FFFFFF",
         "highlightColor": "#FFD400",
+        "highlightTextColor": "#000000",
+        "activeWordScale": 115,
         "outlineColor": "#000000",
         "outlineWidth": 6,
         "shadowColor": "#000000",
@@ -28,6 +30,37 @@
         "borderRadius": 12,
         "padding": 12,
         "animation": "karaoke"
+      }
+    },
+    {
+      "key": "wordbox",
+      "label": "Word Box",
+      "description": "White text; the spoken word sits in a yellow box with black text.",
+      "sample": "ලංකාවේ අලුත් Story",
+      "style": {
+        "englishFontFamily": "\"Poppins\", sans-serif",
+        "fontFamily": "\"Noto Sans Sinhala\", sans-serif",
+        "fontSize": 64,
+        "fontWeight": 800,
+        "fontStyle": "normal",
+        "lineHeight": 1.35,
+        "letterSpacing": 0,
+        "textColor": "#FFFFFF",
+        "highlightColor": "#FFD400",
+        "highlightTextColor": "#000000",
+        "activeWordScale": 105,
+        "outlineColor": "#000000",
+        "outlineWidth": 0,
+        "shadowColor": "#000000",
+        "shadowOpacity": 75,
+        "shadowBlur": 10,
+        "shadowOffsetX": 0,
+        "shadowOffsetY": 3,
+        "backgroundColor": "#000000",
+        "backgroundOpacity": 0,
+        "borderRadius": 12,
+        "padding": 12,
+        "animation": "highlight"
       }
     },
     {

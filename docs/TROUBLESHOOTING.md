@@ -48,6 +48,10 @@ If a user reports an error with a reference ("Ref: 6b1c2d3e"), search for it: `g
 
 | Symptom | Cause / fix |
 |---|---|
+| "Connection problem — the request timed out" while the editor is open | `php artisan serve` handled one request at a time, so the video stream blocked other calls. `./dev.sh` now starts 6 workers (`PHP_CLI_SERVER_WORKERS`). If you run `php artisan serve` yourself, use `PHP_CLI_SERVER_WORKERS=6 php artisan serve --no-reload`. Production (Nginx + PHP-FPM) is not affected. |
+
+| Symptom | Cause / fix |
+|---|---|
 | Video won't seek | Use the signed stream URL from the API (it supports Range). Proxies must pass the `Range` header through. |
 | Video stops loading after many hours | Signed URLs expire (`MEDIA_STREAM_TTL`, default 12 h). Reload the editor. |
 | "Save failed" in the top bar | Autosave retries automatically (3 s, 10 s, 30 s). Persistent failures: check network, 422s in the browser console (caption text > 2000 chars, > 5000 captions, settings > 256 KB). |

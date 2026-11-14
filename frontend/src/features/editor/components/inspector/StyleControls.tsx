@@ -64,6 +64,14 @@ export const StyleControls = memo(function StyleControls({ value, target }: { va
           <ColorField label="Text" value={value.textColor} onChange={(v) => set('textColor', v)} />
           <ColorField label="Highlight" value={value.highlightColor} onChange={(v) => set('highlightColor', v)} />
         </div>
+        {(value.animation === 'karaoke' || value.animation === 'highlight') && (
+          <div className="ed-grid-2">
+            {value.animation === 'highlight' && (
+              <ColorField label="Text in box" value={value.highlightTextColor} onChange={(v) => set('highlightTextColor', v)} />
+            )}
+            <SliderField label="Spoken word zoom" value={value.activeWordScale} min={100} max={150} step={1} unit="%" onChange={(v) => set('activeWordScale', v)} />
+          </div>
+        )}
         <div className="ed-grid-2">
           <ColorField label="Stroke" value={value.outlineColor} onChange={(v) => set('outlineColor', v)} />
           <SliderField label="Stroke width" value={value.outlineWidth} min={0} max={20} step={0.5} unit="px" onChange={(v) => set('outlineWidth', v)} />

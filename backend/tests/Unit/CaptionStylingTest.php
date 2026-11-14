@@ -74,7 +74,7 @@ class CaptionStylingTest extends TestCase
     {
         $backend = json_decode(file_get_contents(resource_path('captions/presets.json')), true);
         $keys = array_column($backend['presets'], 'key');
-        $this->assertSame(['spotlight', 'modern', 'bold', 'minimal', 'cinema', 'youtube', 'tiktok', 'classic'], $keys);
+        $this->assertSame(['spotlight', 'wordbox', 'modern', 'bold', 'minimal', 'cinema', 'youtube', 'tiktok', 'classic'], $keys);
         foreach ($backend['presets'] as $preset) {
             $this->assertSame([], $this->normalizer->errors($preset['style']), "preset {$preset['key']}");
         }
@@ -152,7 +152,7 @@ class CaptionStylingTest extends TestCase
             [['start' => 0, 'end' => 3, 'text' => 'එක දෙක තුන', 'words' => [
                 ['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2], ['text' => 'තුන', 'start' => 2, 'end' => 3],
             ]]],
-            ['animation' => 'karaoke', 'highlightColor' => '#F97316', 'backgroundOpacity' => 0, 'shadowOpacity' => 0],
+            ['animation' => 'karaoke', 'highlightColor' => '#F97316', 'activeWordScale' => 100, 'backgroundOpacity' => 0, 'shadowOpacity' => 0],
             1280, 720,
         );
         $textEvents = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')));
@@ -178,5 +178,34 @@ class CaptionStylingTest extends TestCase
         $ass = $this->renderer->render([['start' => 0, 'end' => 2, 'text' => 'ශ්‍රී ක']], ['animation' => 'typewriter', 'backgroundOpacity' => 0, 'shadowOpacity' => 0], 1280, 720);
         $this->assertCount(3, array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')));
         $this->assertStringContainsString('{\alpha&HFF&}', $ass);
+    }
+
+    public function test_spotlight_zooms_and_colours_only_the_spoken_word(): void
+    {
+        $ass = $this->renderer->render(
+            [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
+            ['animation' => 'karaoke', 'highlightColor' => '#FFD400', 'textColor' => '#FFFFFF', 'activeWordScale' => 115, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            1280, 720,
+        );
+        $second = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')))[1];
+
+        $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\\\\fscx100\\\\fscy100\}\{[^}]*\}එක/u', $second, 'other words white, normal size');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&H00D4FF&\\\\fscx115\\\\fscy115\}\{[^}]*\}දෙක/u', $second, 'spoken word yellow and 115%');
+    }
+
+    public function test_word_box_puts_black_text_inside_a_yellow_box(): void
+    {
+        $ass = $this->renderer->render(
+            [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
+            ['animation' => 'highlight', 'highlightColor' => '#FFD400', 'highlightTextColor' => '#000000', 'textColor' => '#FFFFFF', 'activeWordScale' => 100, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            1280, 720,
+        );
+        $lines = explode("\n", $ass);
+        $box = array_values(array_filter($lines, fn ($l) => str_contains($l, ',WordBox,')))[0];
+        $text = array_values(array_filter($lines, fn ($l) => str_starts_with($l, 'Dialogue: 2,')))[0];
+
+        $this->assertStringContainsString('\\3c&H00D4FF&', $box, 'yellow box');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&H000000&\\\\bord0\}\{[^}]*\}එක/u', $text, 'black text in the box');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\\\\bord[\d.]+\}\{[^}]*\}දෙක/u', $text, 'other words white');
     }
 }

@@ -93,12 +93,15 @@ export function captionBoxStyle(style: CaptionStyle, scale: number): React.CSSPr
     ['--cap-stroke-width' as string]: px(style.outlineWidth * 2),
     ['--cap-stroke-color' as string]: style.outlineColor,
     ['--cap-highlight' as string]: style.highlightColor,
+    ['--cap-highlight-text' as string]: style.highlightTextColor,
+    ['--cap-word-scale' as string]: String((style.activeWordScale ?? 100) / 100),
   };
 }
 
 const NUMERIC_KEYS: Array<keyof CaptionStyle> = [
   'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'outlineWidth', 'shadowOpacity', 'shadowBlur',
   'shadowOffsetX', 'shadowOffsetY', 'backgroundOpacity', 'borderRadius', 'padding', 'positionX', 'positionY', 'maxWidth',
+  'activeWordScale',
 ];
 
 const ENUMS: Record<string, string[]> = {
@@ -151,8 +154,9 @@ export function sanitizeStyle(raw: unknown, partial = false, legacy = false): Ca
   for (const key of ['positionX', 'positionY'] as const) {
     if (typeof out[key] === 'number') out[key] = Math.min(100, Math.max(0, out[key] as number));
   }
+  if (typeof out.activeWordScale === 'number') out.activeWordScale = Math.min(150, Math.max(100, out.activeWordScale));
 
-  for (const key of ['textColor', 'highlightColor', 'outlineColor', 'shadowColor', 'backgroundColor'] as const) {
+  for (const key of ['textColor', 'highlightColor', 'highlightTextColor', 'outlineColor', 'shadowColor', 'backgroundColor'] as const) {
     const value = out[key];
     if (typeof value !== 'string') continue;
     if (value === 'transparent') {

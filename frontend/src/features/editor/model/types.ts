@@ -58,7 +58,12 @@ export interface CaptionStyle {
   letterSpacing: number;
 
   textColor: string;
+  /** Karaoke: colour of the spoken word. Word box: colour of the box behind it. */
   highlightColor: string;
+  /** Word box: colour of the spoken word's text inside the box. */
+  highlightTextColor: string;
+  /** Size of the spoken word in % (100 = no zoom) for karaoke / word box. */
+  activeWordScale: number;
 
   /** Stroke ("outline") — names kept for compatibility with stored overrides. */
   outlineColor: string;

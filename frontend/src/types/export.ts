@@ -1,6 +1,6 @@
 export type ExportType = 'srt' | 'vtt' | 'txt' | 'json' | 'mp4';
 export type ExportStatus = 'queued' | 'processing' | 'completed' | 'failed';
-export type ExportResolution = 'source' | '720' | '1080' | '2160';
+export type ExportResolution = 'source' | '720' | '1080' | '1440' | '2160';
 export type ExportQuality = 'high' | 'standard' | 'small';
 
 export interface ExportItem {

@@ -11,6 +11,7 @@ use App\Models\Transcript;
 use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\AI\AIProviderFactory;
+use App\Services\Caption\SinhalaScriptRepair;
 use App\Services\Media\MediaStorage;
 use App\Services\Usage\UsageService;
 use App\Services\Video\Contracts\VideoServiceInterface;
@@ -142,6 +143,12 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 
                 // 5. Clean up caption text with the text model (timing untouched), then store.
                 $this->phase($project, Project::STATUS_GENERATING_CAPTIONS);
+                // Speech models sometimes write Sinhala syllables in another Indic script — fix deterministically.
+                $result['segments'] = array_map(fn ($seg) => $seg + ['transcribed_text' => $seg['text']], $result['segments']);
+                [$result['segments'], $repaired] = app(SinhalaScriptRepair::class)->repairSegments($result['segments']);
+                if ($repaired) {
+                    AppLog::info('pipeline.sinhala_script_repaired', ['project' => $project->uuid, 'lines' => $repaired]);
+                }
                 $cleaned = $refiner->refine($result['segments'], $result['language']);
                 if ($refiner->model()) {
                     $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => 'gemini-cleanup', 'model' => $refiner->model()]);
@@ -286,8 +293,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                 }
                 $metadata = array_filter([
                     'words' => $words,
-                    'original_text' => $seg['text'],
+                    'original_text' => $seg['transcribed_text'] ?? $seg['text'],
                     'cleaned' => $text !== $seg['text'],
+                    'script_repaired' => isset($seg['transcribed_text']) && $seg['transcribed_text'] !== $seg['text'] ? true : null,
                     'speaker' => $seg['speaker'] ?? null,
                     'source' => array_filter(['transcriber' => $transcriber, 'cleanup' => $text !== $seg['text'] ? $cleanupModel : null]),
                 ], fn ($v) => $v !== null && $v !== []);

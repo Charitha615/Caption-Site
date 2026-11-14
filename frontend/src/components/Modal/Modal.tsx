@@ -114,6 +114,7 @@ export const Modal: React.FC<ModalProps> = ({
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
     </div>,
-    document.body,
+    // Inside the studio editor, render within it so dialogs inherit the editor's design tokens.
+    document.querySelector('.cap-editor') ?? document.body,
   );
 };

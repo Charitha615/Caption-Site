@@ -75,7 +75,7 @@ PROMPT;
         try {
             $response = Http::acceptJson()
                 ->withHeaders(['x-goog-api-key' => $this->apiKey])
-                ->timeout(120)
+                ->timeout((int) config('ai.gemini.cleanup_timeout', 45))
                 ->retry(2, 3000, fn ($e) => $e instanceof RequestException && in_array($e->response->status(), [429, 500, 503], true), throw: false)
                 ->post("{$this->baseUrl}/models/{$this->textModel}:generateContent", [
                     'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],

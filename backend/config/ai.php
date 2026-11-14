@@ -33,6 +33,8 @@ return [
         // Run the text model over transcribed captions (punctuation, spacing, Sinhala Unicode
         // fixes). Never changes timing; the raw transcript is always kept.
         'caption_cleanup' => (bool) env('GEMINI_CAPTION_CLEANUP', true),
+        // Clean-up is optional polish: give up quickly when the text model is slow.
+        'cleanup_timeout' => (int) env('GEMINI_CLEANUP_TIMEOUT', 45),
         // Label speakers (spk_1, spk_2 …) in the transcript.
         'diarization' => (bool) env('GEMINI_DIARIZATION', true),
         // Gemini 3.5 Transcribe allows 30 min per request with word timestamps; longer audio

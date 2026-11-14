@@ -135,20 +135,30 @@ class AssCaptionRenderer
             default => [['start' => $start, 'end' => $end, 'word' => -1, 'visible' => null]],
         };
 
+        // Spoken word: optional zoom (\fscx/\fscy) — reset to 100 for the other words.
+        $zoom = (int) ($s['activeWordScale'] ?? 100);
+        $zoomOn = $zoom !== 100 ? sprintf('\fscx%1$d\fscy%1$d', $zoom) : '';
+        $zoomOff = $zoom !== 100 ? '\fscx100\fscy100' : '';
+
         foreach ($frames as $i => $f) {
             $entrance = $i === 0;
             if ($hasShadow) {
-                $markup = $f['visible'] !== null ? $this->typewriterMarkup($text, $f['visible'], $s, $scale) : $this->markup($runs, $s, $scale);
+                $markup = match (true) {
+                    $f['visible'] !== null => $this->typewriterMarkup($text, $f['visible'], $s, $scale),
+                    $f['word'] >= 0 && $zoomOn !== '' => $this->wordMarkup($text, $f['word'], $s, $scale, $zoomOn, $zoomOff),
+                    default => $this->markup($runs, $s, $scale),
+                };
                 $events[] = $this->dialogue(1, 'Text', $f['start'], $f['end'], $shadowCommon, $shadowTags, $markup, $entrance);
             }
             $markup = match (true) {
                 $f['visible'] !== null => $this->typewriterMarkup($text, $f['visible'], $s, $scale),
-                $f['word'] >= 0 && $s['animation'] === 'karaoke' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s', $this->color($s['highlightColor'])), sprintf('\1c%s', $this->color($s['textColor']))),
+                $f['word'] >= 0 && $s['animation'] === 'karaoke' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s', $this->color($s['highlightColor'])).$zoomOn, sprintf('\1c%s', $this->color($s['textColor'])).$zoomOff),
+                $f['word'] >= 0 && $s['animation'] === 'highlight' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s\bord0', $this->color($s['highlightTextColor'] ?? '#000000')).$zoomOn, sprintf('\1c%s\bord%s', $this->color($s['textColor']), $this->num($stroke)).$zoomOff),
                 default => $this->markup($runs, $s, $scale),
             };
             if ($f['word'] >= 0 && $s['animation'] === 'highlight') {
                 // Word box: a Box-style event where only the active word's box is opaque.
-                $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\3a&H00&'), '\3a&HFF&');
+                $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, '\3a&H00&'.$zoomOn, '\3a&HFF&'.$zoomOff);
                 $hlTags = $base.sprintf('\bord0\xbord%1$s\ybord%2$s\shad0\1a&HFF&\3c%3$s\3a&HFF&\4a&HFF&', $this->num(0.14 * $fontPx), $this->num(0.08 * $fontPx), $this->color($s['highlightColor']));
                 $events[] = $this->dialogue(1, 'WordBox', $f['start'], $f['end'], $common, $hlTags, $boxMarkup, false);
             }
