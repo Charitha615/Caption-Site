@@ -7,7 +7,6 @@ use App\Models\MediaFile;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\AI\AIProviderInterface;
-use App\Services\AI\GeminiAIProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -21,7 +20,7 @@ class VideoUploadAndCaptionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('public');
+        Storage::fake('local');
     }
 
     public function test_user_can_upload_valid_video_file_to_own_project(): void
@@ -32,7 +31,7 @@ class VideoUploadAndCaptionTest extends TestCase
         $project = Project::factory()->create(['user_id' => $user->id]);
         $token = $user->createToken('test')->plainTextToken;
 
-        $videoFile = UploadedFile::fake()->create('sample_recording.mp4', 5000, 'video/mp4');
+        $videoFile = $this->fakeMp4('sample_recording.mp4');
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson("/api/projects/{$project->uuid}/upload", [
@@ -61,8 +60,10 @@ class VideoUploadAndCaptionTest extends TestCase
         $this->assertNotEquals('sample_recording.mp4', $mediaFile->file_name);
         $this->assertStringEndsWith('.mp4', $mediaFile->file_name);
 
-        // Verify file stored on public disk
-        Storage::disk('public')->assertExists($mediaFile->file_path);
+        // Stored on the PRIVATE media disk, never the public one.
+        $this->assertSame('local', $mediaFile->disk);
+        Storage::disk('local')->assertExists($mediaFile->file_path);
+        $this->assertSame('video/mp4', $mediaFile->mime_type);
     }
 
     public function test_user_cannot_upload_video_to_another_users_project(): void
@@ -247,24 +248,31 @@ class VideoUploadAndCaptionTest extends TestCase
             ->assertStatus(403);
     }
 
-    public function test_ai_provider_abstraction_generates_normalized_captions(): void
+    public function test_upload_rejects_file_whose_contents_are_not_video(): void
     {
-        $provider = app(AIProviderInterface::class);
-        $this->assertInstanceOf(GeminiAIProvider::class, $provider);
+        [$user, $headers] = $this->userWithToken();
+        $project = Project::factory()->create(['user_id' => $user->id]);
 
-        // Test offline normalized generator with Sinhala
-        $captions = $provider->generateCaptions('dummy_audio.mp3', 'si');
+        // Correct extension and client MIME, but the bytes are not a video.
+        $this->withHeaders($headers)
+            ->postJson("/api/projects/{$project->uuid}/upload", ['video' => UploadedFile::fake()->createWithContent('evil.mp4', '<?php echo 1;')])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['video']);
 
-        $this->assertIsArray($captions);
-        $this->assertNotEmpty($captions);
+        $this->assertDatabaseCount('media_files', 0);
+    }
 
-        $first = $captions[0];
-        $this->assertArrayHasKey('start', $first);
-        $this->assertArrayHasKey('end', $first);
-        $this->assertArrayHasKey('text', $first);
-        $this->assertArrayHasKey('language', $first);
+    public function test_ai_provider_resolves_to_fake_without_api_key_outside_production(): void
+    {
+        config(['ai.gemini.api_key' => null, 'ai.provider' => 'gemini']);
+        $this->app->forgetInstance(AIProviderInterface::class);
+
+        $result = app(AIProviderInterface::class)->transcribe('dummy_audio.mp3', 'si');
+
+        $this->assertSame('fake', app(AIProviderInterface::class)->name());
+        $this->assertSame('si', $result['language']);
+        $first = $result['segments'][0];
         $this->assertArrayHasKey('words', $first);
-        $this->assertEquals('si', $first['language']);
         $this->assertGreaterThan(0, count($first['words']));
     }
 

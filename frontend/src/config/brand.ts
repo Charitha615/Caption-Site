@@ -5,7 +5,6 @@ export interface BrandConfig {
   tagline: string;
   description: string;
   supportEmail: string;
-  website: string;
   colors: {
     primary: string;
     accent: string;
@@ -14,7 +13,7 @@ export interface BrandConfig {
     lightPurple: string;
   };
   supportedLanguages: Array<{
-    code: string;
+    code: 'si' | 'en';
     name: string;
     native: string;
     flag: string;
@@ -22,30 +21,33 @@ export interface BrandConfig {
   version: string;
 }
 
+const env = import.meta.env;
+const name = env.VITE_BRAND_NAME?.trim() || 'SampleCap';
+
 /**
- * CENTRALIZED BRAND CONFIGURATION
- * To rename product across the entire application (e.g. to "පේළිCap"),
- * change the values here in this single source of truth.
- * Full Unicode & Sinhala characters are fully supported.
+ * SINGLE SOURCE OF FRONTEND BRANDING.
+ *
+ * Rename the product (e.g. to "පේළිCap") with VITE_BRAND_NAME in frontend/.env —
+ * every screen, the document title and index.html read from here. Pair it with
+ * BRAND_NAME in backend/.env (used in API metadata and rendered files).
  */
 export const BRAND: BrandConfig = {
-  name: "SampleCap",
-  shortName: "SampleCap",
-  logoText: "SampleCap",
-  tagline: "AI-powered video captions",
-  description: "Create, edit and export captions with AI.",
-  supportEmail: "support@samplecap.com",
-  website: "http://localhost:5173",
+  name,
+  shortName: env.VITE_BRAND_SHORT_NAME?.trim() || name,
+  logoText: name,
+  tagline: env.VITE_BRAND_TAGLINE?.trim() || 'AI-powered video captions',
+  description: env.VITE_BRAND_DESCRIPTION?.trim() || 'Create, edit and export captions with AI.',
+  supportEmail: env.VITE_BRAND_SUPPORT_EMAIL?.trim() || 'support@example.com',
   colors: {
-    primary: "#5B21B6",
-    accent: "#F97316",
-    dark: "#171717",
-    background: "#F8FAFC",
-    lightPurple: "#F5F3FF",
+    primary: '#5B21B6',
+    accent: '#F97316',
+    dark: '#171717',
+    background: '#F8FAFC',
+    lightPurple: '#F5F3FF',
   },
   supportedLanguages: [
-    { code: "si", name: "Sinhala", native: "සිංහල", flag: "🇱🇰" },
-    { code: "en", name: "English", native: "English", flag: "🇺🇸" },
+    { code: 'si', name: 'Sinhala', native: 'සිංහල', flag: '🇱🇰' },
+    { code: 'en', name: 'English', native: 'English', flag: '🇺🇸' },
   ],
-  version: "1.0.0",
+  version: '1.0.0',
 };

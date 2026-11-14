@@ -2,83 +2,211 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\UserFacingException;
+use App\Exceptions\VideoProcessingException;
+use App\Models\Caption;
 use App\Models\MediaFile;
 use App\Models\Project;
+use App\Models\Transcript;
+use App\Models\UsageRecord;
 use App\Services\AI\AIProviderInterface;
+use App\Services\Media\MediaStorage;
+use App\Services\Usage\UsageService;
 use App\Services\Video\Contracts\VideoServiceInterface;
+use App\Support\AppLog;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Throwable;
 
-class ProcessUploadedVideoJob implements ShouldQueue
+/**
+ * Source video → captions pipeline:
+ *
+ *   probe (FFprobe) → thumbnail → extract speech audio (FFmpeg)
+ *   → transcribe (AI provider, exactly one request) → captions → ready
+ *
+ * The project's `status` reflects the current phase (polled by the UI). Failures set
+ * status=failed with a user-safe `processing_error`; technical detail goes to the
+ * structured log. Not retried automatically: a retry would repeat a paid AI call.
+ */
+class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 2;
-    public int $timeout = 900; // 15 minutes max for full pipeline
+    public int $tries = 1;
+
+    public int $timeout = 900;
+
+    public bool $failOnTimeout = true;
+
+    public bool $deleteWhenMissingModels = true;
 
     public function __construct(
         public Project $project,
         public ?MediaFile $mediaFile = null,
-        public string $targetLanguage = 'si'
-    ) {
-        $this->mediaFile = $mediaFile ?? $this->project->primaryMediaFile;
+        public string $targetLanguage = 'si',
+    ) {}
+
+    public function uniqueId(): string
+    {
+        return $this->project->uuid;
     }
 
-    public function handle(
-        VideoServiceInterface $videoService,
-        AIProviderInterface $aiProvider
-    ): void {
-        Log::info("Starting ProcessUploadedVideoJob pipeline for project {$this->project->uuid}");
+    public function uniqueFor(): int
+    {
+        return $this->timeout + 60;
+    }
 
-        if (!$this->mediaFile) {
-            $this->mediaFile = $this->project->primaryMediaFile;
-        }
+    public function handle(VideoServiceInterface $video, AIProviderInterface $ai, MediaStorage $storage, UsageService $usage): void
+    {
+        $project = $this->project->fresh();
+        $media = $project?->primaryMediaFile;
+        if (! $project || ! $media) {
+            $this->project->update(['status' => Project::STATUS_FAILED, 'processing_error' => 'No video was found for this project. Please upload it again.']);
 
-        if (!$this->mediaFile) {
-            $this->project->update(['status' => Project::STATUS_FAILED]);
-            Log::error("ProcessUploadedVideoJob: No media file found for project {$this->project->uuid}");
             return;
         }
+        $user = $project->user;
+        $started = microtime(true);
+        $context = ['project' => $project->uuid, 'media' => $media->uuid, 'language' => $this->targetLanguage, 'provider' => $ai->name()];
+        AppLog::info('pipeline.started', $context);
 
         try {
-            // Phase 1: Analyzing video & extracting metadata
-            $this->project->update(['status' => Project::STATUS_PROCESSING]);
-            (new ExtractVideoMetadataJob($this->project, $this->mediaFile))->handle($videoService);
+            $this->phase($project, Project::STATUS_PROCESSING);
 
-            // Phase 2: Generating video thumbnail
-            (new GenerateThumbnailJob($this->project, $this->mediaFile))->handle($videoService);
+            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $storage, $usage) {
+                // 1. Probe
+                $meta = $video->getMetadata($videoPath);
+                $media->update([
+                    'duration' => $meta['duration'],
+                    'width' => $meta['width'],
+                    'height' => $meta['height'],
+                    'metadata' => array_merge($media->metadata ?? [], array_intersect_key($meta, array_flip(['fps', 'codec', 'audio_codec', 'sample_rate', 'channels', 'has_audio']))),
+                ]);
+                $project->update(['duration' => $meta['duration'], 'width' => $meta['width'], 'height' => $meta['height'], 'fps' => $meta['fps']]);
 
-            // Phase 3: Extracting speech audio stream
-            $this->project->update(['status' => Project::STATUS_EXTRACTING_AUDIO]);
-            (new ExtractAudioJob($this->project, $this->mediaFile))->handle($videoService);
+                if (! $meta['has_audio']) {
+                    throw new VideoProcessingException('This video has no audio track, so there is no speech to caption.');
+                }
+                $usage->ensureCaptionMinutesRemain($user, $meta['duration']);
 
-            // Phase 4: Transcribing speech
-            $this->project->update(['status' => Project::STATUS_TRANSCRIBING]);
-            (new GenerateTranscriptJob($this->project, $this->mediaFile, $this->targetLanguage))->handle($aiProvider);
+                // 2. Thumbnail (best effort)
+                $thumbTmp = $storage->tempPath('jpg');
+                try {
+                    if ($video->generateThumbnail($videoPath, $thumbTmp, min(2.0, max(0.5, $meta['duration'] * 0.1)))) {
+                        $thumbKey = "thumbnails/{$project->uuid}.jpg";
+                        $storage->putLocalFile($thumbTmp, $thumbKey, $media->disk);
+                        $project->update(['thumbnail' => $thumbKey]);
+                    }
+                } finally {
+                    @unlink($thumbTmp);
+                }
 
-            // Phase 5: Generating timed captions & word alignments
-            $this->project->update(['status' => Project::STATUS_GENERATING_CAPTIONS]);
-            (new GenerateCaptionsJob($this->project, $this->targetLanguage))->handle($aiProvider);
+                // 3. Speech audio
+                $this->phase($project, Project::STATUS_EXTRACTING_AUDIO);
+                $audioTmp = $storage->tempPath('mp3');
+                try {
+                    $video->extractAudio($videoPath, $audioTmp);
+                    $audioKey = "audio/{$project->uuid}.mp3";
+                    $storage->putLocalFile($audioTmp, $audioKey, $media->disk);
+                    $media->update(['audio_path' => $audioKey]);
 
-            // Final state: Ready!
-            $this->project->update(['status' => Project::STATUS_READY]);
-            Log::info("ProcessUploadedVideoJob pipeline completed successfully for project {$this->project->uuid}");
-        } catch (\Throwable $e) {
-            Log::error("ProcessUploadedVideoJob pipeline failed for project {$this->project->uuid}: " . $e->getMessage(), [
-                'exception' => $e,
-            ]);
-            $this->project->update(['status' => Project::STATUS_FAILED]);
-            throw $e;
+                    // 4. Transcribe — the only AI request in the pipeline.
+                    $this->phase($project, Project::STATUS_TRANSCRIBING);
+                    $usage->ensureCanRequestAI($user);
+                    $result = $ai->transcribe($audioTmp, $this->targetLanguage, ['duration' => $meta['duration']]);
+                    $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $ai->name()] + $result['usage']);
+                } finally {
+                    @unlink($audioTmp);
+                }
+
+                // 5. Captions
+                $this->phase($project, Project::STATUS_GENERATING_CAPTIONS);
+                $count = $this->storeCaptions($project, $media, $result);
+                $usage->record($user, UsageRecord::ACTION_CAPTION_GENERATION, $meta['duration'], 'seconds', $project, [
+                    'language' => $result['language'],
+                    'captions_count' => $count,
+                ]);
+            });
+
+            $project->update(['status' => Project::STATUS_READY, 'processing_error' => null]);
+            AppLog::info('pipeline.completed', $context + ['seconds' => round(microtime(true) - $started, 1)]);
+        } catch (UserFacingException $e) {
+            AppLog::error('pipeline.failed', $context + ['reason' => $e->getMessage()] + $e->context);
+            $this->markFailed($project, $e->getMessage());
+        } catch (Throwable $e) {
+            AppLog::error('pipeline.crashed', $context, $e);
+            report($e);
+            $this->markFailed($project, 'Something went wrong while processing this video. Please try again.');
         }
     }
 
-    public function failed(\Throwable $exception): void
+    /** Timeouts and worker crashes land here. */
+    public function failed(?Throwable $exception): void
     {
-        Log::error("ProcessUploadedVideoJob permanently failed for project {$this->project->uuid}: " . $exception->getMessage());
-        $this->project->update(['status' => Project::STATUS_FAILED]);
+        AppLog::error('queue.pipeline_job_failed', ['project' => $this->project->uuid], $exception);
+        $project = $this->project->fresh();
+        if ($project && $project->isProcessing()) {
+            $this->markFailed($project, 'Processing took too long or was interrupted. Please try again.');
+        }
+    }
+
+    private function storeCaptions(Project $project, MediaFile $media, array $result): int
+    {
+        return DB::transaction(function () use ($project, $media, $result) {
+            $transcript = Transcript::updateOrCreate(
+                ['project_id' => $project->id],
+                [
+                    'uuid' => Transcript::where('project_id', $project->id)->value('uuid') ?? (string) Str::uuid(),
+                    'media_file_id' => $media->id,
+                    'language' => $result['language'],
+                    'raw_text' => $result['text'],
+                    'words_json' => $result['segments'],
+                    'status' => 'completed',
+                    'confidence' => null,
+                ],
+            );
+
+            // Regeneration replaces captions; force-delete so stale soft-deleted rows don't pile up.
+            Caption::withTrashed()->where('project_id', $project->id)->forceDelete();
+
+            $now = now();
+            $rows = [];
+            foreach ($result['segments'] as $i => $seg) {
+                $rows[] = [
+                    'uuid' => (string) Str::uuid(),
+                    'project_id' => $project->id,
+                    'transcript_id' => $transcript->id,
+                    'sequence' => $i + 1,
+                    'start_time' => $seg['start'],
+                    'end_time' => $seg['end'],
+                    'text' => $seg['text'],
+                    'language' => $seg['language'],
+                    'metadata' => json_encode(['words' => $seg['words']], JSON_UNESCAPED_UNICODE),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+            foreach (array_chunk($rows, 500) as $chunk) {
+                Caption::insert($chunk);
+            }
+
+            return count($rows);
+        });
+    }
+
+    private function phase(Project $project, string $status): void
+    {
+        $project->update(['status' => $status]);
+    }
+
+    private function markFailed(Project $project, string $message): void
+    {
+        $project->update(['status' => Project::STATUS_FAILED, 'processing_error' => mb_substr($message, 0, 500)]);
     }
 }

@@ -50,13 +50,6 @@ class Caption extends Model
         return 'uuid';
     }
 
-    public function resolveRouteBinding($value, $field = null)
-    {
-        return $this->where('uuid', $value)
-            ->orWhere('id', $value)
-            ->first();
-    }
-
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

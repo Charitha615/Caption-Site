@@ -2,190 +2,136 @@
 
 namespace App\Services\Video;
 
+use App\Exceptions\VideoProcessingException;
+use App\Services\Rendering\ProcessRunner;
 use App\Services\Video\Contracts\VideoServiceInterface;
-use Illuminate\Support\Facades\Log;
-use Symfony\Component\Process\Process;
+use App\Support\AppLog;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 
 class FFmpegService implements VideoServiceInterface
 {
     protected string $ffmpegBinary;
+
     protected string $ffprobeBinary;
 
-    public function __construct()
+    public function __construct(protected ProcessRunner $runner)
     {
         // Config (not env()) so `php artisan config:cache` works in production.
         $this->ffmpegBinary = (string) config('captions.ffmpeg_binary', 'ffmpeg');
         $this->ffprobeBinary = (string) config('captions.ffprobe_binary', 'ffprobe');
     }
 
-    /**
-     * Inspect video metadata using FFprobe:
-     * duration, width, height, fps, codec, audio codec, sample rate, channels.
-     */
     public function getMetadata(string $filePath): array
     {
-        $defaultMeta = [
-            'duration' => 60.0,
-            'width' => 1920,
-            'height' => 1080,
-            'fps' => 30.0,
-            'codec' => 'h264',
-            'audio_codec' => 'aac',
-            'sample_rate' => 44100,
-            'channels' => 2,
+        $result = $this->run([
+            $this->ffprobeBinary,
+            '-v', 'error',
+            '-show_entries', 'stream=codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,duration,sample_rate,channels:stream_tags=rotate:stream_side_data=rotation:format=duration',
+            '-of', 'json',
+            $filePath,
+        ], 60, 'ffprobe');
+
+        $data = json_decode($result['stdout'], true);
+        $streams = is_array($data) ? ($data['streams'] ?? []) : [];
+        $video = collect($streams)->firstWhere('codec_type', 'video');
+        $audio = collect($streams)->firstWhere('codec_type', 'audio');
+
+        if ($result['exitCode'] !== 0 || ! $video) {
+            AppLog::error('ffmpeg.probe_failed', ['exit' => $result['exitCode'], 'stderr' => $result['stderr']]);
+            throw new VideoProcessingException('This file could not be read as a video. Please upload a valid MP4, MOV, WEBM or MKV file.');
+        }
+
+        $duration = (float) ($data['format']['duration'] ?? $video['duration'] ?? $audio['duration'] ?? 0);
+        if ($duration <= 0) {
+            throw new VideoProcessingException('We could not determine the length of this video.');
+        }
+
+        $width = (int) ($video['width'] ?? 0);
+        $height = (int) ($video['height'] ?? 0);
+        // Phone videos are often stored landscape with a rotation flag.
+        $rotation = abs((int) ($video['tags']['rotate'] ?? collect($video['side_data_list'] ?? [])->pluck('rotation')->first() ?? 0));
+        if ($rotation === 90 || $rotation === 270) {
+            [$width, $height] = [$height, $width];
+        }
+
+        return [
+            'duration' => round($duration, 3),
+            'width' => $width ?: 1920,
+            'height' => $height ?: 1080,
+            'fps' => $this->parseRate($video['avg_frame_rate'] ?? null) ?? $this->parseRate($video['r_frame_rate'] ?? null) ?? 30.0,
+            'codec' => $video['codec_name'] ?? null,
+            'audio_codec' => $audio['codec_name'] ?? null,
+            'sample_rate' => isset($audio['sample_rate']) ? (int) $audio['sample_rate'] : null,
+            'channels' => isset($audio['channels']) ? (int) $audio['channels'] : null,
+            'has_audio' => $audio !== null,
         ];
-
-        if (!file_exists($filePath)) {
-            return $defaultMeta;
-        }
-
-        try {
-            $process = new Process([
-                $this->ffprobeBinary,
-                '-v', 'error',
-                '-show_entries', 'stream=index,codec_type,codec_name,width,height,r_frame_rate,duration,sample_rate,channels:format=duration,size,bit_rate',
-                '-of', 'json',
-                $filePath,
-            ]);
-
-            $process->setTimeout(30);
-            $process->run();
-
-            if ($process->isSuccessful()) {
-                $data = json_decode($process->getOutput(), true);
-                $streams = $data['streams'] ?? [];
-                $format = $data['format'] ?? [];
-
-                $videoStream = null;
-                $audioStream = null;
-
-                foreach ($streams as $s) {
-                    if (($s['codec_type'] ?? '') === 'video' && !$videoStream) {
-                        $videoStream = $s;
-                    } elseif (($s['codec_type'] ?? '') === 'audio' && !$audioStream) {
-                        $audioStream = $s;
-                    }
-                }
-
-                $duration = (float) ($videoStream['duration'] ?? $format['duration'] ?? $audioStream['duration'] ?? 60.0);
-                $width = (int) ($videoStream['width'] ?? 1920);
-                $height = (int) ($videoStream['height'] ?? 1080);
-
-                $fps = 30.0;
-                if (!empty($videoStream['r_frame_rate'])) {
-                    $parts = explode('/', $videoStream['r_frame_rate']);
-                    if (count($parts) === 2 && (float) $parts[1] > 0) {
-                        $fps = round((float) $parts[0] / (float) $parts[1], 2);
-                    }
-                }
-
-                return [
-                    'duration' => round($duration, 2),
-                    'width' => $width,
-                    'height' => $height,
-                    'fps' => $fps,
-                    'codec' => $videoStream['codec_name'] ?? 'h264',
-                    'audio_codec' => $audioStream['codec_name'] ?? 'aac',
-                    'sample_rate' => (int) ($audioStream['sample_rate'] ?? 44100),
-                    'channels' => (int) ($audioStream['channels'] ?? 2),
-                ];
-            } else {
-                Log::warning('FFprobe command failed: ' . $process->getErrorOutput());
-            }
-        } catch (\Throwable $e) {
-            Log::warning('FFprobe failed to inspect video, using defaults: ' . $e->getMessage());
-        }
-
-        return $defaultMeta;
     }
 
-    /**
-     * Extract audio stream from video for AI speech processing.
-     * Extracts 16kHz mono MP3 optimized for speech recognition.
-     */
     public function extractAudio(string $videoPath, string $outputPath): string
     {
-        $dir = dirname($outputPath);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+        if (! is_dir(dirname($outputPath))) {
+            mkdir(dirname($outputPath), 0700, true);
         }
 
-        try {
-            $process = new Process([
-                $this->ffmpegBinary,
-                '-y',
-                '-i', $videoPath,
-                '-vn',
-                '-acodec', 'libmp3lame',
-                '-ar', '16000',
-                '-ac', '1',
-                '-b:a', '64k',
-                $outputPath,
-            ]);
+        $result = $this->run([
+            $this->ffmpegBinary, '-hide_banner', '-nostdin', '-y',
+            '-i', $videoPath,
+            '-vn', '-map', '0:a:0',
+            '-acodec', 'libmp3lame', '-ar', '16000', '-ac', '1', '-b:a', '64k',
+            $outputPath,
+        ], 900, 'ffmpeg');
 
-            $process->setTimeout(300);
-            $process->run();
-
-            if (!$process->isSuccessful()) {
-                Log::error('FFmpeg extractAudio failed: ' . $process->getErrorOutput());
-                // Fallback attempt: simple copy or standard MP3
-                $fallbackProcess = new Process([
-                    $this->ffmpegBinary,
-                    '-y',
-                    '-i', $videoPath,
-                    '-vn',
-                    $outputPath,
-                ]);
-                $fallbackProcess->setTimeout(180);
-                $fallbackProcess->run();
-            }
-        } catch (\Throwable $e) {
-            Log::error('FFmpeg extractAudio exception: ' . $e->getMessage());
+        if ($result['exitCode'] !== 0 || ! is_file($outputPath) || filesize($outputPath) === 0) {
+            AppLog::error('ffmpeg.extract_audio_failed', ['exit' => $result['exitCode'], 'stderr' => $result['stderr']]);
+            throw new VideoProcessingException('We could not extract the audio from this video.');
         }
 
         return $outputPath;
     }
 
-    /**
-     * Generate thumbnail at specific timestamp.
-     */
-    public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): string
+    public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool
     {
-        $dir = dirname($outputPath);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+        if (! is_dir(dirname($outputPath))) {
+            mkdir(dirname($outputPath), 0700, true);
         }
 
-        try {
-            $process = new Process([
-                $this->ffmpegBinary,
-                '-y',
-                '-ss', (string) max(0.1, $timestamp),
-                '-i', $videoPath,
-                '-vframes', '1',
-                '-q:v', '2',
+        foreach ([max(0.0, $timestamp), 0.0] as $at) {
+            $result = $this->runner->run([
+                $this->ffmpegBinary, '-hide_banner', '-nostdin', '-y',
+                '-ss', (string) $at, '-i', $videoPath,
+                '-frames:v', '1', '-vf', 'scale=640:-2', '-q:v', '3',
                 $outputPath,
-            ]);
-
-            $process->setTimeout(60);
-            $process->run();
-
-            if (!$process->isSuccessful()) {
-                Log::warning('FFmpeg generateThumbnail failed: ' . $process->getErrorOutput());
-                // Retry at 0.0s
-                $retry = new Process([
-                    $this->ffmpegBinary,
-                    '-y',
-                    '-i', $videoPath,
-                    '-vframes', '1',
-                    $outputPath,
-                ]);
-                $retry->run();
+            ], timeout: 60);
+            if ($result['exitCode'] === 0 && is_file($outputPath) && filesize($outputPath) > 0) {
+                return true;
             }
-        } catch (\Throwable $e) {
-            Log::error('FFmpeg generateThumbnail exception: ' . $e->getMessage());
         }
+        AppLog::warning('ffmpeg.thumbnail_failed', ['stderr' => $result['stderr'] ?? '']);
 
-        return $outputPath;
+        return false;
+    }
+
+    /** @return array{exitCode: int, stdout: string, stderr: string, stopped: bool} */
+    protected function run(array $command, int $timeout, string $tool): array
+    {
+        try {
+            return $this->runner->run($command, timeout: $timeout);
+        } catch (ProcessTimedOutException $e) {
+            AppLog::error('ffmpeg.timeout', ['tool' => $tool, 'timeout' => $timeout]);
+            throw new VideoProcessingException('Processing this video took too long. Try a shorter or smaller file.', [], $e);
+        } catch (\Throwable $e) {
+            AppLog::error('ffmpeg.unavailable', ['tool' => $tool, 'binary' => $command[0]], $e);
+            throw new VideoProcessingException('Video processing is temporarily unavailable. Please try again later.', [], $e);
+        }
+    }
+
+    private function parseRate(?string $rate): ?float
+    {
+        if (! $rate || ! str_contains($rate, '/')) {
+            return null;
+        }
+        [$n, $d] = array_map('floatval', explode('/', $rate, 2));
+
+        return $d > 0 && $n > 0 ? round($n / $d, 3) : null;
     }
 }

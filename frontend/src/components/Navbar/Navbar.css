@@ -192,3 +192,14 @@
     display: none;
   }
 }
+
+.navbar-menu-btn { display: none; }
+
+@media (max-width: 900px) {
+  .navbar-menu-btn { display: inline-flex; }
+}
+
+@media (max-width: 600px) {
+  .navbar-user-info-text { display: none; }
+  .navbar-title { font-size: 1.05rem; }
+}

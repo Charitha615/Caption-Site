@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { STORAGE_KEYS } from '../config/constants';
 import { authService } from '../services/authService';
+import { safeStorage } from '../utils/storage';
 import type { LoginCredentials, RegisterCredentials, User } from '../types/auth';
 
 interface AuthState {
@@ -15,12 +16,13 @@ interface AuthState {
   logout: () => Promise<void>;
   fetchMe: () => Promise<void>;
   initializeAuth: () => Promise<void>;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
-  isAuthenticated: !!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
+  token: safeStorage.get(STORAGE_KEYS.AUTH_TOKEN),
+  isAuthenticated: !!safeStorage.get(STORAGE_KEYS.AUTH_TOKEN),
   isLoading: false,
   isInitialized: false,
 
@@ -28,8 +30,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const data = await authService.login(credentials);
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user));
+      safeStorage.set(STORAGE_KEYS.AUTH_TOKEN, data.token);
+      safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user));
       set({
         user: data.user,
         token: data.token,
@@ -46,8 +48,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const data = await authService.register(credentials);
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user));
+      safeStorage.set(STORAGE_KEYS.AUTH_TOKEN, data.token);
+      safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user));
       set({
         user: data.user,
         token: data.token,
@@ -68,8 +70,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Ignore network errors on logout
     } finally {
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      safeStorage.remove(STORAGE_KEYS.AUTH_TOKEN);
+      safeStorage.remove(STORAGE_KEYS.USER_DATA);
       set({
         user: null,
         token: null,
@@ -78,21 +80,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  setUser: (user) => {
+    safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+    set({ user });
+  },
+
   fetchMe: async () => {
     try {
       const user = await authService.getMe();
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+      safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
       set({ user, isAuthenticated: true });
-    } catch {
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      set({ user: null, token: null, isAuthenticated: false });
+    } catch (err) {
+      // Only an explicit 401 ends the session; a network blip keeps the cached user.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        safeStorage.remove(STORAGE_KEYS.AUTH_TOKEN);
+        safeStorage.remove(STORAGE_KEYS.USER_DATA);
+        set({ user: null, token: null, isAuthenticated: false });
+      }
     }
   },
 
   initializeAuth: async () => {
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    const cachedUser = localStorage.getItem(STORAGE_KEYS.USER_DATA);
+    const token = safeStorage.get(STORAGE_KEYS.AUTH_TOKEN);
+    const cachedUser = safeStorage.get(STORAGE_KEYS.USER_DATA);
 
     if (token) {
       if (cachedUser) {

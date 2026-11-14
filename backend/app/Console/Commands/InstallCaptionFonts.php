@@ -20,7 +20,7 @@ class InstallCaptionFonts extends Command
     public function handle(): int
     {
         $dir = (string) config('captions.fonts_path');
-        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        if (! is_dir($dir) && ! mkdir($dir, 0755, true) && ! is_dir($dir)) {
             $this->error("Cannot create {$dir}");
 
             return self::FAILURE;
@@ -30,6 +30,7 @@ class InstallCaptionFonts extends Command
         foreach (config('captions.fonts') as $entry) {
             if (empty($entry['google'])) {
                 $this->line("• {$entry['family']}: system font, skipped");
+
                 continue;
             }
             try {
@@ -51,7 +52,7 @@ class InstallCaptionFonts extends Command
     {
         // A non-browser User-Agent makes Google Fonts return complete static TrueType files
         // (not per-subset woff2), which is what libass needs.
-        $css = Http::withHeaders(['User-Agent' => 'SampleCap-font-installer/1.0'])
+        $css = Http::withHeaders(['User-Agent' => 'Mozilla/5.0 (caption-font-installer)'])
             ->timeout(30)
             ->get('https://fonts.googleapis.com/css2', ['family' => $spec])
             ->throw()
@@ -63,17 +64,18 @@ class InstallCaptionFonts extends Command
             preg_match('/font-weight:\s*(\d+)/', $face, $w);
             preg_match('/font-style:\s*(\w+)/', $face, $st);
             preg_match('/src:\s*url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.ttf)\)/', $face, $url);
-            if (!$w || !$url) {
+            if (! $w || ! $url) {
                 continue;
             }
             $italic = ($st[1] ?? 'normal') === 'italic' ? '-italic' : '';
-            $target = $dir . DIRECTORY_SEPARATOR . FontRegistry::fileStem($family) . "-{$w[1]}{$italic}.ttf";
-            if (is_file($target) && !$this->option('force')) {
+            $target = $dir.DIRECTORY_SEPARATOR.FontRegistry::fileStem($family)."-{$w[1]}{$italic}.ttf";
+            if (is_file($target) && ! $this->option('force')) {
                 $count++;
+
                 continue;
             }
             $bytes = Http::timeout(60)->get($url[1])->throw()->body();
-            if (strlen($bytes) < 1000 || !in_array(substr($bytes, 0, 4), ["\x00\x01\x00\x00", 'true', 'OTTO'], true)) {
+            if (strlen($bytes) < 1000 || ! in_array(substr($bytes, 0, 4), ["\x00\x01\x00\x00", 'true', 'OTTO'], true)) {
                 throw new \RuntimeException('Downloaded file is not a TrueType font.');
             }
             file_put_contents($target, $bytes);

@@ -1,151 +1,118 @@
-# Setup & Installation Guide
+# Local setup
 
-This document provides complete instructions for setting up the **SampleCap** video captioning platform on your local development machine.
-
----
+Get the API, queue worker and web app running on your machine. Production is covered in [DEPLOYMENT.md](DEPLOYMENT.md); every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md).
 
 ## 1. Prerequisites
 
-Ensure your machine has the following tools installed:
+| Tool | Version | Notes |
+|---|---|---|
+| PHP | 8.3+ | Extensions: `pdo_mysql` or `pdo_pgsql`, `mbstring`, `intl`, `fileinfo`, `curl`, `zip`; `pcntl` + `posix` + `redis` for Horizon |
+| Composer | 2.x | |
+| Node.js | 20+ | npm 10+ |
+| Database | MySQL 8 / MariaDB 10.6+ / PostgreSQL 14+ | `utf8mb4` for Sinhala |
+| FFmpeg | 6+ **with libass ≥ 0.17** | Needed for processing uploads and MP4 export |
+| Redis | 7+ | Optional locally (database queue works); required for Horizon |
 
-- **PHP**: >= 8.3 (tested with PHP 8.5)
-- **Composer**: >= 2.6
-- **Node.js**: >= 18.0 (tested with Node 24)
-- **npm**: >= 9.0
-- **MySQL / MariaDB**: MySQL 8.x or MAMP (running on port `8889` or standard `3306`)
-- **Redis** (optional for dev, required for queue processing): `127.0.0.1:6379`
-- **FFmpeg & FFprobe**: For video probing and audio extraction
+macOS:
 
----
-
-## 2. Database Preparation (Mac / MAMP)
-
-The application requires a MySQL database configured with `utf8mb4` encoding for complete Unicode and Sinhala script support.
-
-Run in your terminal or MySQL console:
-
-```sql
-CREATE DATABASE IF NOT EXISTS samplecap CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```bash
+brew install php composer node mysql redis ffmpeg-full
 ```
 
----
+Debian/Ubuntu:
 
-## 3. Backend Setup (Laravel)
+```bash
+sudo apt install php8.3-{cli,mysql,mbstring,intl,curl,zip,xml,redis} composer nodejs npm mysql-server redis-server ffmpeg
+```
 
-### Step 3.1: Navigate to backend and configure environment
+MAMP users: `./dev.sh` picks up MAMP's PHP automatically. Use `DB_PORT=8889` and `DB_SOCKET=/Applications/MAMP/tmp/mysql/mysql.sock`.
+
+## 2. Database
+
+```sql
+CREATE DATABASE samplecap CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+PostgreSQL: `CREATE DATABASE samplecap ENCODING 'UTF8';` and set `DB_CONNECTION=pgsql`, `DB_PORT=5432`.
+
+## 3. Backend (Laravel)
 
 ```bash
 cd backend
-cp .env.example .env
+composer install
+cp .env.example .env          # set DB_* and, optionally, GEMINI_API_KEY
+php artisan key:generate
+php artisan migrate --seed    # demo user: demo@samplecap.com / password123
+php artisan captions:install-fonts   # caption fonts for MP4 rendering (one-time download)
 ```
 
-Verify the `.env` settings match your local MySQL configuration:
+- **Gemini:** put your key in `GEMINI_API_KEY`. Without a key, local environments use sample captions (clearly labelled) so you can work on the UI.
+- **FFmpeg:** if it isn't on your PATH or lacks libass, point `FFMPEG_BINARY` / `FFPROBE_BINARY` at a full build (macOS: `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`). Check with `ffmpeg -hide_banner -filters | grep " ass "`.
+- `php artisan storage:link` is **not** needed: user media is private and served through signed URLs.
 
-```ini
-APP_NAME=SampleCap
-APP_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:5173
-
-# Database configuration (Mac MAMP standard)
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=8889
-DB_DATABASE=samplecap
-DB_USERNAME=root
-DB_PASSWORD=root
-DB_SOCKET=/Applications/MAMP/tmp/mysql/mysql.sock
-
-# AI & Video processing
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-1.5-flash
-FFMPEG_BINARY=ffmpeg
-FFPROBE_BINARY=ffprobe
-```
-
-### Step 3.2: Run migrations and seeders
-
-```bash
-php artisan migrate:fresh --seed
-```
-
-This will create all 10 domain tables and seed:
-- **Demo User**: `demo@samplecap.com` (password: `password123`)
-- **Sample Sinhala Project**: "සිංහල තාක්ෂණික සමාලෝචනය #1"
-- **Sample English Project**: "AI Video Captioning Platform Overview"
-- **Sample Processing Project**: "ඇල්ල සංචාරය - Travel Reel #4"
-
-### Step 3.3: Verify backend test suite
-
-```bash
-php artisan test
-```
-
-Expected output:
-```text
-Pass: 16 passed, 49 assertions
-```
-
-### Step 3.4: Start the backend API server
-
-```bash
-php artisan serve --port=8000
-```
-
-The API will be accessible at `http://localhost:8000/api`.
-
----
-
-## 4. Frontend Setup (React + Vite)
-
-### Step 4.1: Install dependencies
+## 4. Frontend (React + Vite)
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
+cp .env.example .env          # VITE_API_URL=http://localhost:8000/api
 ```
 
-### Step 4.2: Start development server
+## 5. Run everything
 
 ```bash
-npm run dev
+./dev.sh
 ```
 
-The application will be accessible at:
-👉 **http://localhost:5173**
+Starts the API (`:8000`), a queue worker for the `default` and `renders` queues, and Vite (`:5173`). Ctrl+C stops all three. Open http://localhost:5173.
 
-### Step 4.3: Build for production
+Manually, in three terminals:
 
 ```bash
+cd backend && php artisan serve
+cd backend && php artisan queue:work --queue=default,renders --tries=1 --timeout=3700
+cd frontend && npm run dev
+```
+
+With Redis you can use Horizon instead of `queue:work`: set `QUEUE_CONNECTION=redis` and run `php artisan horizon` (dashboard at http://localhost:8000/horizon).
+
+After changing PHP code, restart the worker (`php artisan queue:restart`) — workers keep old code in memory.
+
+## 6. Tests and checks
+
+```bash
+cd backend
+php artisan test              # PHPUnit (SQLite in memory; never calls the real AI)
+vendor/bin/pint               # code style
+
+cd frontend
+npm test                      # Vitest + Testing Library
+npm run typecheck
+npm run lint
 npm run build
 ```
 
-This compiles TypeScript with strict verification and generates the optimized production bundle in `dist/`.
+## 7. Renaming the product
 
----
+Two variables, no code changes:
 
-## 5. Renaming the Product (Rebranding to "පේළිCap")
+```bash
+# frontend/.env
+VITE_BRAND_NAME=පේළිCap
+# backend/.env
+BRAND_NAME=පේළිCap
+```
 
-To change the product name from **SampleCap** to **පේළිCap** (or any other name):
+Restart Vite / rebuild the frontend, and run `php artisan config:clear` (or `config:cache` in production).
 
-1. **Frontend**: Open `frontend/src/config/brand.ts`:
-   ```typescript
-   export const BRAND = {
-     name: "පේළිCap",
-     shortName: "පේළිCap",
-     logoText: "පේළිCap",
-     tagline: "AI මඟින් ක්‍රියාත්මක වන වීඩියෝ උපසිරැසි නිර්මාණය",
-     description: "වීඩියෝ සඳහා නිවැරදි සිංහල උපසිරැසි පහසුවෙන් සාදාගන්න.",
-     // ...
-   };
-   ```
+## 8. Useful commands
 
-2. **Backend**: Open `backend/config/brand.php` or set in `backend/.env`:
-   ```ini
-   BRAND_NAME="පේළිCap"
-   BRAND_SHORT_NAME="පේළිCap"
-   BRAND_LOGO_TEXT="පේළිCap"
-   BRAND_TAGLINE="AI මඟින් ක්‍රියාත්මක වන වීඩියෝ උපසිරැසි"
-   ```
-
-All page titles, headers, navigation bars, buttons, empty states, and notifications will update across both applications immediately.
+| Command | What it does |
+|---|---|
+| `php artisan migrate:fresh --seed` | Reset the database with demo data |
+| `php artisan captions:sync-templates` | Update built-in caption templates from `presets.json` |
+| `php artisan uploads:prune` | Delete abandoned upload chunks and temp files (runs hourly) |
+| `php artisan media:make-private` | Move media uploaded before private storage off the public disk |
+| `php artisan schedule:work` | Run the scheduler locally |
+| `php artisan pail` | Tail logs |
+| `tail -f storage/logs/events-$(date +%F).log \| jq` | Structured events (uploads, AI, FFmpeg, exports) |

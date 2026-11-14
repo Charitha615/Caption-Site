@@ -11,6 +11,21 @@ class UsageRecord extends Model
 {
     use HasFactory;
 
+    /** Seconds of media sent through AI captioning. */
+    public const ACTION_CAPTION_GENERATION = 'caption_generation';
+
+    /** One call to an AI provider (metadata: provider, model, tokens). */
+    public const ACTION_AI_REQUEST = 'ai_request';
+
+    /** One subtitle/text export (metadata: type). */
+    public const ACTION_EXPORT = 'export';
+
+    /** Seconds of video rendered to MP4. */
+    public const ACTION_VIDEO_RENDER = 'video_render';
+
+    /** Bytes of source video uploaded. */
+    public const ACTION_UPLOAD = 'upload';
+
     protected $fillable = [
         'uuid',
         'user_id',

@@ -1,0 +1,49 @@
+import React from 'react';
+import { Check, Loader2, X } from 'lucide-react';
+import type { ProjectStatus } from '../../types/project';
+import './ProcessingSteps.css';
+
+const STEPS: Array<{ key: ProjectStatus[]; title: string; desc: string }> = [
+  { key: ['uploaded'], title: 'Video uploaded', desc: 'Stored privately and queued' },
+  { key: ['processing'], title: 'Analyse video', desc: 'Duration, resolution and frame rate' },
+  { key: ['extracting_audio'], title: 'Extract speech audio', desc: 'Speech-optimised audio track' },
+  { key: ['transcribing'], title: 'AI transcription', desc: 'Speech to timed text' },
+  { key: ['generating_captions'], title: 'Build captions', desc: 'Caption lines and word timings' },
+];
+
+const ORDER: ProjectStatus[] = ['uploaded', 'processing', 'extracting_audio', 'transcribing', 'generating_captions', 'ready'];
+
+export interface ProcessingStepsProps {
+  status: ProjectStatus | undefined;
+  /** Status at which processing failed (the step shows a cross). */
+  failed?: boolean;
+}
+
+/** Ordered list of pipeline phases. State is conveyed by icon and text, not colour alone. */
+export const ProcessingSteps: React.FC<ProcessingStepsProps> = ({ status, failed = false }) => {
+  const current = status ? ORDER.indexOf(status === 'completed' ? 'ready' : status) : 0;
+
+  return (
+    <ol className="proc-steps" aria-label="Processing progress">
+      {STEPS.map((step, i) => {
+        const done = current > i || status === 'ready' || status === 'completed';
+        const active = !done && current === i;
+        const state = done ? 'done' : active ? (failed ? 'failed' : 'active') : 'pending';
+        return (
+          <li key={step.title} className={`proc-step proc-step-${state}`} aria-current={active ? 'step' : undefined}>
+            <span className="proc-step-icon" aria-hidden="true">
+              {state === 'done' ? <Check size={16} /> : state === 'active' ? <Loader2 size={16} className="proc-spin" /> : state === 'failed' ? <X size={16} /> : i + 1}
+            </span>
+            <span className="proc-step-text">
+              <span className="proc-step-title">{step.title}</span>
+              <span className="proc-step-desc">{step.desc}</span>
+            </span>
+            <span className="sr-only">
+              {state === 'done' ? '— done' : state === 'active' ? '— in progress' : state === 'failed' ? '— failed' : '— waiting'}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+};

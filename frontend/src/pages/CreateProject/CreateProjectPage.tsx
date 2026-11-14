@@ -1,641 +1,411 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  UploadCloud,
-  FileVideo,
-  Sparkles,
-  X,
-  Check,
-  AlertCircle,
-  Clock,
-  ArrowRight,
-  RefreshCw,
-  Sliders,
-} from 'lucide-react';
+import { UploadCloud, FileVideo, Sparkles, X, AlertCircle, ArrowRight, RefreshCw, Sliders, WifiOff } from 'lucide-react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useToastStore } from '../../stores/toastStore';
+import { useUsageStore } from '../../stores/usageStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useProjectStatus } from '../../hooks/useProjectStatus';
 import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
-import type { ProjectStatusResponse, Project } from '../../types/project';
-import { formatDuration } from '../../utils/formatters';
+import { Progress } from '../../components/Progress/Progress';
+import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
+import { ProcessingSteps } from '../../features/projects/ProcessingSteps';
+import { ChunkedUpload, UploadCancelledError, type UploadProgress } from '../../services/uploadService';
+import { captionService } from '../../services/captionService';
+import { toAppError } from '../../services/errors';
+import { VIDEO_UPLOAD } from '../../config/constants';
+import type { Project } from '../../types/project';
+import { formatDuration, formatFileSize } from '../../utils/formatters';
+import { validateVideoFile } from '../../utils/video';
 import './CreateProjectPage.css';
 
-type WizardStage = 'setup' | 'uploading' | 'processing' | 'ready' | 'error';
+type Stage = 'setup' | 'uploading' | 'upload-error' | 'processing' | 'ready' | 'failed';
+type Language = 'si' | 'en' | 'auto';
+
+const LANGUAGES: Array<{ value: Language; flag: string; title: string; sub: string }> = [
+  { value: 'si', flag: '🇱🇰', title: 'සිංහල (Sinhala)', sub: 'Sinhala speech' },
+  { value: 'en', flag: '🇺🇸', title: 'English', sub: 'English speech' },
+  { value: 'auto', flag: '🌐', title: 'Auto / mixed', sub: 'Sinhala + English' },
+];
+
+const formatEta = (s: number | null) => (s === null ? 'estimating…' : s < 60 ? `${s}s left` : `${Math.ceil(s / 60)} min left`);
 
 export const CreateProjectPage: React.FC = () => {
-  useDocumentTitle('Create Project — Video & Captions');
+  useDocumentTitle('New project');
   const navigate = useNavigate();
+  const createProject = useProjectStore((s) => s.createProject);
+  const addToast = useToastStore((s) => s.addToast);
+  const usage = useUsageStore((s) => s.usage);
+  const reloadUsage = useUsageStore((s) => s.load);
+  const maxMb = usage?.max_upload_mb ?? VIDEO_UPLOAD.DEFAULT_MAX_MB;
 
-  const { createProject, uploadVideo, checkStatus } = useProjectStore();
-  const { addToast } = useToastStore();
-
-  // Form State
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState<'si' | 'en' | 'auto'>('si');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const defaultLanguage = useSettingsStore((st) => st.settings?.default_language);
+  const [language, setLanguage] = useState<Language>(defaultLanguage ?? 'si');
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Flow State
-  const [stage, setStage] = useState<WizardStage>('setup');
-  const [uploadPercent, setUploadPercent] = useState(0);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [statusData, setStatusData] = useState<ProjectStatusResponse | null>(null);
+  const [stage, setStage] = useState<Stage>('setup');
+  const [project, setProject] = useState<Project | null>(null);
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollingTimerRef = useRef<number | null>(null);
+  const uploadRef = useRef<ChunkedUpload | null>(null);
 
-  // Cleanup polling on unmount
+  const { status, restart } = useProjectStatus(project?.uuid, stage === 'processing', (settled) => {
+    if (settled.is_ready) {
+      setStage('ready');
+      void reloadUsage(true).catch(() => undefined);
+      addToast({ type: 'success', title: 'Captions ready', message: `${settled.captions_count} caption lines were generated.` });
+    } else if (settled.is_failed) {
+      setStage('failed');
+      setErrorMessage(settled.error ?? 'Processing failed. Please try again.');
+    }
+  });
+
+  // Warn before closing the tab mid-upload; abort the upload if the page unmounts.
   useEffect(() => {
-    return () => {
-      if (pollingTimerRef.current) {
-        window.clearTimeout(pollingTimerRef.current);
-      }
+    if (stage !== 'uploading') return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
     };
-  }, []);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [stage]);
+  useEffect(() => () => uploadRef.current?.abortLocally(), []);
 
-  const validateVideoFile = (file: File): boolean => {
-    setValidationError(null);
-    const validExtensions = ['mp4', 'mov', 'webm', 'avi', 'mkv'];
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-
-    if (!validExtensions.includes(fileExt)) {
-      setValidationError(`Unsupported format (.${fileExt}). Please select MP4, MOV, WebM, AVI, or MKV.`);
-      return false;
-    }
-
-    const maxSizeInBytes = 500 * 1024 * 1024; // 500 MB
-    if (file.size > maxSizeInBytes) {
-      setValidationError(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 500MB.`);
-      return false;
-    }
-
-    return true;
+  const selectFile = (selected: File) => {
+    const problem = validateVideoFile(selected, maxMb);
+    setFileError(problem);
+    if (problem) return;
+    setFile(selected);
+    if (!name.trim()) setName(selected.name.replace(/\.[^/.]+$/, ''));
   };
 
-  const handleFileSelection = (file: File) => {
-    if (validateVideoFile(file)) {
-      setSelectedFile(file);
-      if (!name.trim()) {
-        const cleanName = file.name.replace(/\.[^/.]+$/, '');
-        setName(cleanName);
-      }
+  const runUpload = async (target: Project, video: File) => {
+    setStage('uploading');
+    setErrorMessage(null);
+    const upload = new ChunkedUpload(target.uuid, video, language, setProgress);
+    uploadRef.current = upload;
+    try {
+      await upload.start();
+      setStage('processing');
+      restart();
+    } catch (err) {
+      if (err instanceof UploadCancelledError) return;
+      const appErr = toAppError(err, 'The upload failed.');
+      setErrorMessage(appErr.message);
+      setStage('upload-error');
+    } finally {
+      uploadRef.current = null;
     }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelection(e.dataTransfer.files[0]);
-    }
-  };
-
-  // Poll project status until ready or failed
-  const startStatusPolling = (projectUuid: string) => {
-    const poll = async () => {
-      try {
-        const res = await checkStatus(projectUuid);
-        setStatusData(res);
-
-        if (res.is_ready) {
-          setStage('ready');
-          addToast({
-            type: 'success',
-            title: 'Captions Ready!',
-            message: `Generated ${res.captions_count} timed captions. You can now open the project in the editor.`,
-          });
-          return;
-        }
-
-        if (res.is_failed) {
-          setStage('error');
-          addToast({
-            type: 'error',
-            title: 'Processing Failed',
-            message: 'Video processing failed. Please retry.',
-          });
-          return;
-        }
-
-        // Continue polling every 1.5 seconds while still processing
-        pollingTimerRef.current = window.setTimeout(poll, 1500);
-      } catch (err) {
-        console.error('Status check error:', err);
-        pollingTimerRef.current = window.setTimeout(poll, 2500);
-      }
-    };
-
-    poll();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!name.trim()) {
-      addToast({
-        type: 'warning',
-        title: 'Title Required',
-        message: 'Please provide a title for your video project.',
-      });
-      return;
-    }
-
-    if (!selectedFile) {
-      addToast({
-        type: 'warning',
-        title: 'Video Required',
-        message: 'Please select or drop a video file to upload.',
-      });
-      return;
-    }
-
+    if (!file || !name.trim()) return;
+    setIsSubmitting(true);
     try {
-      // Step 1: Create project record
-      const project = await createProject({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        language,
-        settings: {
-          language,
-          caption_style: 'default',
-        },
-      });
-
-      setActiveProject(project);
-
-      // Step 2: Upload video with progress
-      setStage('uploading');
-      setUploadPercent(0);
-
-      await uploadVideo(project.uuid, selectedFile, language, (percent) => {
-        setUploadPercent(percent);
-      });
-
-      // Step 3: Transition to processing stage and start polling status
-      setStage('processing');
-      startStatusPolling(project.uuid);
-    } catch (err: any) {
-      console.error('Upload failed:', err);
-      setStage('setup');
-      const errorMsg = err?.response?.data?.message || 'Failed to upload video. Please check your connection and try again.';
-      addToast({
-        type: 'error',
-        title: 'Upload Failed',
-        message: errorMsg,
-      });
+      const created = project ?? (await createProject({ name: name.trim(), description: description.trim() || undefined, language }));
+      setProject(created);
+      await runUpload(created, file);
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not create project', message: toAppError(err).message });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const cancelUpload = async () => {
+    setConfirmCancel(false);
+    await uploadRef.current?.cancel();
+    setProgress(null);
+    setStage('setup');
+    addToast({ type: 'info', message: 'Upload cancelled.' });
+  };
+
   const retryProcessing = async () => {
-    if (!activeProject) return;
+    if (!project) return;
     try {
+      await captionService.generateCaptions(project.uuid, language);
+      setErrorMessage(null);
       setStage('processing');
-      startStatusPolling(activeProject.uuid);
+      restart();
     } catch {
-      setStage('error');
+      /* the API client already showed why (e.g. plan limit) */
     }
+  };
+
+  const heading: Record<Stage, [string, string]> = {
+    setup: ['Create a project', 'Upload a video and we’ll generate Sinhala or English captions you can edit in the studio.'],
+    uploading: ['Uploading video', 'Keep this tab open. If your connection drops, the upload resumes where it stopped.'],
+    'upload-error': ['Upload interrupted', 'Nothing is lost — resume to send only the remaining parts.'],
+    processing: ['Generating captions', 'This usually takes a minute or two. You can leave this page — we’ll keep working.'],
+    ready: ['Captions ready', 'Open the studio to review, style and export.'],
+    failed: ['Processing failed', 'Your video is uploaded. You can retry caption generation.'],
   };
 
   return (
     <div className="create-project-layout">
       <div>
-        <h2 style={{ fontSize: '1.65rem', fontWeight: 700, marginBottom: '6px' }}>
-          {stage === 'ready' ? 'Captions Ready!' : stage === 'processing' ? 'Processing Video & Captions' : 'Create & Upload Video'}
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.925rem' }}>
-          {stage === 'ready'
-            ? 'Your AI-powered captions and audio transcription have been generated successfully.'
-            : stage === 'processing'
-            ? 'Our speech pipeline is extracting audio, analyzing timestamps, and formatting captions.'
-            : 'Upload a video to extract speech, generate accurate Sinhala or English captions, and edit in the studio.'}
-        </p>
+        <h2 className="page-heading">{heading[stage][0]}</h2>
+        <p className="page-subheading">{heading[stage][1]}</p>
       </div>
 
-      {/* STAGE 1: SETUP & UPLOAD */}
       {stage === 'setup' && (
-        <form onSubmit={handleSubmit} className="create-form-card">
-          {/* Upload Dropzone */}
+        <form onSubmit={handleSubmit} className="create-form-card" noValidate>
           <div>
-            <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px' }}>
-              Video File <span style={{ color: 'var(--brand-accent)' }}>*</span>
-            </label>
-
+            <span className="form-label" id="video-label">
+              Video file <span aria-hidden="true" style={{ color: 'var(--brand-accent)' }}>*</span>
+            </span>
             <input
               id="video-file-input"
               data-testid="video-file-input"
-              aria-label="Upload video file"
+              aria-labelledby="video-label"
               type="file"
               ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,.mkv,.avi,.mov,.mp4,.webm"
-              style={{ display: 'none' }}
+              onChange={(e) => e.target.files?.[0] && selectFile(e.target.files[0])}
+              accept={VIDEO_UPLOAD.ACCEPT}
+              className="sr-only"
+              tabIndex={-1}
             />
 
-            {!selectedFile ? (
+            {!file ? (
               <div
                 className={`upload-dropzone ${isDragOver ? 'upload-dropzone-active' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-describedby={fileError ? 'video-error' : 'video-hint'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDragOver(true);
                 }}
                 onDragLeave={() => setIsDragOver(false)}
-                onDrop={handleDrop}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(false);
+                  if (e.dataTransfer.files?.[0]) selectFile(e.dataTransfer.files[0]);
+                }}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <div className="upload-icon-circle">
+                <div className="upload-icon-circle" aria-hidden="true">
                   <UploadCloud size={28} />
                 </div>
-                <h4 className="upload-title">Drag & drop your video here, or browse</h4>
-                <p className="upload-subtitle">
-                  High-definition video processing supported up to 500MB
-                </p>
-                <button
-                  type="button"
-                  style={{
-                    marginTop: '12px',
-                    padding: '8px 18px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--brand-primary)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  Browse Video Files
-                </button>
-                <div className="upload-badge-row">
-                  <span className="upload-badge-tag">MP4</span>
-                  <span className="upload-badge-tag">MOV</span>
-                  <span className="upload-badge-tag">WEBM</span>
-                  <span className="upload-badge-tag">AVI</span>
-                  <span className="upload-badge-tag">MKV</span>
-                </div>
+                <h3 className="upload-title">Drag &amp; drop your video, or browse</h3>
+                <p className="upload-subtitle" id="video-hint">MP4, MOV, WEBM, MKV or AVI · up to {maxMb} MB</p>
+                <span className="btn btn-primary btn-sm" aria-hidden="true" style={{ marginTop: 12 }}>
+                  Choose video
+                </span>
               </div>
             ) : (
               <div className="upload-file-preview">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <FileVideo size={24} />
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{selectedFile.name}</div>
-                    <div style={{ fontSize: '0.78rem', opacity: 0.85 }}>
-                      {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • {selectedFile.type || 'Video'}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <FileVideo size={24} aria-hidden="true" />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
+                    <div style={{ fontSize: '0.78rem', opacity: 0.85 }}>{formatFileSize(file.size)}</div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedFile(null)}
-                  style={{
-                    cursor: 'pointer',
-                    padding: '6px',
-                    borderRadius: '50%',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'inherit',
-                  }}
-                  aria-label="Remove selected file"
-                >
-                  <X size={18} />
+                <button type="button" className="icon-button" onClick={() => setFile(null)} aria-label={`Remove ${file.name}`}>
+                  <X size={18} aria-hidden="true" />
                 </button>
               </div>
             )}
 
-            {validationError && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontSize: '0.825rem', marginTop: '8px' }}>
-                <AlertCircle size={16} />
-                <span>{validationError}</span>
-              </div>
+            {fileError && (
+              <p id="video-error" className="field-error" role="alert">
+                <AlertCircle size={16} aria-hidden="true" /> {fileError}
+              </p>
             )}
           </div>
 
-          {/* Project Title */}
           <Input
-            label="Project Title"
-            placeholder="e.g. සිංහල ට්‍රැවල් ව්ලොග් #1 or AI Tech Review"
+            label="Project title"
+            placeholder="e.g. සිංහල ට්‍රැවල් ව්ලොග් #1"
             value={name}
+            maxLength={255}
             onChange={(e) => setName(e.target.value)}
             required
-            helperText="Unicode Sinhala and English characters are fully supported."
+            helperText="Sinhala and English titles are supported."
           />
 
-          {/* Target Language Selection */}
-          <div>
-            <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px' }}>
-              Spoken Audio Language
-            </label>
-            <div className="lang-selector-grid">
-              <div
-                className={`lang-option-card ${language === 'si' ? 'lang-option-card-selected' : ''}`}
-                onClick={() => setLanguage('si')}
-              >
-                <span className="lang-option-flag">🇱🇰</span>
-                <div className="lang-option-text">
-                  <span className="lang-option-title">සිංහල (Sinhala)</span>
-                  <span className="lang-option-sub">Sinhala Speech & Transcripts</span>
-                </div>
-                {language === 'si' && <Check size={18} style={{ marginLeft: 'auto', color: 'var(--brand-primary)' }} />}
-              </div>
-
-              <div
-                className={`lang-option-card ${language === 'en' ? 'lang-option-card-selected' : ''}`}
-                onClick={() => setLanguage('en')}
-              >
-                <span className="lang-option-flag">🇺🇸</span>
-                <div className="lang-option-text">
-                  <span className="lang-option-title">English</span>
-                  <span className="lang-option-sub">Standard English recognition</span>
-                </div>
-                {language === 'en' && <Check size={18} style={{ marginLeft: 'auto', color: 'var(--brand-primary)' }} />}
-              </div>
-
-              <div
-                className={`lang-option-card ${language === 'auto' ? 'lang-option-card-selected' : ''}`}
-                onClick={() => setLanguage('auto')}
-              >
-                <span className="lang-option-flag">🌐</span>
-                <div className="lang-option-text">
-                  <span className="lang-option-title">Auto / Mixed</span>
-                  <span className="lang-option-sub">Bilingual Singlish speech</span>
-                </div>
-                {language === 'auto' && <Check size={18} style={{ marginLeft: 'auto', color: 'var(--brand-primary)' }} />}
-              </div>
+          <fieldset className="lang-fieldset">
+            <legend className="form-label">Spoken language</legend>
+            <div className="lang-selector-grid" role="radiogroup">
+              {LANGUAGES.map((opt) => (
+                <label key={opt.value} className={`lang-option-card ${language === opt.value ? 'lang-option-card-selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="language"
+                    value={opt.value}
+                    checked={language === opt.value}
+                    onChange={() => setLanguage(opt.value)}
+                    className="sr-only"
+                  />
+                  <span className="lang-option-flag" aria-hidden="true">{opt.flag}</span>
+                  <span className="lang-option-text">
+                    <span className="lang-option-title">{opt.title}</span>
+                    <span className="lang-option-sub">{opt.sub}</span>
+                  </span>
+                </label>
+              ))}
             </div>
-          </div>
+          </fieldset>
 
-          {/* Description */}
           <div className="input-group">
-            <label className="input-label">Description (Optional)</label>
+            <label className="input-label" htmlFor="project-description">Description (optional)</label>
             <textarea
+              id="project-description"
               className="input-field"
               rows={2}
-              placeholder="Add notes about content, context or speech speakers..."
+              maxLength={1000}
+              placeholder="Notes about the content or speakers…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
-          {/* Submit Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => navigate('/projects')}
-            >
+          <div className="form-actions">
+            <Button type="button" variant="secondary" onClick={() => navigate('/projects')}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              disabled={!selectedFile || !name.trim()}
-              startIcon={<Sparkles size={18} />}
-            >
-              Create & Upload Video
+            <Button type="submit" variant="primary" size="lg" disabled={!file || !name.trim()} isLoading={isSubmitting} startIcon={<Sparkles size={18} aria-hidden="true" />}>
+              Upload &amp; generate captions
             </Button>
           </div>
         </form>
       )}
 
-      {/* STAGE 2: UPLOADING */}
-      {stage === 'uploading' && (
+      {(stage === 'uploading' || stage === 'upload-error') && file && (
         <div className="processing-card">
-          <div className="processing-hero">
-            <div className="processing-pulsing-badge">
-              <span className="pulsing-dot" />
-              <span>Uploading Video...</span>
-            </div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 700 }}>
-              Transferring media to secure storage
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '480px' }}>
-              Please keep this tab open while your file is securely uploaded and registered.
-            </p>
+          <Progress
+            label={file.name}
+            value={progress?.percent ?? 0}
+            tone={stage === 'upload-error' ? 'danger' : 'primary'}
+            detail={
+              progress
+                ? `${progress.percent}% · ${formatFileSize(progress.loaded)} of ${formatFileSize(progress.total)}${
+                    stage === 'uploading' && progress.speed > 0 ? ` · ${formatFileSize(progress.speed)}/s · ${formatEta(progress.eta)}` : ''
+                  }`
+                : 'Preparing…'
+            }
+          />
+
+          <div aria-live="polite" className="upload-status-line">
+            {stage === 'uploading' && progress?.waitingForNetwork && (
+              <span className="upload-status-warn"><WifiOff size={15} aria-hidden="true" /> Connection lost — waiting to resume…</span>
+            )}
+            {stage === 'uploading' && !progress?.waitingForNetwork && (progress?.retrying ?? 0) > 0 && (
+              <span className="upload-status-warn"><RefreshCw size={15} aria-hidden="true" /> Retrying a part of the file (attempt {progress?.retrying})…</span>
+            )}
+            {stage === 'upload-error' && errorMessage && <span className="form-alert" role="alert">{errorMessage}</span>}
           </div>
 
-          <div className="upload-progress-container" style={{ maxWidth: '620px', margin: '0 auto', width: '100%' }}>
-            <div className="upload-progress-header">
-              <span>{selectedFile?.name || 'video_media.mp4'}</span>
-              <span>{uploadPercent}%</span>
-            </div>
-            <div className="upload-progress-bar-bg">
-              <div
-                className="upload-progress-bar-fill"
-                style={{ width: `${uploadPercent}%` }}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              <span>{(selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(1) : '0')} MB Total</span>
-              <span>{uploadPercent === 100 ? 'Finalizing upload...' : 'Sending bytes...'}</span>
-            </div>
+          <div className="form-actions">
+            {stage === 'uploading' ? (
+              <Button variant="secondary" onClick={() => setConfirmCancel(true)}>Cancel upload</Button>
+            ) : (
+              <>
+                <Button variant="secondary" onClick={() => setStage('setup')}>Back</Button>
+                <Button variant="primary" startIcon={<RefreshCw size={16} aria-hidden="true" />} onClick={() => project && runUpload(project, file)}>
+                  Resume upload
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* STAGE 3: REAL-TIME PROCESSING STEPPER */}
       {stage === 'processing' && (
         <div className="processing-card">
-          <div className="processing-hero">
-            <div className="processing-pulsing-badge">
-              <span className="pulsing-dot" />
-              <span>{statusData?.phase_label || 'Analyzing video and extracting audio...'}</span>
-            </div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 700 }}>
-              AI Caption Generation in Progress
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '520px' }}>
-              Our background pipeline is processing speech streams, generating word alignments, and preparing your studio timeline.
-            </p>
-          </div>
-
-          {/* Stepper Steps */}
-          <div className="stepper-list">
-            {/* Step 1: Upload */}
-            <div className="stepper-item stepper-item-completed">
-              <div className="stepper-icon-box stepper-icon-completed">
-                <Check size={18} />
-              </div>
-              <div className="stepper-content">
-                <div className="stepper-title">Video Uploaded</div>
-                <div className="stepper-desc">File validated and stored securely</div>
-              </div>
-            </div>
-
-            {/* Step 2: Metadata */}
-            <div className={`stepper-item ${['extracting_audio', 'transcribing', 'generating_captions', 'ready'].includes(statusData?.status || '') ? 'stepper-item-completed' : ''}`}>
-              <div className={`stepper-icon-box ${['extracting_audio', 'transcribing', 'generating_captions', 'ready'].includes(statusData?.status || '') ? 'stepper-icon-completed' : statusData?.status === 'processing' ? 'stepper-icon-active' : 'stepper-icon-pending'}`}>
-                {['extracting_audio', 'transcribing', 'generating_captions', 'ready'].includes(statusData?.status || '') ? <Check size={18} /> : '2'}
-              </div>
-              <div className="stepper-content">
-                <div className="stepper-title">Analyze Video & Extract Metadata</div>
-                <div className="stepper-desc">
-                  {statusData?.width && statusData?.height
-                    ? `${statusData.width}x${statusData.height} @ ${statusData.fps || 30}fps (${formatDuration(statusData.duration || 0)})`
-                    : 'Extracting resolution, duration, and frame rate via FFprobe'}
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3: Audio Extraction */}
-            <div className={`stepper-item ${['transcribing', 'generating_captions', 'ready'].includes(statusData?.status || '') ? 'stepper-item-completed' : ''}`}>
-              <div className={`stepper-icon-box ${['transcribing', 'generating_captions', 'ready'].includes(statusData?.status || '') ? 'stepper-icon-completed' : statusData?.status === 'extracting_audio' ? 'stepper-icon-active' : 'stepper-icon-pending'}`}>
-                {['transcribing', 'generating_captions', 'ready'].includes(statusData?.status || '') ? <Check size={18} /> : '3'}
-              </div>
-              <div className="stepper-content">
-                <div className="stepper-title">Extract Audio Stream</div>
-                <div className="stepper-desc">16kHz speech-optimized audio extraction via FFmpeg</div>
-              </div>
-            </div>
-
-            {/* Step 4: AI Transcription */}
-            <div className={`stepper-item ${['generating_captions', 'ready'].includes(statusData?.status || '') ? 'stepper-item-completed' : ''}`}>
-              <div className={`stepper-icon-box ${['generating_captions', 'ready'].includes(statusData?.status || '') ? 'stepper-icon-completed' : statusData?.status === 'transcribing' ? 'stepper-icon-active' : 'stepper-icon-pending'}`}>
-                {['generating_captions', 'ready'].includes(statusData?.status || '') ? <Check size={18} /> : '4'}
-              </div>
-              <div className="stepper-content">
-                <div className="stepper-title">AI Speech Transcription (Gemini)</div>
-                <div className="stepper-desc">Translating audio waves into {language === 'si' ? 'Sinhala Unicode' : 'English'} text</div>
-              </div>
-            </div>
-
-            {/* Step 5: Caption Timings */}
-            <div className="stepper-item">
-              <div className={`stepper-icon-box ${statusData?.status === 'generating_captions' ? 'stepper-icon-active' : 'stepper-icon-pending'}`}>
-                {statusData?.status === 'ready' ? <Check size={18} /> : '5'}
-              </div>
-              <div className="stepper-content">
-                <div className="stepper-title">Generate Timed Captions & Word Alignments</div>
-                <div className="stepper-desc">Computing subtitle chunks, start/end timestamps, and karaoke cues</div>
-              </div>
-            </div>
+          <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
+          <ProcessingSteps status={status?.status ?? 'uploaded'} />
+          <div className="form-actions">
+            <Button variant="secondary" onClick={() => project && navigate(`/projects/${project.uuid}`)}>
+              Continue in the background
+            </Button>
           </div>
         </div>
       )}
 
-      {/* STAGE 4: READY STATE */}
-      {stage === 'ready' && (
+      {stage === 'failed' && (
+        <div className="processing-card processing-card-error">
+          <div className="form-alert" role="alert">{errorMessage}</div>
+          <div className="form-actions">
+            <Button variant="secondary" onClick={() => project && navigate(`/projects/${project.uuid}`)}>Go to project</Button>
+            <Button variant="primary" startIcon={<RefreshCw size={16} aria-hidden="true" />} onClick={retryProcessing}>
+              Retry caption generation
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {stage === 'ready' && project && (
         <div className="ready-success-box">
           <div className="ready-preview-grid">
             <div className="ready-thumbnail-container">
-              {statusData?.thumbnail ? (
-                <img
-                  src={statusData.thumbnail}
-                  alt={activeProject?.name || 'Project thumbnail'}
-                  className="ready-thumbnail-img"
-                  onError={(e) => {
-                    // Fallback to placeholder on image error
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="170" viewBox="0 0 300 170"><rect width="300" height="170" fill="%231e293b"/><text x="50%" y="50%" fill="%2394a3b8" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14">Thumbnail Ready</text></svg>';
-                  }}
-                />
+              {status?.thumbnail ? (
+                <img src={status.thumbnail} alt="" className="ready-thumbnail-img" />
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-                  <FileVideo size={48} />
-                </div>
+                <div className="ready-thumbnail-fallback" aria-hidden="true"><FileVideo size={48} /></div>
               )}
-              {statusData?.duration && (
-                <div className="ready-duration-badge">
-                  <Clock size={12} />
-                  <span>{formatDuration(statusData.duration)}</span>
-                </div>
-              )}
+              {status?.duration ? <div className="ready-duration-badge">{formatDuration(status.duration)}</div> : null}
             </div>
-
             <div className="ready-info-col">
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Generation Complete
-              </span>
-              <h3 style={{ fontSize: '1.45rem', fontWeight: 700, margin: 0 }}>
-                {activeProject?.name}
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-                Video analysis, audio separation, and speech captioning completed with full word-level timings.
-              </p>
-
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 700 }}>{project.name}</h3>
               <div className="ready-stats-row">
                 <div className="ready-stat-chip">
                   <span className="ready-stat-label">Captions</span>
-                  <span className="ready-stat-value">{statusData?.captions_count || 0} lines</span>
+                  <span className="ready-stat-value">{status?.captions_count ?? 0} lines</span>
                 </div>
                 <div className="ready-stat-chip">
                   <span className="ready-stat-label">Language</span>
-                  <span className="ready-stat-value">{language === 'si' ? '🇱🇰 Sinhala' : '🇺🇸 English'}</span>
+                  <span className="ready-stat-value">{LANGUAGES.find((l) => l.value === (status?.language ?? language))?.title}</span>
                 </div>
-                <div className="ready-stat-chip">
-                  <span className="ready-stat-label">Resolution</span>
-                  <span className="ready-stat-value">
-                    {statusData?.width ? `${statusData.width}x${statusData.height}` : '1080p'}
-                  </span>
-                </div>
+                {status?.width ? (
+                  <div className="ready-stat-chip">
+                    <span className="ready-stat-label">Resolution</span>
+                    <span className="ready-stat-value">{status.width}×{status.height}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/projects/${activeProject?.uuid}`)}
-              startIcon={<Sliders size={18} />}
-            >
-              Project Details
+          <div className="form-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: 20 }}>
+            <Button variant="secondary" onClick={() => navigate(`/projects/${project.uuid}`)} startIcon={<Sliders size={18} aria-hidden="true" />}>
+              Project details
             </Button>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => navigate(`/projects/${activeProject?.uuid}/editor`)}
-              endIcon={<ArrowRight size={18} />}
-            >
-              Open Studio Editor
+            <Button variant="primary" size="lg" onClick={() => navigate(`/projects/${project.uuid}/editor`)} endIcon={<ArrowRight size={18} aria-hidden="true" />}>
+              Open studio editor
             </Button>
           </div>
         </div>
       )}
 
-      {/* STAGE 5: ERROR STATE */}
-      {stage === 'error' && (
-        <div className="processing-card" style={{ borderColor: '#ef4444' }}>
-          <div className="processing-hero">
-            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <AlertCircle size={30} />
-            </div>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#b91c1c' }}>
-              Video Processing Could Not Complete
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '520px' }}>
-              We encountered an issue while extracting or transcribing your video file. You can retry generating captions, or navigate to project details.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '14px' }}>
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/projects/${activeProject?.uuid || ''}`)}
-            >
-              Go to Project
-            </Button>
-            <Button
-              variant="primary"
-              onClick={retryProcessing}
-              startIcon={<RefreshCw size={18} />}
-            >
-              Retry Caption Generation
-            </Button>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={confirmCancel}
+        title="Cancel this upload?"
+        message="The parts already sent will be discarded. You can start again at any time."
+        confirmLabel="Cancel upload"
+        cancelLabel="Keep uploading"
+        tone="danger"
+        onConfirm={cancelUpload}
+        onCancel={() => setConfirmCancel(false)}
+      />
     </div>
   );
 };

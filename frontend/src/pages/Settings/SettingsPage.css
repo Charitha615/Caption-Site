@@ -70,3 +70,26 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: var(--shadow-xs);
 }
+
+.settings-choice { border: none; padding: 0; margin: 0 0 18px; min-width: 0; }
+.settings-choice:last-child { margin-bottom: 0; }
+.settings-choice-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.settings-option {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+  cursor: pointer; min-width: 140px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.settings-option:hover { border-color: var(--border-dark); }
+.settings-option-selected { border-color: var(--brand-primary); background: var(--brand-primary-light); }
+.settings-option input { margin-top: 3px; accent-color: var(--brand-primary); }
+.settings-option-label { display: block; font-weight: 600; font-size: 0.9rem; }
+.settings-option-hint { display: block; font-size: 0.78rem; color: var(--text-muted); }
+.settings-choice:disabled { opacity: 0.6; }
+.settings-about { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
+.settings-about kbd { padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-dark); font-size: 0.8rem; }
+
+@media (max-width: 600px) {
+  .settings-option { flex: 1 1 100%; }
+}

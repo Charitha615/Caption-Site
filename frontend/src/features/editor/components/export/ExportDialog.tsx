@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSettingsStore } from '../../../../stores/settingsStore';
 import {
   AlertTriangle,
   Braces,
@@ -13,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Modal } from '../../../../components/Modal/Modal';
+import { ConfirmDialog } from '../../../../components/ConfirmDialog/ConfirmDialog';
 import { apiErrorMessage, exportService } from '../../../../services/exportService';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useEditorProjectStore } from '../../../../stores/editor/editorProjectStore';
@@ -153,8 +155,9 @@ export function ExportDialog() {
   const loadTemplates = useTemplateStore((s) => s.load);
 
   const [type, setType] = useState<ExportType>('mp4');
-  const [resolution, setResolution] = useState<ExportResolution>('1080');
-  const [quality, setQuality] = useState<ExportQuality>('standard');
+  const preferences = useSettingsStore((st) => st.settings);
+  const [resolution, setResolution] = useState<ExportResolution>(preferences?.default_export_resolution ?? '1080');
+  const [quality, setQuality] = useState<ExportQuality>(preferences?.default_export_quality ?? 'standard');
   const [template, setTemplate] = useState<string>('');
   const [items, setItems] = useState<ExportItem[]>([]);
   const [listError, setListError] = useState<string | null>(null);
@@ -225,8 +228,14 @@ export function ExportDialog() {
     }
   };
 
-  const remove = async (item: ExportItem) => {
-    if (isActive(item) && !window.confirm('Cancel this render?')) return;
+  const [pendingCancel, setPendingCancel] = useState<ExportItem | null>(null);
+
+  const remove = async (item: ExportItem, confirmed = false) => {
+    if (isActive(item) && !confirmed) {
+      setPendingCancel(item);
+      return;
+    }
+    setPendingCancel(null);
     try {
       await exportService.remove(item.uuid);
       setItems((prev) => prev.filter((e) => e.uuid !== item.uuid));
@@ -362,6 +371,16 @@ export function ExportDialog() {
           </section>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={!!pendingCancel}
+        title="Cancel this render?"
+        message="The video stops rendering and the partial file is discarded."
+        confirmLabel="Cancel render"
+        cancelLabel="Keep rendering"
+        tone="danger"
+        onConfirm={() => pendingCancel && void remove(pendingCancel, true)}
+        onCancel={() => setPendingCancel(null)}
+      />
     </Modal>
   );
 }

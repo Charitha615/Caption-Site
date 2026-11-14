@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Projects;
 
+use App\Rules\JsonSize;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CreateProjectRequest extends FormRequest
@@ -11,18 +12,14 @@ class CreateProjectRequest extends FormRequest
         return true;
     }
 
+    /** Media properties (duration, size, thumbnail, status) are derived server-side, never accepted. */
     public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'language' => ['nullable', 'string', 'in:si,en,auto'],
-            'duration' => ['nullable', 'numeric', 'min:0'],
-            'width' => ['nullable', 'integer', 'min:1'],
-            'height' => ['nullable', 'integer', 'min:1'],
-            'fps' => ['nullable', 'numeric', 'min:1'],
-            'thumbnail' => ['nullable', 'string'],
-            'settings' => ['nullable', 'array'],
+            'settings' => ['nullable', 'array', new JsonSize(256 * 1024)],
         ];
     }
 }

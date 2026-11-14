@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { apiClient } from './api';
 import type { ApiResponse } from '../types/api';
 import type { CaptionTemplate, CreateExportPayload, ExportItem } from '../types/export';
@@ -53,14 +52,4 @@ export const templateService = {
   },
 };
 
-/** First validation / API message from an error, for inline display. */
-export function apiErrorMessage(err: unknown, fallback = 'Something went wrong.'): string {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as ApiResponse | undefined;
-    const first = data?.errors ? Object.values(data.errors)[0]?.[0] : undefined;
-    if (first) return first;
-    if (data?.message) return data.message;
-    if (!err.response) return 'Cannot reach the server.';
-  }
-  return err instanceof Error ? err.message : fallback;
-}
+export { apiErrorMessage } from './errors';

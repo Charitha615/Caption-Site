@@ -2,329 +2,288 @@
 
 namespace App\Services\AI;
 
+use App\Exceptions\AIProviderException;
+use App\Support\AppLog;
+use GuzzleHttp\Psr7\Utils;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
+/**
+ * Google Gemini speech-to-captions.
+ *
+ * - The API key travels in the `x-goog-api-key` header, never in the URL, so it
+ *   cannot leak into logs, exception messages or proxies.
+ * - Small audio is sent inline; larger files go through the Gemini Files API
+ *   (resumable upload, streamed from disk — the file is never fully loaded in memory)
+ *   and are deleted from Google once transcription finishes.
+ * - Transient failures (429/5xx/connection) are retried with backoff.
+ * - Any failure throws AIProviderException with a user-safe message. It never
+ *   substitutes sample captions.
+ */
 class GeminiAIProvider implements AIProviderInterface
 {
-    protected ?string $apiKey;
-    protected string $model;
-    protected string $baseUrl;
+    private const RETRYABLE = [408, 429, 500, 502, 503, 504];
 
-    public function __construct()
-    {
-        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY'));
-        $this->model = config('services.gemini.model', env('GEMINI_MODEL', 'gemini-3.8-flash'));
-        $this->baseUrl = config('services.gemini.base_url', 'https://generativelanguage.googleapis.com/v1beta');
+    public function __construct(
+        protected ?string $apiKey = null,
+        protected ?string $model = null,
+        protected ?string $baseUrl = null,
+        protected ?string $uploadUrl = null,
+    ) {
+        $this->apiKey ??= config('ai.gemini.api_key');
+        $this->model ??= (string) config('ai.gemini.model');
+        $this->baseUrl ??= rtrim((string) config('ai.gemini.base_url'), '/');
+        $this->uploadUrl ??= rtrim((string) config('ai.gemini.upload_url'), '/');
     }
 
-    /**
-     * Transcribe audio to structured text and timed segments.
-     */
-    public function transcribeAudio(string $audioFilePath, string $language = 'auto'): array
+    public function name(): string
     {
-        $captions = $this->generateCaptions($audioFilePath, $language);
-
-        $fullText = '';
-        foreach ($captions as $cap) {
-            $fullText .= ($fullText ? ' ' : '') . $cap['text'];
-        }
-
-        $detectedLang = $language === 'auto'
-            ? ($captions[0]['language'] ?? 'si')
-            : $language;
-
-        return [
-            'text' => $fullText,
-            'language' => $detectedLang,
-            'segments' => $captions,
-        ];
+        return 'gemini';
     }
 
-    /**
-     * Generate structured, timed captions from audio.
-     */
-    public function generateCaptions(string $audioFilePath, string $language = 'auto', array $options = []): array
+    public function transcribe(string $audioFilePath, string $language = 'auto', array $options = []): array
     {
-        if (empty($this->apiKey) || !file_exists($audioFilePath)) {
-            Log::info("Gemini API key not configured or audio file not found. Using structured offline caption generator for language: {$language}");
-            return $this->getFallbackCaptions($audioFilePath, $language);
+        if (empty($this->apiKey)) {
+            throw new AIProviderException('AI captioning is not configured on this server. Please contact support.', ['reason' => 'missing_api_key']);
         }
+        if (! is_file($audioFilePath) || filesize($audioFilePath) === 0) {
+            throw new AIProviderException('We could not read the audio from this video.', ['reason' => 'missing_audio_file']);
+        }
+
+        $mime = $this->mimeType($audioFilePath);
+        $size = (int) filesize($audioFilePath);
+        $uploadedFile = null;
 
         try {
-            $fileData = file_get_contents($audioFilePath);
-            $mimeType = $this->getAudioMimeType($audioFilePath);
+            if ($size <= (int) config('ai.gemini.inline_max_bytes')) {
+                $mediaPart = ['inlineData' => ['mimeType' => $mime, 'data' => base64_encode((string) file_get_contents($audioFilePath))]];
+            } else {
+                $uploadedFile = $this->uploadFile($audioFilePath, $mime, $size);
+                $mediaPart = ['fileData' => ['mimeType' => $mime, 'fileUri' => $uploadedFile['uri']]];
+            }
 
-            // If audio file is within inline limit (<= 20MB)
-            if (strlen($fileData) <= 20 * 1024 * 1024) {
-                $base64Audio = base64_encode($fileData);
-                $prompt = $this->buildTranscriptionPrompt($language, $options);
-
-                $url = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
-
-                $response = Http::timeout(90)->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])->post($url, [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => $mimeType,
-                                        'data' => $base64Audio,
-                                    ],
-                                ],
-                                [
-                                    'text' => $prompt,
-                                ],
-                            ],
-                        ],
-                    ],
+            $response = $this->request()
+                ->timeout((int) config('ai.gemini.timeout'))
+                ->post("{$this->baseUrl}/models/{$this->model}:generateContent", [
+                    'contents' => [['role' => 'user', 'parts' => [$mediaPart, ['text' => $this->prompt($language)]]]],
                     'generationConfig' => [
                         'temperature' => 0.1,
                         'responseMimeType' => 'application/json',
+                        'responseSchema' => $this->responseSchema(),
+                        'maxOutputTokens' => (int) config('ai.gemini.max_output_tokens'),
                     ],
                 ]);
 
-                if ($response->successful()) {
-                    $jsonText = $response->json('candidates.0.content.parts.0.text');
-                    $decoded = json_decode($jsonText, true);
+            $this->assertSuccessful($response, 'generate');
 
-                    if (is_array($decoded)) {
-                        $rawSegments = $decoded['captions'] ?? $decoded['segments'] ?? $decoded;
-                        if (is_array($rawSegments) && !empty($rawSegments)) {
-                            return $this->normalizeSegments($rawSegments, $language);
-                        }
-                    }
-                } else {
-                    Log::error('Gemini transcription API request failed: ' . $response->body());
-                }
+            return $this->parse($response, $language, $options['duration'] ?? null);
+        } catch (ConnectionException $e) {
+            AppLog::error('ai.connection_failed', ['provider' => 'gemini', 'model' => $this->model], $e);
+            throw new AIProviderException('The AI service could not be reached. Please try again in a few minutes.', [], $e);
+        } finally {
+            if ($uploadedFile) {
+                $this->deleteFile($uploadedFile['name']);
             }
-        } catch (\Throwable $e) {
-            Log::error('Gemini AI transcription exception: ' . $e->getMessage(), [
-                'file' => $audioFilePath,
-                'exception' => $e,
-            ]);
         }
-
-        return $this->getFallbackCaptions($audioFilePath, $language);
     }
 
-    /**
-     * Translate caption segments between languages.
-     */
-    public function translateCaptions(array $captions, string $targetLanguage): array
+    protected function request(): PendingRequest
     {
-        if (empty($captions)) {
-            return [];
+        return Http::acceptJson()
+            ->withHeaders(['x-goog-api-key' => (string) $this->apiKey])
+            ->retry(
+                3,
+                fn (int $attempt) => $attempt * 2000,
+                fn (\Throwable $e) => $e instanceof ConnectionException
+                    || ($e instanceof RequestException && in_array($e->response->status(), self::RETRYABLE, true)),
+                throw: false,
+            );
+    }
+
+    /** @return array{name: string, uri: string} */
+    protected function uploadFile(string $path, string $mime, int $size): array
+    {
+        $start = $this->request()
+            ->timeout(60)
+            ->withHeaders([
+                'X-Goog-Upload-Protocol' => 'resumable',
+                'X-Goog-Upload-Command' => 'start',
+                'X-Goog-Upload-Header-Content-Length' => (string) $size,
+                'X-Goog-Upload-Header-Content-Type' => $mime,
+            ])
+            ->post("{$this->uploadUrl}/files", ['file' => ['display_name' => basename($path)]]);
+        $this->assertSuccessful($start, 'upload_start');
+
+        $sessionUrl = $start->header('x-goog-upload-url');
+        if (! $sessionUrl) {
+            throw new AIProviderException('The AI service rejected the audio upload. Please try again.', ['reason' => 'no_upload_url']);
         }
 
-        if (empty($this->apiKey)) {
-            return array_map(function ($cap) use ($targetLanguage) {
-                $cap['language'] = $targetLanguage;
-                return $cap;
-            }, $captions);
-        }
-
+        $stream = fopen($path, 'rb');
         try {
-            $langName = $targetLanguage === 'si' ? 'Sinhala (සිංහල Unicode)' : 'English';
-            $texts = array_column($captions, 'text');
-
-            $prompt = "Translate the following subtitle lines accurately into {$langName}. Preserve brevity and conversational tone. Return a JSON array of strings corresponding 1-to-1 with input lines: " . json_encode($texts, JSON_UNESCAPED_UNICODE);
-
-            $url = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
-
-            $response = Http::timeout(30)->post($url, [
-                'contents' => [
-                    ['parts' => [['text' => $prompt]]],
-                ],
-                'generationConfig' => [
-                    'temperature' => 0.2,
-                    'responseMimeType' => 'application/json',
-                ],
-            ]);
-
-            if ($response->successful()) {
-                $translatedTexts = json_decode($response->json('candidates.0.content.parts.0.text'), true);
-                if (is_array($translatedTexts) && count($translatedTexts) === count($captions)) {
-                    $result = [];
-                    foreach ($captions as $i => $cap) {
-                        $cap['text'] = $translatedTexts[$i];
-                        $cap['language'] = $targetLanguage;
-                        $cap['words'] = WordTimingEstimator::estimate($cap['text'], $cap['start'], $cap['end']);
-                        $result[] = $cap;
-                    }
-                    return $result;
-                }
+            $upload = Http::withHeaders([
+                'Content-Length' => (string) $size,
+                'X-Goog-Upload-Offset' => '0',
+                'X-Goog-Upload-Command' => 'upload, finalize',
+            ])->timeout((int) config('ai.gemini.timeout'))
+                ->withBody(Utils::streamFor($stream), $mime)
+                ->post($sessionUrl);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
             }
-        } catch (\Throwable $e) {
-            Log::error('Gemini translateCaptions error: ' . $e->getMessage());
+        }
+        $this->assertSuccessful($upload, 'upload');
+
+        $file = $upload->json('file') ?? [];
+        $deadline = microtime(true) + 120;
+        while (($file['state'] ?? 'ACTIVE') === 'PROCESSING' && microtime(true) < $deadline) {
+            usleep(2_000_000);
+            $poll = $this->request()->timeout(30)->get("{$this->baseUrl}/{$file['name']}");
+            $this->assertSuccessful($poll, 'upload_poll');
+            $file = $poll->json() ?? [];
+        }
+        if (($file['state'] ?? '') !== 'ACTIVE' || empty($file['uri'])) {
+            AppLog::error('ai.upload_not_active', ['provider' => 'gemini', 'state' => $file['state'] ?? null]);
+            throw new AIProviderException('The AI service could not process this audio. Please try again.');
         }
 
-        return $captions;
+        return ['name' => $file['name'], 'uri' => $file['uri']];
     }
 
-    /**
-     * Detect spoken language from audio file.
-     */
-    public function detectLanguage(string $audioFilePath): string
+    protected function deleteFile(string $name): void
     {
-        return 'si'; // Default to Sinhala
-    }
-
-    /**
-     * Improve caption text readability, spelling, and Sinhala Unicode grammar.
-     */
-    public function improveCaptionText(string $text, string $language = 'si'): string
-    {
-        if (empty($this->apiKey) || trim($text) === '') {
-            return trim($text);
-        }
-
         try {
-            $langName = $language === 'si' ? 'Sinhala Unicode' : 'English';
-            $prompt = "Correct any typos, punctuation, or grammar issues in this {$langName} subtitle while keeping the wording natural and punchy: \"{$text}\". Return only the corrected string.";
-
-            $url = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
-            $response = Http::timeout(15)->post($url, [
-                'contents' => [
-                    ['parts' => [['text' => $prompt]]],
-                ],
-            ]);
-
-            if ($response->successful()) {
-                $improved = trim($response->json('candidates.0.content.parts.0.text') ?? '');
-                if ($improved !== '') {
-                    return $improved;
-                }
-            }
+            Http::withHeaders(['x-goog-api-key' => (string) $this->apiKey])->timeout(15)->delete("{$this->baseUrl}/{$name}");
         } catch (\Throwable $e) {
-            Log::warning('Gemini improveCaptionText failed: ' . $e->getMessage());
+            AppLog::warning('ai.file_cleanup_failed', ['provider' => 'gemini', 'file' => $name, 'error' => $e->getMessage()]);
         }
-
-        return trim($text);
     }
 
-    /**
-     * Build the structured prompt for Gemini audio captioning.
-     */
-    protected function buildTranscriptionPrompt(string $language, array $options): string
+    protected function assertSuccessful(Response $response, string $stage): void
+    {
+        if ($response->successful()) {
+            return;
+        }
+
+        $status = $response->status();
+        AppLog::error('ai.request_failed', [
+            'provider' => 'gemini',
+            'model' => $this->model,
+            'stage' => $stage,
+            'status' => $status,
+            'provider_error' => $response->json('error.message') ?? mb_substr($response->body(), 0, 500),
+        ]);
+
+        $message = match (true) {
+            $status === 429 => 'The AI service is busy right now. Please try again in a few minutes.',
+            in_array($status, [401, 403], true) => 'AI captioning is temporarily unavailable. Please contact support.',
+            $status === 400 => 'The AI service could not process this audio.',
+            default => 'The AI service failed to respond. Please try again.',
+        };
+
+        throw new AIProviderException($message, ['status' => $status, 'stage' => $stage]);
+    }
+
+    protected function parse(Response $response, string $language, ?float $duration): array
+    {
+        $candidate = $response->json('candidates.0') ?? [];
+        $finish = $candidate['finishReason'] ?? null;
+        $text = collect($candidate['content']['parts'] ?? [])->pluck('text')->filter()->implode('');
+
+        if ($response->json('promptFeedback.blockReason') || $finish === 'SAFETY') {
+            throw new AIProviderException('The AI service declined to transcribe this audio.', ['finish' => $finish]);
+        }
+        if ($finish === 'MAX_TOKENS') {
+            throw new AIProviderException('This video has too much speech to caption in one pass. Try a shorter clip.', ['finish' => $finish]);
+        }
+
+        $decoded = json_decode($text, true);
+        $raw = is_array($decoded) ? ($decoded['captions'] ?? $decoded['segments'] ?? (array_is_list($decoded) ? $decoded : null)) : null;
+        if (! is_array($raw)) {
+            AppLog::error('ai.invalid_response', ['provider' => 'gemini', 'model' => $this->model, 'finish' => $finish, 'sample' => mb_substr($text, 0, 300)]);
+            throw new AIProviderException('The AI service returned an unexpected response. Please try again.');
+        }
+
+        $segments = SegmentNormalizer::normalize($raw, $language, $duration);
+        $detected = in_array($decoded['language'] ?? null, ['si', 'en'], true)
+            ? $decoded['language']
+            : ($language !== 'auto' ? $language : ($segments[0]['language'] ?? 'si'));
+
+        return [
+            'text' => implode(' ', array_column($segments, 'text')),
+            'language' => $detected,
+            'segments' => $segments,
+            'usage' => array_filter([
+                'model' => $this->model,
+                'input_tokens' => $response->json('usageMetadata.promptTokenCount'),
+                'output_tokens' => $response->json('usageMetadata.candidatesTokenCount'),
+            ], fn ($v) => $v !== null),
+        ];
+    }
+
+    protected function prompt(string $language): string
     {
         $langInstruction = match ($language) {
-            'si' => "The audio is primarily in Sinhala (සිංහල). Transcribe using correct standard Sinhala Unicode characters. If technical terms or English words are spoken, spell them naturally or keep familiar English terms.",
-            'en' => "The audio is in English. Transcribe with accurate grammar, capitalizations, and punctuation.",
-            default => "Detect the spoken language automatically (Sinhala or English) and transcribe with natural phrasing.",
+            'si' => 'The audio is primarily in Sinhala (සිංහල). Transcribe using correct, standard Sinhala Unicode (including ZWJ conjuncts such as ශ්‍රී). Keep English words that are spoken in English in Latin script.',
+            'en' => 'The audio is in English. Transcribe with accurate grammar, capitalization and punctuation.',
+            default => 'Detect the spoken language (Sinhala or English, possibly mixed). Write Sinhala in Sinhala Unicode and English in Latin script.',
         };
 
         return <<<PROMPT
-You are a world-class AI subtitle and transcription engine for video creators.
+You are a professional subtitle transcription engine.
 {$langInstruction}
 
-Carefully listen to the attached audio track and segment the speech into natural subtitle lines suitable for video captions (typically 3 to 8 words per segment).
-For each segment, provide exact start and end timestamps in seconds.
-
-Return STRICT JSON matching this schema:
-{
-  "language": "si" or "en",
-  "captions": [
-    {
-      "text": "Exact spoken text for this subtitle line",
-      "language": "si",
-      "start": 0.52,
-      "end": 3.84,
-      "words": [
-        {"word": "Word1", "start": 0.52, "end": 1.10},
-        {"word": "Word2", "start": 1.12, "end": 1.95}
-      ]
-    }
-  ]
-}
+Transcribe ONLY what is actually spoken. Do not invent, summarise or translate. Skip silence and music.
+Split speech into natural subtitle lines of roughly 3–8 words (at most ~42 characters).
+Give start and end times in seconds relative to the beginning of the audio, plus per-word timings.
+Set "language" on each line to "si" or "en".
+If nothing is spoken, return an empty "captions" array.
 PROMPT;
     }
 
-    /**
-     * Normalize segments from raw AI outputs.
-     */
-    protected function normalizeSegments(array $rawSegments, string $defaultLang): array
+    protected function responseSchema(): array
     {
-        $normalized = [];
+        $word = ['type' => 'OBJECT', 'properties' => ['word' => ['type' => 'STRING'], 'start' => ['type' => 'NUMBER'], 'end' => ['type' => 'NUMBER']], 'required' => ['word', 'start', 'end']];
 
-        foreach ($rawSegments as $seg) {
-            $text = trim($seg['text'] ?? '');
-            if ($text === '') {
-                continue;
-            }
-
-            $start = (float) ($seg['start'] ?? $seg['start_time'] ?? 0.0);
-            $end = (float) ($seg['end'] ?? $seg['end_time'] ?? ($start + 2.5));
-            if ($end <= $start) {
-                $end = $start + 1.5;
-            }
-
-            $lang = $seg['language'] ?? ($defaultLang !== 'auto' ? $defaultLang : 'si');
-            $words = $seg['words'] ?? [];
-
-            // Ensure word-level timing exists
-            $wordsWithTiming = WordTimingEstimator::estimate($text, $start, $end, $words);
-
-            $normalized[] = [
-                'text' => $text,
-                'language' => $lang,
-                'start' => round($start, 3),
-                'end' => round($end, 3),
-                'words' => $wordsWithTiming,
-            ];
-        }
-
-        return $normalized;
+        return [
+            'type' => 'OBJECT',
+            'properties' => [
+                'language' => ['type' => 'STRING', 'enum' => ['si', 'en']],
+                'captions' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'text' => ['type' => 'STRING'],
+                            'language' => ['type' => 'STRING', 'enum' => ['si', 'en']],
+                            'start' => ['type' => 'NUMBER'],
+                            'end' => ['type' => 'NUMBER'],
+                            'words' => ['type' => 'ARRAY', 'items' => $word],
+                        ],
+                        'required' => ['text', 'start', 'end'],
+                    ],
+                ],
+            ],
+            'required' => ['captions'],
+        ];
     }
 
-    /**
-     * Intelligent fallback generator for offline / development environments.
-     */
-    protected function getFallbackCaptions(string $audioFilePath, string $language): array
+    protected function mimeType(string $path): string
     {
-        $lang = $language === 'en' ? 'en' : 'si';
-
-        if ($lang === 'si') {
-            $samples = [
-                ['start' => 0.50, 'end' => 3.20, 'text' => 'ආයුබෝවන්, අපගේ වීඩියෝවට සාදරයෙන් පිළිගනිමු.'],
-                ['start' => 3.45, 'end' => 6.80, 'text' => 'මෙම වීඩියෝවෙන් අපි AI තාක්ෂණය මඟින් සිංහල උපසිරැසි නිර්මාණය කරමු.'],
-                ['start' => 7.00, 'end' => 10.50, 'text' => 'නියම වේලාවට ගැළපෙන අලංකාර animation සහිත caption පේළි මෙහිදී ලැබෙනවා.'],
-                ['start' => 10.80, 'end' => 14.20, 'text' => 'වීඩියෝව පහසුවෙන් සංස්කරණය කර Studio Editor හරහා export කරගන්න.'],
-            ];
-        } else {
-            $samples = [
-                ['start' => 0.52, 'end' => 3.84, 'text' => 'Welcome to our video captioning studio.'],
-                ['start' => 4.10, 'end' => 7.20, 'text' => 'In this tutorial we will generate automated AI subtitles.'],
-                ['start' => 7.50, 'end' => 10.80, 'text' => 'Frame-accurate timestamps and dynamic karaoke styling.'],
-                ['start' => 11.00, 'end' => 14.50, 'text' => 'Easily edit text and export to MP4, SRT or VTT.'],
-            ];
-        }
-
-        $result = [];
-        foreach ($samples as $item) {
-            $result[] = [
-                'text' => $item['text'],
-                'language' => $lang,
-                'start' => $item['start'],
-                'end' => $item['end'],
-                'words' => WordTimingEstimator::estimate($item['text'], $item['start'], $item['end']),
-            ];
-        }
-
-        return $result;
-    }
-
-    protected function getAudioMimeType(string $path): string
-    {
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        return match ($ext) {
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
             'wav' => 'audio/wav',
-            'm4a' => 'audio/m4a',
+            'm4a' => 'audio/mp4',
             'aac' => 'audio/aac',
             'ogg' => 'audio/ogg',
-            default => 'audio/mp3',
+            'flac' => 'audio/flac',
+            'mp4' => 'video/mp4',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            default => 'audio/mpeg',
         };
     }
 }

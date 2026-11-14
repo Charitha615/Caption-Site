@@ -1,177 +1,183 @@
-# Architecture & System Design
+# Architecture
 
-This document details the architectural principles, domain modeling, and technical patterns behind **SampleCap**.
+How SampleCap is put together, why, and where to extend it. For setup see [SETUP.md](SETUP.md); for the HTTP contract see [API.md](API.md).
 
 ---
 
-## 1. High-Level Architecture Overview
+## 1. Overview
 
 ```mermaid
 graph TD
-    Client[React 19 + TypeScript SPA<br/>Vite / Zustand / Pure CSS]
-    API[Laravel 13 REST API<br/>Sanctum Authentication]
-    MySQL[(MySQL 8.x<br/>UTF8MB4 Unicode)]
-    Queue[Laravel Horizon / Redis Queue]
-    Gemini[Google Gemini 1.5 Flash API]
-    FFmpeg[FFmpeg / FFprobe Service]
-    Storage[Laravel Filesystem<br/>Local / S3 Bucket]
+    SPA[React 19 SPA<br/>Vite · Zustand · plain CSS]
+    API[Laravel 13 API<br/>Sanctum bearer tokens]
+    DB[(MySQL 8 / PostgreSQL<br/>utf8mb4)]
+    Redis[(Redis<br/>queues · cache · rate limits)]
+    Pipeline[Horizon: pipeline supervisor<br/>ProcessUploadedVideoJob]
+    Renders[Horizon: renders supervisor<br/>RenderVideoJob]
+    Gemini[Google Gemini API]
+    FFmpeg[FFmpeg + libass]
+    Store[Private storage<br/>local disk or S3/R2]
 
-    Client -->|Bearer Token REST API| API
-    API -->|Eloquent ORM| MySQL
-    API -->|Dispatches Jobs| Queue
-    Queue -->|Audio Transcription| Gemini
-    Queue -->|Video Probing & Subtitle Burn| FFmpeg
-    FFmpeg -->|Saves Assets| Storage
-    Storage -->|Delivers Streams & Exports| Client
+    SPA -- JSON + chunked uploads --> API
+    SPA -- signed URLs: stream, thumbnail, download --> API
+    API --> DB
+    API -- dispatch --> Redis
+    Redis --> Pipeline & Renders
+    Pipeline -- probe / audio / thumbnail --> FFmpeg
+    Pipeline -- one transcription request --> Gemini
+    Renders -- burn captions --> FFmpeg
+    API & Pipeline & Renders <--> Store
 ```
 
----
+**Request path:** the SPA talks only to `/api/*` with `Authorization: Bearer <token>`. Media never leaves private storage directly — the API issues short-lived signed URLs that `<video>`, `<img>` and `<a download>` can use without a token.
 
-## 2. Centralized Branding Engine
-
-A primary architectural requirement is ensuring that the product name, visual tokens, and logos can be updated in a single place without searching through hundreds of files.
-
-### Frontend Centralization (`frontend/src/config/brand.ts`)
-- Defines the `BRAND` configuration object with `name`, `shortName`, `logoText`, `tagline`, and `colors`.
-- The `useBrand()` hook supplies this context to components, navigation bars, and headers.
-- The `useDocumentTitle()` hook dynamically formats the browser tab title as `${pageTitle} • ${BRAND.name}`.
-
-### Backend Centralization (`backend/config/brand.php`)
-- Serves as the backend source of truth for email templates, notifications, and metadata.
-- Exposes `GET /api/brand` allowing any connected client to dynamically synchronize branding details.
-
-### Rebranding Workflow
-Changing the temporary name **"SampleCap"** to **"පේළිCap"** requires modifying only `frontend/src/config/brand.ts` and `backend/config/brand.php`. Because both front and back ends adhere to UTF-8/UTF8MB4, Unicode Sinhala characters render seamlessly across all interfaces.
+**Background work:** everything slow (FFmpeg, Gemini, MP4 encoding) runs on queues. Two Horizon supervisors keep long renders from blocking captioning.
 
 ---
 
-## 3. Backend Clean Architecture
+## 2. Branding (single source per app)
 
-Controllers remain thin; all business logic is encapsulated in single-responsibility **Actions** and reusable **Services**.
+| Where | Source of truth | How to rename |
+|---|---|---|
+| Web app | `frontend/src/config/brand.ts`, read from `VITE_BRAND_*` env | `VITE_BRAND_NAME=පේළිCap` in `frontend/.env`, rebuild |
+| `index.html` title/description | `%VITE_BRAND_NAME%` placeholders (defaults in `vite.config.ts`) | same variable |
+| API, rendered files | `backend/config/brand.php`, read from `BRAND_*` env | `BRAND_NAME=පේළිCap` in `backend/.env`, `php artisan config:cache` |
+
+No component hard-codes the name: UI uses `useBrand()` / `BRAND`, the document title uses `useDocumentTitle()`, the backend uses `config('brand.name')` (also written into generated ASS subtitle headers). `GET /api/brand` exposes the backend values. localStorage keys keep the internal `samplecap_` prefix on purpose — renaming must not log users out.
+
+---
+
+## 3. Backend layout
+
+Controllers are thin: they authorise, validate and delegate.
 
 ```text
 app/
-├── Actions/
-│   ├── Auth/
-│   │   ├── RegisterUserAction.php
-│   │   └── LoginUserAction.php
-│   └── Projects/
-│       ├── CreateProjectAction.php
-│       ├── UpdateProjectAction.php
-│       └── DeleteProjectAction.php
+├── Actions/                 single-purpose use cases (register, login, create/update/delete project)
+├── Console/Commands/        captions:install-fonts, captions:sync-templates, uploads:prune, media:make-private
+├── Exceptions/              UserFacingException (+ AIProvider, VideoProcessing, UsageLimitExceeded)
+├── Http/
+│   ├── Controllers/Api/     Auth, Account, Settings, Usage, Dashboard, Project, VideoUpload,
+│   │                        UploadSession, Caption, CaptionTemplate, Export, MediaStream, Brand
+│   ├── Middleware/          AssignRequestId, SecurityHeaders, HorizonBasicAuth
+│   ├── Requests/            FormRequests (auth, projects, exports)
+│   └── Resources/           JSON shapes — never expose storage paths
+├── Jobs/                    ProcessUploadedVideoJob (pipeline), RenderVideoJob (MP4)
+├── Models/                  User, Project, MediaFile, Transcript, Caption, CaptionTemplate,
+│                            Export, UploadSession, UsageRecord, Setting
+├── Policies/                Project, Caption, Export, CaptionTemplate, UploadSession
+├── Rules/JsonSize.php       caps JSON columns
 ├── Services/
-│   ├── AI/
-│   │   ├── Contracts/CaptionAIServiceInterface.php
-│   │   └── GeminiCaptionService.php
-│   ├── Video/
-│   │   ├── Contracts/VideoServiceInterface.php
-│   │   └── FFmpegService.php
-│   ├── Caption/
-│   │   ├── Contracts/SubtitleFormatterInterface.php
-│   │   ├── SubtitleFormatterService.php
-│   │   └── SinhalaTextNormalizerService.php
-│   └── Export/
-│       └── ExportManagerService.php
-├── Jobs/
-│   ├── ProcessVideoTranscriptionJob.php
-│   └── RenderVideoWithCaptionsJob.php
-├── Policies/
-│   └── ProjectPolicy.php
-└── Traits/
-    └── ApiResponseTrait.php
+│   ├── AI/                  AIProviderInterface, GeminiAIProvider, FakeAIProvider, SegmentNormalizer, WordTimingEstimator
+│   ├── Caption/             SubtitleFormatterService, CaptionStyleNormalizer, SinhalaTextNormalizerService
+│   ├── Export/ExportService.php
+│   ├── Media/               MediaStorage (local/S3 abstraction), MediaIngestService
+│   ├── Rendering/           AssCaptionRenderer, VideoRendererService, FontRegistry, ProcessRunner, …
+│   ├── Usage/UsageService.php
+│   └── Video/FFmpegService.php
+└── Support/AppLog.php       structured JSON logging with redaction
 ```
 
-### Consistent JSON Response Envelope
-Every API response strictly follows the unified structure:
+### Response envelope
+Every response is `{ success, message, data }`. Errors add `code`, `request_id` and, for validation, `errors`:
+
 ```json
-{
-  "success": true,
-  "message": "Project created successfully",
-  "data": { ... }
-}
+{ "success": false, "message": "This would exceed your 120 caption minutes for this month.",
+  "data": {}, "code": "usage_limit_exceeded", "request_id": "6b1c…" }
 ```
 
-HTTP status codes are handled uniformly in `bootstrap/app.php`:
-- `401`: `{ "success": false, "message": "Unauthenticated. Please log in.", "data": {} }`
-- `403`: `{ "success": false, "message": "Access denied.", "data": {} }`
-- `404`: `{ "success": false, "message": "Resource not found.", "data": {} }`
-- `422`: `{ "success": false, "message": "Validation failed.", "data": {}, "errors": { ... } }`
-- `429`: `{ "success": false, "message": "Too many requests.", "data": {} }`
-- `500`: `{ "success": false, "message": "An internal server error occurred.", "data": {} }`
+Rendering lives in `bootstrap/app.php`. `UserFacingException` messages are shown as-is; any other exception becomes a generic 500 message (details only in logs, and in the message only when `APP_DEBUG=true` outside production).
 
 ---
 
-## 4. Database Schema & Domain Modeling
+## 4. Data model
 
-All primary entities use **UUIDs** as public route identifiers to prevent ID enumeration.
+All public identifiers are UUIDs (route keys); numeric ids are internal.
 
 ```mermaid
 erDiagram
     USERS ||--o{ PROJECTS : owns
-    PROJECTS ||--o{ MEDIA_FILES : contains
-    PROJECTS ||--o{ TRANSCRIPTS : has
-    TRANSCRIPTS ||--o{ CAPTIONS : contains
-    PROJECTS ||--o{ CAPTION_STYLES : uses
-    PROJECTS ||--o{ EXPORTS : generates
     USERS ||--o{ USAGE_RECORDS : incurs
-
-    PROJECTS {
-        bigint id PK
-        uuid uuid UK
-        bigint user_id FK
-        string name
-        string status
-        decimal duration
-        string language
-        datetime created_at
-        datetime deleted_at
-    }
-
-    CAPTIONS {
-        bigint id PK
-        uuid uuid UK
-        bigint project_id FK
-        bigint transcript_id FK
-        int sequence
-        decimal start_time
-        decimal end_time
-        text text
-    }
+    USERS ||--o{ SETTINGS : has
+    USERS ||--o{ CAPTION_TEMPLATES : saves
+    PROJECTS ||--o{ MEDIA_FILES : "source video (latest is current)"
+    PROJECTS ||--o| TRANSCRIPTS : has
+    PROJECTS ||--o{ CAPTIONS : contains
+    PROJECTS ||--o{ EXPORTS : produces
+    PROJECTS ||--o{ UPLOAD_SESSIONS : "chunked uploads"
 ```
 
----
+| Table | Key columns |
+|---|---|
+| `users` | `uuid`, `role` (`user`/`admin`), `plan` (`free`/`pro`/`unlimited`) — neither is mass-assignable |
+| `projects` | `status` (see §5), `processing_error` (user-safe), `language`, probed `duration/width/height/fps`, `thumbnail` (storage key), `settings.editor` (editor style/canvas) |
+| `media_files` | `disk`, `file_path` (random name), `audio_path`, `mime_type` (detected), `file_size`, probe `metadata` |
+| `captions` | `uuid` (client-generated in the editor), `sequence`, `start_time`, `end_time`, `text`, `language`, `style_override`, `metadata.words` |
+| `exports` | `type`, `status`, `progress`, `file_path` (hidden), `metadata` (options + style snapshot) |
+| `upload_sessions` | `file_size`, `chunk_size`, `total_chunks`, `received_chunks`, `status`, `expires_at` |
+| `usage_records` | `action`, `quantity`, `unit`, `metadata` — an append-only ledger |
 
-## 5. Unicode & Sinhala Language Support
-
-1. **Database Collation**: All tables are created with `utf8mb4` character set and `utf8mb4_unicode_ci` collation.
-2. **Sinhala Normalizer**: `SinhalaTextNormalizerService` processes complex conjuncts (bandi akuru), removes orphan Zero-Width Joiners (ZWJ), and provides accurate word-boundary counting.
-3. **Typography**: The frontend bundles Google Fonts (`Inter` and `Noto Sans Sinhala`), ensuring proper rendering of all Sinhala vowel signs (al-lakuna, ispilla, papilla).
-
----
-
-## 6. Frontend Architecture (No Tailwind CSS)
-
-- **Pure CSS Design Tokens**: Built using modern CSS custom properties in `src/styles/variables.css` matching required palette:
-  - Primary: `#5B21B6`
-  - Accent: `#F97316`
-  - Dark: `#171717`
-  - Background: `#F8FAFC`
-  - Light Purple: `#F5F3FF`
-- **State Management**:
-  - `authStore`: User profile, Sanctum Bearer token persistence, session boot.
-  - `projectStore`: Project catalog, dashboard metrics cache, CRUD triggers.
-  - `toastStore`: Global non-blocking notification queue.
-- **Dark Editor Interface**: `ProjectDetailsPage` is styled with a sleek dark theme (`--editor-bg: #121212`) ready for video scrubbing and timeline manipulation.
+Indexes cover the hot queries: `(user_id, status)`, `(user_id, created_at)` on projects; `(project_id, sequence)` on captions; `(user_id, type, status)` on exports; `(user_id, action, created_at)` on usage.
 
 ---
 
-## 7. Roadmap for STEP 2 (Video Caption Editor)
+## 5. Processing pipeline
 
-This codebase provides the architectural foundation for Step 2:
-1. **Interactive Audio Waveform**: Integrate wavesurfer.js / Web Audio API for visual subtitle boundary dragging.
-2. **Real-Time Video Player Sync**: Synchronize active caption highlight with HTML5 video `timeupdate` events.
-3. **In-Browser Caption Styling**: Visual font picker, color palette, outline radius, and subtitle position adjustment.
-4. **Asynchronous FFmpeg Render Pipeline**: Background queue worker processing burned MP4 videos with progress telemetry.
+`ProcessUploadedVideoJob` (queue `default`, unique per project, `tries = 1` so a retry never repeats a paid AI call):
+
+| Status | Step |
+|---|---|
+| `uploaded` | queued |
+| `processing` | FFprobe → duration, size (rotation-aware), fps, audio present? Plan check on duration. Thumbnail (best effort). |
+| `extracting_audio` | FFmpeg → 16 kHz mono MP3, stored next to the video |
+| `transcribing` | **one** `AIProviderInterface::transcribe()` call; `ai_request` usage recorded with token counts |
+| `generating_captions` | transcript + captions replaced in one transaction (bulk insert); `caption_generation` seconds recorded |
+| `ready` | done |
+| `failed` | `processing_error` holds a safe reason ("This video has no audio track…") |
+
+The job works on a **local copy** (`MediaStorage::withLocalCopy`) so the media disk can be S3. Failures are logged as `pipeline.failed` / `pipeline.crashed` with the project id and technical context.
+
+### AI provider
+- `GeminiAIProvider`: API key in the `x-goog-api-key` header (never in URLs), inline audio up to `GEMINI_INLINE_MAX_BYTES`, otherwise the Gemini **Files API** (streamed resumable upload, deleted afterwards). JSON response schema enforced; retries 408/429/5xx with backoff; safety blocks, truncated output and malformed JSON all raise `AIProviderException`. It **never** invents captions.
+- `SegmentNormalizer` cleans output: drops empty and out-of-range lines, clamps to the media duration, sorts, removes overlaps, keeps Sinhala ZWJ conjuncts.
+- `FakeAIProvider` returns clearly-labelled sample lines. Used when `AI_PROVIDER=fake`, or when no key is set **outside production**. Tests force it (`phpunit.xml`) and block real HTTP (`Http::preventStrayRequests()`).
+
+---
+
+## 6. Frontend layout
+
+```text
+src/
+├── App.tsx                  routes; every page is React.lazy (own chunk); global ToastContainer + ErrorBoundary
+├── config/                  brand.ts (env-driven), constants.ts
+├── components/              Button, Input, Modal (focus trap), ConfirmDialog, Dropdown (menu button),
+│                            Progress, LoadingState, EmptyState, ErrorState, RetryState, Tooltip, Toast,
+│                            ShortcutsDialog, ErrorBoundary, Skeleton, Badge
+├── features/
+│   ├── editor/              studio editor (see §8)
+│   └── projects/            ProjectCard, ProcessingSteps
+├── hooks/                   useBrand, useDocumentTitle, useProjectStatus (polling with backoff)
+├── layouts/                 AppLayout (sidebar drawer on ≤900px, skip link, "?" help), AuthLayout
+├── pages/                   Landing, Login, Register, Dashboard, Projects, CreateProject,
+│                            ProjectDetails, Settings, Profile, NotFound, Editor
+├── services/                api (axios + global error policy), errors (toAppError), uploadService
+│                            (ChunkedUpload), project/caption/export/account services
+├── stores/                  auth, project, usage, settings, toast, theme (+ editor stores)
+└── utils/                   formatters, storage (safe localStorage), video, validation, navigation
+```
+
+**Error policy (`services/api.ts`):** 401 → clear session, redirect to `/login?next=…` once; 422 → left to forms (inline field errors via `toAppError().fieldErrors`); everything else → one friendly toast (deduplicated). Requests that show their own UI pass `{ silent: true }` (autosave, uploads, status polling). 5xx messages are replaced by friendly copy plus a short request reference.
+
+**State:** small Zustand stores; pages that are URL-addressable keep filters in the URL (`/projects?status=ready&search=…&page=2`).
+
+---
+
+## 7. Responsive & accessible UI
+
+- Breakpoints: ≤1024 px tighter gutters, ≤900 px sidebar becomes an off-canvas drawer, ≤600 px single-column forms. The editor targets desktop and has its own tablet/mobile layouts (§8).
+- Semantics: one `h1` per page, landmark `nav`/`main`, skip link, `fieldset/legend` radio groups, labelled inputs with `aria-invalid` + `aria-describedby`, `role="progressbar"` with value text, `role="alert"` for errors, polite live regions for status.
+- Keyboard: every action reachable; Modal traps and restores focus (stacked dialogs handled), Dropdown follows the WAI-ARIA menu-button pattern, `⌘/Ctrl+K` search, `?` shortcuts dialog.
+- Not colour-only: statuses carry icon + text; `prefers-reduced-motion` disables animation.
 
 ---
 
@@ -254,5 +260,75 @@ API: `GET/POST /api/caption-templates`, `DELETE /api/caption-templates/{uuid}`. 
 - **Known differences from the preview** (libass limits, marked "preview only" in the editor): rounded box corners and custom line height are not rendered.
 
 ### Operations
-- Run a worker: `php artisan queue:work` (or a dedicated queue: set `RENDER_QUEUE=renders` and run `php artisan queue:work --queue=renders,default`). **Restart workers after deploying code** (`php artisan queue:restart`) — long-running workers keep old code in memory.
-- STEP 5 follow-ups: clean up export files when projects are deleted; storage quotas/retention for exports; S3 support for render inputs (the job currently reads the source via a local path); per-plan render limits.
+- Renders run on the `renders` queue (`RENDER_QUEUE`), captioning on `default`. Horizon runs both supervisors; see [DEPLOYMENT.md](DEPLOYMENT.md). **Restart workers after deploying** (`php artisan horizon:terminate` or `queue:restart`).
+- Deleting a project removes its video, audio, thumbnail, exports and pending chunks from storage. Render inputs are read through `MediaStorage::withLocalCopy`, so S3 works. Concurrent renders and monthly renders are plan limits (§12).
+
+
+---
+
+## 10. Security model
+
+| Concern | Implementation |
+|---|---|
+| Authentication | Sanctum personal access tokens (Bearer), expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 30 days), pruned daily. Password change revokes other tokens. Passwords: min 8, letters + numbers. |
+| Authorization | Policies for Project, Caption, Export, CaptionTemplate, UploadSession. Caption routes use **scoped bindings** (a caption UUID is looked up inside the URL's project). Sync ignores caption UUIDs that belong to other projects. Covered by `CrossUserAuthorizationTest`. |
+| Rate limiting | Named limiters in `AppServiceProvider`: `login` (5/min per email+IP, 20/min per IP), `register` (10/h/IP), `api` (240/min), `uploads`, `upload-chunks`, `ai` (20/h), `exports`, `autosave`, `polling`, `media`. 429 responses include `Retry-After`. |
+| Validation | FormRequests / inline rules on every write; caption text ≤ 2000, ≤ 5000 captions per project, JSON columns capped (`JsonSize`), enums for language/status/resolution, LIKE wildcards escaped in search. Server-owned fields (status, duration, thumbnail, role, plan) are never accepted from clients. |
+| Files | Extension allow-list **and** MIME detected from file bytes (libmagic); random UUID filenames under `media/{project}/`; original names sanitised for display only; chunk sizes verified exactly; no user input ever forms a path (no traversal). |
+| Private storage | Videos, audio, thumbnails and exports live on the private disk. Clients get **temporary signed URLs** (stream 12 h, downloads 30 min) bound to one file. `media:make-private` migrates pre-STEP-5 public files. |
+| XSS | React escapes output; API responses carry `Content-Security-Policy: default-src 'none'` and `nosniff`; downloads set explicit content types; subtitle/ASS writers escape markup and override tags. |
+| CSRF | Not applicable: no cookie authentication (Sanctum stateful domains are empty, CORS `supports_credentials=false`). |
+| CORS | Only `CORS_ALLOWED_ORIGINS`; limited methods/headers. |
+| Headers | `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, HSTS on HTTPS, `X-Request-Id`. |
+| Secrets | Never logged: `AppLog` redacts keys/tokens/passwords/signatures and Google keys in any string. Gemini key travels in a header. Stack traces never reach clients. |
+| Queues | Jobs carry model ids only (SerializesModels); Horizon dashboard requires HTTP Basic credentials outside local. |
+
+## 11. Uploads (chunked & resumable)
+
+```
+POST /projects/{p}/uploads  {file_name, file_size}   → session {uuid, chunk_size, total_chunks, received_chunks}
+PUT  /uploads/{u}/chunks/{i}   raw bytes (exact size)  → idempotent
+GET  /uploads/{u}                                       → received_chunks (resume)
+POST /uploads/{u}/complete                              → assemble, MIME check, store, start pipeline
+DELETE /uploads/{u}                                     → cancel
+```
+
+- The browser (`ChunkedUpload`) reads with `Blob.slice` (never the whole file in memory), sends 3 chunks in parallel, retries each with exponential backoff, waits for `online` when offline, shows speed/ETA, and can cancel. Starting the same file again **resumes** (matched by name + size).
+- Chunks stream to `storage/app/chunks/{uuid}` (`stream_copy_to_stream`, written to a temp name then renamed). Parallel acknowledgements are serialised with a cache lock.
+- Chunk size defaults to 5 MB (`UPLOAD_CHUNK_SIZE`) — keep it under PHP `post_max_size`. Abandoned sessions and scratch files are removed hourly by `uploads:prune`.
+- `POST /projects/{p}/upload` (single request) remains for small files and API clients.
+
+## 12. Usage tracking & limits (AI cost control)
+
+- **Ledger:** `UsageService::record()` appends `usage_records`: `ai_request` (count + provider/model/tokens), `caption_generation` (seconds), `export` (count + type), `video_render` (seconds), `upload` (bytes). Storage is computed live from media + export sizes.
+- **Plans:** `config/plans.php` (`free`, `pro`, `unlimited`; `null` = unlimited). `users.plan` selects one. Limits: caption minutes/month, AI requests/day, exports/month, renders/month, storage, max upload size, max video length, concurrent renders.
+- **Enforcement points:** upload start (size, storage, minutes left), pipeline after probing (video length, minutes), before the AI call (daily requests), regenerate, export create. Violations throw `UsageLimitExceededException` → HTTP **402** with `code: usage_limit_exceeded`.
+- **Reporting:** `GET /api/usage`; also embedded in `GET /api/dashboard`. Summaries are cached 5 minutes per user and invalidated on every write.
+- **Subscriptions later:** a billing integration only sets `users.plan` (e.g. from a webhook) — no other code changes.
+
+## 13. Errors & logging
+
+- **Backend:** user-caused problems are `UserFacingException` subclasses carrying a safe message + private `context`. Everything else is reported (`report()`) and shown as a generic message.
+- **Structured log:** `App\Support\AppLog` writes JSON lines to `storage/logs/events-YYYY-MM-DD.log` (`LOG_STRUCTURED_CHANNEL`). Every entry includes `request_id` (and `user`) via Laravel `Context`, which also propagates into queued jobs. Events: `auth.login`, `auth.login_failed` (email hashed), `auth.access_denied`, `auth.password_changed`, `upload.started|completed|rejected_mime|cancelled|size_mismatch`, `pipeline.started|completed|failed|crashed`, `ai.request_failed|invalid_response|connection_failed`, `ffmpeg.probe_failed|extract_audio_failed|timeout|unavailable`, `export.completed`, `render.queued|completed|failed|crashed|cancelled`, `queue.job_failed`.
+- **Frontend:** `ErrorBoundary` per route, global toast policy (§6), reusable `ErrorState` / `RetryState` / `EmptyState` / `LoadingState`.
+
+## 14. Performance notes
+
+- No N+1: lists eager-load `primaryMediaFile`; status counts come from one grouped query.
+- Captions from AI are bulk-inserted; old ones force-deleted in the same transaction.
+- Editor: per-frame time updates bypass React (§8); caption lists virtualised; project details page renders the first 300 captions with `content-visibility: auto`.
+- Code splitting: every route is a lazy chunk; vendor/react/icons split for long-term caching.
+- Polling backs off on errors and pauses in hidden tabs.
+
+## 15. Extension points (not built yet, by design)
+
+| Future feature | Where it plugs in |
+|---|---|
+| Subscriptions / payments | set `users.plan`; add plans in `config/plans.php`; read `GET /usage` |
+| More AI / transcription providers | implement `AIProviderInterface`, choose via `AI_PROVIDER` in `AppServiceProvider` |
+| Caption translation / AI rewriting | new methods on a provider + a job that writes captions through the same transaction as the pipeline |
+| Cloud storage | set `MEDIA_DISK`/`EXPORT_DISK` to an S3-compatible disk (already supported) |
+| Team collaboration | add `team_id` to projects; widen the policies (they are the only ownership checks) |
+| Caption templates / social presets | `caption_templates` + `presets.json`; canvas aspect presets already exist |
+| Admin dashboard / analytics | `users.role = admin`, `usage_records` ledger, structured event log |
+| Mobile app | the API is token-based and versionable; signed media URLs work in native players |

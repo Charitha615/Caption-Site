@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 class Project extends Model
@@ -15,14 +16,23 @@ class Project extends Model
     use HasFactory, SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_UPLOADED = 'uploaded';
+
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_EXTRACTING_AUDIO = 'extracting_audio';
+
     public const STATUS_TRANSCRIBING = 'transcribing';
+
     public const STATUS_GENERATING_CAPTIONS = 'generating_captions';
+
     public const STATUS_READY = 'ready';
+
     public const STATUS_RENDERING = 'rendering';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
@@ -31,6 +41,7 @@ class Project extends Model
         'name',
         'description',
         'status',
+        'processing_error',
         'duration',
         'width',
         'height',
@@ -74,9 +85,10 @@ class Project extends Model
         return $this->hasMany(MediaFile::class);
     }
 
+    /** The current source video. Re-uploading replaces it (older files are removed). */
     public function primaryMediaFile(): HasOne
     {
-        return $this->hasOne(MediaFile::class)->oldestOfMany();
+        return $this->hasOne(MediaFile::class)->latestOfMany();
     }
 
     public function transcripts(): HasMany
@@ -102,6 +114,49 @@ class Project extends Model
     public function usageRecords(): HasMany
     {
         return $this->hasMany(UsageRecord::class);
+    }
+
+    public function uploadSessions(): HasMany
+    {
+        return $this->hasMany(UploadSession::class);
+    }
+
+    /** Statuses during which the processing pipeline is running. */
+    public const PROCESSING_STATUSES = [
+        self::STATUS_UPLOADED,
+        self::STATUS_PROCESSING,
+        self::STATUS_EXTRACTING_AUDIO,
+        self::STATUS_TRANSCRIBING,
+        self::STATUS_GENERATING_CAPTIONS,
+    ];
+
+    public function isProcessing(): bool
+    {
+        return in_array($this->status, self::PROCESSING_STATUSES, true);
+    }
+
+    /**
+     * Browser-usable thumbnail URL. Generated thumbnails live on the private media
+     * disk and are served through a signed route; absolute URLs (seed data) pass through.
+     */
+    public function thumbnailUrl(): ?string
+    {
+        $thumb = $this->thumbnail;
+        if (! $thumb) {
+            return null;
+        }
+        if (preg_match('#^https?://#i', $thumb)) {
+            return $thumb;
+        }
+        if (str_starts_with($thumb, '/storage/')) {
+            return url($thumb); // legacy public-disk thumbnails
+        }
+
+        return URL::temporarySignedRoute(
+            'projects.thumbnail',
+            now()->addMinutes((int) config('captions.stream_url_ttl_minutes', 720)),
+            ['project' => $this->uuid, 'v' => substr(md5($thumb.$this->updated_at), 0, 8)],
+        );
     }
 
     public function scopeForUser($query, int $userId)

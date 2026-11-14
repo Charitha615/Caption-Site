@@ -1,0 +1,22 @@
+.progress { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.progress-header { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; }
+.progress-label { font-weight: 600; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-detail { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.progress-track { position: relative; width: 100%; height: 10px; border-radius: 999px; background: var(--bg-muted); overflow: hidden; }
+.progress-sm .progress-track { height: 6px; }
+.progress-fill { height: 100%; border-radius: inherit; transition: width 0.3s ease; }
+.progress-fill-primary { background: linear-gradient(90deg, var(--brand-primary), var(--brand-primary-hover)); }
+.progress-fill-success { background: var(--status-success-text); }
+.progress-fill-warning { background: var(--status-warning-text); }
+.progress-fill-danger { background: var(--status-error-text); }
+.progress-indeterminate .progress-fill { width: 35%; animation: progress-slide 1.3s ease-in-out infinite; }
+
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill { transition: none; }
+  .progress-indeterminate .progress-fill { animation: none; width: 100%; opacity: 0.5; }
+}

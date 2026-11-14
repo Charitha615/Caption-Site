@@ -14,12 +14,12 @@ return [
     */
 
     'name' => env('BRAND_NAME', env('APP_NAME', 'SampleCap')),
-    'short_name' => env('BRAND_SHORT_NAME', 'SampleCap'),
-    'logo_text' => env('BRAND_LOGO_TEXT', 'SampleCap'),
+    'short_name' => env('BRAND_SHORT_NAME', env('BRAND_NAME', env('APP_NAME', 'SampleCap'))),
+    'logo_text' => env('BRAND_LOGO_TEXT', env('BRAND_NAME', env('APP_NAME', 'SampleCap'))),
     'tagline' => env('BRAND_TAGLINE', 'AI-powered video captions'),
     'description' => env('BRAND_DESCRIPTION', 'Create, edit and export captions with AI.'),
     'support_email' => env('BRAND_SUPPORT_EMAIL', 'support@samplecap.com'),
-    'website' => env('APP_URL', 'http://localhost:8000'),
+    'website' => env('FRONTEND_URL', env('APP_URL', 'http://localhost:8000')),
 
     'colors' => [
         'primary' => '#5B21B6',

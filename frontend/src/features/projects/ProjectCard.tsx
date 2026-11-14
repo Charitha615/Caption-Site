@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   MoreVertical,
   Clock,
@@ -73,19 +73,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
   const actionItems = [
     {
       key: 'editor',
-      label: 'Open Editor',
+      label: 'Open editor',
       icon: <ExternalLink size={15} />,
       onClick: () => navigate(`/projects/${project.uuid}/editor`),
     },
     {
       key: 'details',
-      label: 'Project Details',
+      label: 'Project details',
       icon: <Film size={15} />,
       onClick: () => navigate(`/projects/${project.uuid}`),
     },
     {
       key: 'delete',
-      label: 'Delete Project',
+      label: 'Delete project',
       icon: <Trash2 size={15} />,
       danger: true,
       onClick: () => onDelete?.(project),
@@ -93,25 +93,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
   ];
 
   return (
-    <div
-      className="project-card"
-      onClick={() => navigate(`/projects/${project.uuid}`)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') navigate(`/projects/${project.uuid}`);
-      }}
-    >
+    // The whole card is clickable for pointer users; keyboard users reach the title link
+    // and the actions menu (no nested interactive roles).
+    <article className="project-card" onClick={() => navigate(`/projects/${project.uuid}`)}>
       {/* Video Thumbnail */}
       <div className="project-thumbnail-wrapper">
         <div className="project-thumbnail-fallback">
-          <Film size={36} />
+          <Film size={36} aria-hidden="true" />
         </div>
 
         {project.thumbnail && (
           <img
             src={project.thumbnail}
-            alt={project.name}
+            alt=""
             className="project-thumbnail-img"
             loading="lazy"
             onError={(e) => {
@@ -124,8 +118,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
 
         {project.duration !== undefined && project.duration !== null && (
           <div className="project-duration-badge">
-            <Clock size={12} />
-            <span>{formatDuration(project.duration)}</span>
+            <Clock size={12} aria-hidden="true" />
+            <span><span className="sr-only">Duration </span>{formatDuration(project.duration)}</span>
           </div>
         )}
       </div>
@@ -134,22 +128,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
       <div className="project-content">
         <div className="project-title-row">
           <h3 className="project-title" title={project.name}>
-            {project.name}
+            <Link to={`/projects/${project.uuid}`} className="project-title-link" onClick={(e) => e.stopPropagation()}>
+              {project.name}
+            </Link>
           </h3>
 
           <div onClick={(e) => e.stopPropagation()}>
             <Dropdown
               items={actionItems}
               align="right"
-              trigger={
-                <button
-                  type="button"
-                  className="project-actions-btn"
-                  aria-label="Project actions"
-                >
-                  <MoreVertical size={16} />
-                </button>
-              }
+              label={`Actions for ${project.name}`}
+              triggerClassName="project-actions-btn"
+              trigger={<MoreVertical size={16} aria-hidden="true" />}
             />
           </div>
         </div>
@@ -161,6 +151,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
           <span>{formatDate(project.created_at)}</span>
         </div>
       </div>
-    </div>
+    </article>
   );
 };

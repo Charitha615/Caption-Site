@@ -11,7 +11,7 @@ class RegisterUserAction
     /**
      * Create a new user and generate a Sanctum personal access token.
      *
-     * @param array{name: string, email: string, password: string} $data
+     * @param  array{name: string, email: string, password: string}  $data
      * @return array{user: User, token: string}
      */
     public function execute(array $data): array
@@ -22,6 +22,7 @@ class RegisterUserAction
             'email' => strtolower(trim($data['email'])),
             'password' => Hash::make($data['password']),
         ]);
+        $user->forceFill(['plan' => config('plans.default')])->save();
 
         $token = $user->createToken('auth-token')->plainTextToken;
 

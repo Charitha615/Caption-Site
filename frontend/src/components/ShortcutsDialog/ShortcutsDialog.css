@@ -1,0 +1,17 @@
+.shortcuts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.shortcuts-heading { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; }
+.shortcuts-list { display: flex; flex-direction: column; gap: 8px; }
+.shortcuts-row { display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
+.shortcuts-row dt { min-width: 110px; display: flex; gap: 4px; }
+.shortcuts-row dd { color: var(--text-main); }
+.shortcuts-row kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border-dark);
+  background: var(--bg-subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+@media (max-width: 600px) { .shortcuts-grid { grid-template-columns: 1fr; } }

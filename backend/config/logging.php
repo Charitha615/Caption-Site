@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -50,7 +51,19 @@ return [
     |
     */
 
+    // JSON-lines channel used by App\Support\AppLog for structured events.
+    'structured_channel' => env('LOG_STRUCTURED_CHANNEL', 'structured'),
+
     'channels' => [
+
+        'structured' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/events.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'formatter' => JsonFormatter::class,
+            'replace_placeholders' => true,
+        ],
 
         'stack' => [
             'driver' => 'stack',

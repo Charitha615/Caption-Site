@@ -79,11 +79,13 @@ export const captionService = {
       style_id?: number | null;
       style_override?: Record<string, unknown> | null;
       metadata?: Record<string, unknown> | null;
-    }>
+    }>,
+    options: { silent?: boolean } = {}
   ): Promise<{ captions: Caption[]; count: number }> {
     const res = await apiClient.put<ApiResponse<{ captions: Caption[]; count: number }>>(
       `/projects/${projectUuid}/captions/sync`,
-      { captions }
+      { captions },
+      { silent: options.silent }
     );
     return res.data.data;
   },

@@ -9,18 +9,11 @@ export interface EmptyStateProps {
   action?: React.ReactNode;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({
-  icon = <Sparkles size={28} />,
-  title,
-  description,
-  action,
-}) => {
-  return (
-    <div className="empty-state">
-      <div className="empty-state-icon">{icon}</div>
-      <h3 className="empty-state-title">{title}</h3>
-      <p className="empty-state-description">{description}</p>
-      {action && <div className="empty-state-action">{action}</div>}
-    </div>
-  );
-};
+export const EmptyState: React.FC<EmptyStateProps> = ({ icon = <Sparkles size={28} />, title, description, action }) => (
+  <div className="empty-state">
+    <div className="empty-state-icon" aria-hidden="true">{icon}</div>
+    <h3 className="empty-state-title">{title}</h3>
+    <p className="empty-state-description">{description}</p>
+    {action && <div className="empty-state-action">{action}</div>}
+  </div>
+);

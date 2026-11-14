@@ -8,29 +8,35 @@ import {
   User,
   LogOut,
   Sparkles,
-  Crown,
-  Laptop,
   Sun,
   Moon,
   ArrowUpRight,
+  X,
+  Gauge,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import { useAuthStore } from '../../stores/authStore';
-import { useProjectStore } from '../../stores/projectStore';
+import { useUsageStore, meterPercent } from '../../stores/usageStore';
 import { useThemeStore } from '../../stores/themeStore';
 import { Button } from '../Button/Button';
 import './Sidebar.css';
 
-export const Sidebar: React.FC = () => {
+export interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+const linkClass = ({ isActive }: { isActive: boolean }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`;
+
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const brand = useBrand();
   const { user, logout } = useAuthStore();
-  const { dashboardData } = useProjectStore();
+  const usage = useUsageStore((s) => s.usage);
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
-  const minutesUsed = dashboardData?.summary.caption_minutes_used ?? 5.5;
-  const minutesLimit = dashboardData?.summary.caption_minutes_limit ?? 120;
-  const usagePercent = Math.min(Math.round((minutesUsed / minutesLimit) * 100), 100);
+  const minutes = usage?.caption_minutes;
+  const percent = minutes ? meterPercent(minutes.used, minutes.limit) : null;
 
   const handleLogout = async () => {
     await logout();
@@ -38,158 +44,108 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className="app-sidebar">
-      {/* Brand Header */}
+    <aside className={`app-sidebar ${isOpen ? 'app-sidebar-open' : ''}`} aria-label="Main navigation">
       <div className="sidebar-header">
-        <div className="sidebar-brand-wrapper" onClick={() => navigate('/dashboard')}>
-          <div className="sidebar-logo-icon">
+        <NavLink to="/dashboard" className="sidebar-brand-wrapper" aria-label={`${brand.name} dashboard`}>
+          <div className="sidebar-logo-icon" aria-hidden="true">
             <Sparkles size={20} />
           </div>
           <div className="sidebar-brand-text">
-            <div className="sidebar-brand-name-row">
-              <span className="sidebar-brand-title">{brand.name}</span>
-              <span className="sidebar-pro-badge">
-                <Crown size={11} /> PRO
-              </span>
-            </div>
+            <span className="sidebar-brand-title">{brand.name}</span>
             <span className="sidebar-brand-tagline">{brand.tagline}</span>
           </div>
-        </div>
+        </NavLink>
+        <button type="button" className="sidebar-icon-btn sidebar-close-btn" onClick={onClose} aria-label="Close menu">
+          <X size={18} aria-hidden="true" />
+        </button>
       </div>
 
-      {/* Primary Action Button */}
       <div className="sidebar-cta">
-        <Button
-          variant="primary"
-          fullWidth
-          size="md"
-          startIcon={<PlusCircle size={18} />}
-          onClick={() => navigate('/projects/create')}
-        >
-          New Project
+        <Button variant="primary" fullWidth size="md" startIcon={<PlusCircle size={18} aria-hidden="true" />} onClick={() => navigate('/projects/create')}>
+          New project
         </Button>
       </div>
 
-      {/* Main Navigation Links */}
       <nav className="sidebar-nav">
-        <div className="sidebar-nav-section-label">WORKSPACE</div>
-
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-          }
-        >
-          <LayoutDashboard size={18} />
+        <div className="sidebar-nav-section-label" aria-hidden="true">WORKSPACE</div>
+        <NavLink to="/dashboard" className={linkClass}>
+          <LayoutDashboard size={18} aria-hidden="true" />
           <span>Dashboard</span>
         </NavLink>
-
-        <NavLink
-          to="/projects"
-          className={({ isActive }) =>
-            `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-          }
-        >
-          <FolderKanban size={18} />
+        <NavLink to="/projects" end={false} className={linkClass}>
+          <FolderKanban size={18} aria-hidden="true" />
           <span>Projects</span>
-          <span className="sidebar-link-counter">
-            {dashboardData?.recent_projects?.length ?? 0}
-          </span>
         </NavLink>
-
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-          }
-        >
-          <Settings size={18} />
+        <NavLink to="/settings" className={linkClass}>
+          <Settings size={18} aria-hidden="true" />
           <span>Settings</span>
         </NavLink>
-
-        <NavLink
-          to="/profile"
-          className={({ isActive }) =>
-            `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-          }
-        >
-          <User size={18} />
-          <span>Account & Plan</span>
+        <NavLink to="/profile" className={linkClass}>
+          <User size={18} aria-hidden="true" />
+          <span>Account &amp; usage</span>
         </NavLink>
       </nav>
 
-      {/* Bottom Promo & Account Section */}
       <div className="sidebar-footer">
-        {/* Pro Plan Card */}
         <div className="sidebar-pro-card">
           <div className="pro-card-header">
             <div className="pro-card-badge">
-              <Crown size={13} />
-              <span>{brand.name} Pro</span>
+              <Gauge size={13} aria-hidden="true" />
+              <span>{usage?.plan.label ?? 'Your'} plan</span>
             </div>
-            <span className="pro-card-tag">Active</span>
           </div>
-          <p className="pro-card-subtext">
-            {minutesUsed}m of {minutesLimit}m AI audio quota used.
-          </p>
-          <div className="pro-usage-track">
-            <div className="pro-usage-fill" style={{ width: `${usagePercent}%` }} />
-          </div>
-          <button
-            type="button"
-            className="pro-manage-btn"
-            onClick={() => navigate('/profile')}
-          >
-            <span>Manage plan</span>
-            <ArrowUpRight size={14} />
+          {minutes ? (
+            <>
+              <p className="pro-card-subtext">
+                {minutes.limit === null
+                  ? `${minutes.used} caption minutes used this month`
+                  : `${minutes.used} of ${minutes.limit} caption minutes used`}
+              </p>
+              {percent !== null && (
+                <div
+                  className="pro-usage-track"
+                  role="progressbar"
+                  aria-label="Caption minutes used this month"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={percent}
+                >
+                  <div className={`pro-usage-fill ${percent >= 90 ? 'pro-usage-fill-warn' : ''}`} style={{ width: `${percent}%` }} />
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="pro-card-subtext">Loading usage…</p>
+          )}
+          <button type="button" className="pro-manage-btn" onClick={() => navigate('/profile')}>
+            <span>View usage</span>
+            <ArrowUpRight size={14} aria-hidden="true" />
           </button>
         </div>
 
-        {/* Desktop App Banner */}
-        <div className="sidebar-desktop-teaser" title="Download desktop companion app">
-          <div className="desktop-icon-box">
-            <Laptop size={16} />
-          </div>
-          <div className="desktop-teaser-info">
-            <span className="desktop-teaser-title">Desktop App</span>
-            <span className="desktop-teaser-sub">Hardware accelerated</span>
-          </div>
-          <span className="desktop-teaser-badge">Soon</span>
-        </div>
-
-        {/* Theme Switcher & User Profile Row */}
         <div className="sidebar-user-row">
-          <div className="sidebar-user-info" onClick={() => navigate('/profile')}>
-            <div className="sidebar-avatar">
+          <NavLink to="/profile" className="sidebar-user-info">
+            <div className="sidebar-avatar" aria-hidden="true">
               {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div className="sidebar-user-text">
-              <div className="sidebar-user-name">{user?.name || 'Creator'}</div>
-              <div className="sidebar-user-email">{user?.email || 'free-tier'}</div>
+              <div className="sidebar-user-name">{user?.name || 'Account'}</div>
+              <div className="sidebar-user-email">{user?.email}</div>
             </div>
-          </div>
+          </NavLink>
 
           <div className="sidebar-actions-group">
-            {/* Theme Toggle Button */}
             <button
               type="button"
               className="sidebar-icon-btn"
               onClick={toggleTheme}
-              title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
-              aria-label="Toggle theme"
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
-              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+              {theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
             </button>
-
-            {/* Logout */}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="sidebar-icon-btn sidebar-logout-btn"
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut size={17} />
+            <button type="button" onClick={handleLogout} className="sidebar-icon-btn sidebar-logout-btn" aria-label="Sign out" title="Sign out">
+              <LogOut size={17} aria-hidden="true" />
             </button>
           </div>
         </div>

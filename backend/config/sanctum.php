@@ -18,13 +18,8 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        // Sanctum::currentRequestHost(),
-    ))),
-
+    // The SPA uses Bearer tokens, not cookie sessions, so no domain is stateful by default.
+    'stateful' => array_filter(explode(',', (string) env('SANCTUM_STATEFUL_DOMAINS', ''))),
     /*
     |--------------------------------------------------------------------------
     | Sanctum Guards
@@ -50,7 +45,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Personal access tokens expire after this many minutes (default 30 days). Expired tokens are pruned daily.
+    'expiration' => env('SANCTUM_TOKEN_EXPIRATION', 43200) ? (int) env('SANCTUM_TOKEN_EXPIRATION', 43200) : null,
 
     /*
     |--------------------------------------------------------------------------

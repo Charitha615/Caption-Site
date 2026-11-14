@@ -1,90 +1,74 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, LogIn, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
+import { BRAND } from '../../config/brand';
+import { fieldError, toAppError, type AppError } from '../../services/errors';
+import { safeNextPath } from '../../utils/navigation';
 import './LoginPage.css';
 
+const SHOW_DEMO = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false';
+const DEMO = { email: 'demo@samplecap.com', password: 'password123' };
+
 export const LoginPage: React.FC = () => {
-  useDocumentTitle('Sign In');
+  useDocumentTitle('Sign in');
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { login, isLoading } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [error, setError] = useState<AppError | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage('');
-
-    if (!email || !password) {
-      setErrorMessage('Please provide both email and password.');
-      return;
-    }
-
+    setError(null);
     try {
-      await login({ email, password });
-      navigate('/dashboard');
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(
-        error.response?.data?.message || 'Invalid credentials. Please try again.'
-      );
+      await login({ email: email.trim(), password });
+      navigate(safeNextPath(params.get('next')), { replace: true });
+    } catch (err) {
+      setError(toAppError(err, 'Sign in failed. Please try again.'));
     }
   };
 
-  const handleFillDemo = () => {
-    setEmail('demo@samplecap.com');
-    setPassword('password123');
-  };
+  const formMessage = error && !fieldError(error, 'password') ? error.message : null;
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="login-form">
-        {errorMessage && (
-          <div
-            style={{
-              padding: '10px 14px',
-              backgroundColor: 'var(--status-error-bg)',
-              color: 'var(--status-error-text)',
-              border: '1px solid var(--status-error-border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '0.85rem',
-            }}
-          >
-            {errorMessage}
-          </div>
-        )}
+      <h2 className="sr-only">Sign in to {BRAND.name}</h2>
+      <form onSubmit={handleSubmit} className="login-form" noValidate>
+        {formMessage && <div className="form-alert" role="alert">{formMessage}</div>}
 
         <Input
-          label="Email Address"
+          label="Email address"
           type="email"
+          autoComplete="email"
           placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          startIcon={<Mail size={18} />}
+          startIcon={<Mail size={18} aria-hidden="true" />}
           required
         />
 
         <Input
           label="Password"
           type="password"
+          autoComplete="current-password"
           placeholder="Enter your password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          startIcon={<Lock size={18} />}
+          startIcon={<Lock size={18} aria-hidden="true" />}
+          error={fieldError(error, 'password')}
           required
         />
 
         <div className="login-options-row">
-          <label className="login-remember">
-            <input type="checkbox" defaultChecked />
-            <span>Remember me</span>
-          </label>
-          <span className="login-forgot-link">Forgot password?</span>
+          <a className="login-forgot-link" href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent('Password reset')}`}>
+            Forgot password?
+          </a>
         </div>
 
         <Button
@@ -93,29 +77,40 @@ export const LoginPage: React.FC = () => {
           size="lg"
           fullWidth
           isLoading={isLoading}
-          startIcon={<LogIn size={18} />}
+          disabled={!email || !password}
+          startIcon={<LogIn size={18} aria-hidden="true" />}
         >
-          Sign In
+          Sign in
         </Button>
       </form>
 
-      {/* One-click demo credentials helper */}
-      <div className="demo-account-box">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-          <Sparkles size={15} /> Demo Credentials Available
+      {SHOW_DEMO && (
+        <div className="demo-account-box">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+            <Sparkles size={15} aria-hidden="true" /> Development demo account
+          </div>
+          <div>
+            Email: <strong>{DEMO.email}</strong> · Password: <strong>{DEMO.password}</strong>
+          </div>
+          <button
+            type="button"
+            className="demo-btn-link"
+            onClick={() => {
+              setEmail(DEMO.email);
+              setPassword(DEMO.password);
+            }}
+          >
+            Fill in demo credentials
+          </button>
         </div>
-        <div>Email: <strong>demo@samplecap.com</strong> | Pass: <strong>password123</strong></div>
-        <button type="button" className="demo-btn-link" onClick={handleFillDemo}>
-          Click here to auto-fill demo credentials
-        </button>
-      </div>
+      )}
 
-      <div className="auth-switch-text">
+      <p className="auth-switch-text">
         Don&apos;t have an account yet?{' '}
         <Link to="/register" style={{ fontWeight: 600 }}>
-          Sign up
+          Create one
         </Link>
-      </div>
+      </p>
     </div>
   );
 };

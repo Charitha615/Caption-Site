@@ -29,6 +29,25 @@ return [
 
     'presets_path' => resource_path('captions/presets.json'),
 
+    // PRIVATE disk for uploaded source videos, extracted audio and thumbnails.
+    // 'local' (storage/app/private) or an object-storage disk such as 's3'.
+    // Clients only ever reach these files through short-lived signed URLs.
+    'media_disk' => env('MEDIA_DISK', 'local'),
+    'stream_url_ttl_minutes' => (int) env('MEDIA_STREAM_TTL', 720),
+
+    // Chunked, resumable uploads (see App\Http\Controllers\Api\UploadSessionController).
+    // Keep chunk_size below PHP's post_max_size.
+    'uploads' => [
+        'chunk_size' => (int) env('UPLOAD_CHUNK_SIZE', 5 * 1024 * 1024),
+        'session_ttl_hours' => (int) env('UPLOAD_SESSION_TTL_HOURS', 24),
+        'extensions' => ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v'],
+        // Detected server-side from file contents (never trusted from the client).
+        'mime_types' => [
+            'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska',
+            'video/x-msvideo', 'video/avi', 'video/msvideo', 'video/x-m4v', 'audio/mp4',
+        ],
+    ],
+
     // Storage disk for exported files. Must be PRIVATE — downloads go through signed URLs.
     'export_disk' => env('EXPORT_DISK', 'local'),
     'download_url_ttl_minutes' => (int) env('EXPORT_DOWNLOAD_TTL', 30),

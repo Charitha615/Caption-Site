@@ -4,27 +4,53 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\MediaFile;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Project;
+use App\Services\Media\MediaStorage;
+use Illuminate\Http\RedirectResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Streams a project's source video to the editor.
+ * Serves private media to the browser. Both routes are reachable only through
+ * temporary signed URLs issued to the project owner (ProjectResource), so no bearer
+ * token is needed in <video>/<img> tags and storage paths are never exposed.
  *
- * - Supports HTTP Range requests (BinaryFileResponse), so the <video> element can
- *   seek on any server — PHP's built-in dev server (`php artisan serve`) cannot
- *   serve ranges for static files, which made videos unseekable in development.
- * - Reached only via a temporary signed URL issued to the project owner in
- *   ProjectResource::video_url; the storage path is never exposed.
+ * - Local disks: BinaryFileResponse with HTTP Range support, so the editor can seek
+ *   even on `php artisan serve` (which cannot serve ranges for static files).
+ * - Object storage: redirect to a short-lived pre-signed URL from the provider.
  */
 class MediaStreamController extends Controller
 {
-    public function stream(MediaFile $media): BinaryFileResponse
-    {
-        $disk = Storage::disk($media->disk);
-        abort_unless($disk->exists($media->file_path), 404);
+    public function __construct(protected MediaStorage $storage) {}
 
-        $response = response()->file($disk->path($media->file_path), [
-            'Content-Type' => $media->mime_type ?: 'video/mp4',
+    public function stream(MediaFile $media): Response
+    {
+        return $this->serve($media->disk, $media->file_path, $media->mime_type ?: 'video/mp4');
+    }
+
+    public function thumbnail(Project $project): Response
+    {
+        $key = $project->thumbnail;
+        abort_if(! $key || preg_match('#^(https?://|/storage/)#i', $key), 404);
+
+        $disk = $project->primaryMediaFile?->disk ?? $this->storage->diskName();
+
+        return $this->serve($disk, $key, 'image/jpeg');
+    }
+
+    private function serve(string $disk, string $path, string $mime): BinaryFileResponse|RedirectResponse
+    {
+        $filesystem = $this->storage->disk($disk);
+        abort_unless($filesystem->exists($path), 404);
+
+        if (! $this->storage->isLocal($disk)) {
+            return redirect()->away($filesystem->temporaryUrl($path, now()->addMinutes(30), [
+                'ResponseContentType' => $mime,
+            ]));
+        }
+
+        $response = response()->file($filesystem->path($path), [
+            'Content-Type' => $mime,
             'Cache-Control' => 'private, max-age=3600',
             'X-Content-Type-Options' => 'nosniff',
         ]);

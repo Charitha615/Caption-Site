@@ -5,18 +5,20 @@ namespace App\Jobs;
 use App\Models\Export;
 use App\Models\UsageRecord;
 use App\Services\Export\ExportService;
+use App\Services\Media\MediaStorage;
 use App\Services\Rendering\AssCaptionRenderer;
 use App\Services\Rendering\FontRegistry;
 use App\Services\Rendering\RenderException;
 use App\Services\Rendering\RenderOptions;
 use App\Services\Rendering\VideoRendererService;
+use App\Services\Usage\UsageService;
+use App\Support\AppLog;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -31,8 +33,11 @@ class RenderVideoJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 1;
+
     public int $timeout;
+
     public bool $failOnTimeout = true;
+
     public bool $deleteWhenMissingModels = true;
 
     public function __construct(public Export $export)
@@ -45,36 +50,36 @@ class RenderVideoJob implements ShouldQueue
         AssCaptionRenderer $captionRenderer,
         ExportService $exports,
         FontRegistry $fonts,
+        MediaStorage $storage,
+        UsageService $usage,
     ): void {
         $export = $this->export->fresh();
-        if (!$export || $export->status !== Export::STATUS_QUEUED) {
+        if (! $export || $export->status !== Export::STATUS_QUEUED) {
             return; // deleted, or already handled by another attempt
         }
 
         $export->update(['status' => Export::STATUS_PROCESSING, 'started_at' => now(), 'progress' => 0, 'error_message' => null]);
-        $workDir = storage_path('app/private/tmp/render-' . $export->uuid);
+        $workDir = storage_path('app/private/tmp/render-'.$export->uuid);
 
         try {
             $project = $export->project;
             $media = $project->primaryMediaFile;
-            if (!$media) {
+            if (! $media) {
                 throw new RenderException('This project has no video to render.');
             }
-            $inputPath = Storage::disk($media->disk)->path($media->file_path);
-
             $meta = $export->metadata ?? [];
             $width = (int) $meta['width'];
             $height = (int) $meta['height'];
-            $quality = config('captions.qualities.' . ($meta['quality'] ?? 'standard')) ?? config('captions.qualities.standard');
+            $quality = config('captions.qualities.'.($meta['quality'] ?? 'standard')) ?? config('captions.qualities.standard');
 
             File::ensureDirectoryExists($workDir, 0700);
-            $assPath = $workDir . '/captions.ass';
-            $outPath = $workDir . '/output.mp4';
+            $assPath = $workDir.'/captions.ass';
+            $outPath = $workDir.'/output.mp4';
             file_put_contents($assPath, $captionRenderer->render($exports->captionsFor($project), $meta['style'] ?? [], $width, $height));
 
             $lastWrite = 0.0;
             $lastCancelCheck = 0.0;
-            $renderer->render(
+            $storage->withMediaCopy($media, fn (string $inputPath) => $renderer->render(
                 new RenderOptions(
                     inputPath: $inputPath,
                     subtitlePath: $assPath,
@@ -102,16 +107,12 @@ class RenderVideoJob implements ShouldQueue
                     }
                     $lastCancelCheck = $now;
 
-                    return !Export::whereKey($export->id)->exists(); // soft-deleted → cancelled
+                    return ! Export::whereKey($export->id)->exists(); // soft-deleted → cancelled
                 },
-            );
+            ));
 
             $target = $exports->storagePath($export);
-            $stream = fopen($outPath, 'rb');
-            Storage::disk($exports->disk())->writeStream($target, $stream);
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
+            $storage->putLocalFile($outPath, $target, $exports->disk());
 
             $export->update([
                 'status' => Export::STATUS_COMPLETED,
@@ -121,23 +122,23 @@ class RenderVideoJob implements ShouldQueue
                 'completed_at' => now(),
             ]);
 
-            UsageRecord::create([
-                'user_id' => $project->user_id,
-                'project_id' => $project->id,
-                'action' => 'video_render',
-                'quantity' => (float) ($meta['duration'] ?? 0),
-                'unit' => 'seconds',
+            $usage->record($project->user_id, UsageRecord::ACTION_VIDEO_RENDER, (float) ($meta['duration'] ?? 0), 'seconds', $project, [
+                'export' => $export->uuid,
+                'width' => $width,
+                'height' => $height,
             ]);
+            AppLog::info('render.completed', ['export' => $export->uuid, 'project' => $project->uuid, 'bytes' => $export->file_size]);
         } catch (RenderException $e) {
             if ($e->cancelled) {
-                Log::info("Render cancelled for export {$export->uuid}");
+                AppLog::info('render.cancelled', ['export' => $export->uuid]);
 
                 return;
             }
-            Log::error("Render failed for export {$export->uuid}: {$e->getMessage()}", ['ffmpeg' => $e->details]);
+            AppLog::error('render.failed', ['export' => $export->uuid, 'reason' => $e->getMessage(), 'ffmpeg' => $e->details]);
             $this->markFailed($export, $e->getMessage());
         } catch (\Throwable $e) {
-            Log::error("Render crashed for export {$export->uuid}", ['exception' => $e]);
+            AppLog::error('render.crashed', ['export' => $export->uuid], $e);
+            report($e);
             $this->markFailed($export, 'Rendering failed unexpectedly. Please try again.');
         } finally {
             File::deleteDirectory($workDir);
@@ -147,8 +148,9 @@ class RenderVideoJob implements ShouldQueue
     /** Timeouts and worker crashes land here. */
     public function failed(?\Throwable $exception): void
     {
+        AppLog::error('queue.render_job_failed', ['export' => $this->export->uuid], $exception);
         $export = $this->export->fresh();
-        if ($export && !$export->isFinished()) {
+        if ($export && ! $export->isFinished()) {
             $this->markFailed($export, 'Rendering took too long or the worker stopped. Please try again.');
         }
     }

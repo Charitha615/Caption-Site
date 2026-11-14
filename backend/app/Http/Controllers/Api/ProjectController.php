@@ -10,10 +10,12 @@ use App\Http\Requests\Projects\CreateProjectRequest;
 use App\Http\Requests\Projects\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
+use App\Services\Usage\UsageService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
@@ -26,43 +28,67 @@ class ProjectController extends Controller
     ) {}
 
     /**
-     * List user projects with status filtering and pagination.
+     * List user projects with status filtering, search and pagination.
      */
     public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', Rule::in(['all', 'draft', 'processing', 'ready', 'completed', 'failed'])],
+            'search' => ['nullable', 'string', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
         $user = $request->user();
-        $query = Project::forUser($user->id)->withCount(['captions', 'mediaFiles'])->latest();
 
-        if ($request->filled('status') && $request->query('status') !== 'all') {
-            $query->where('status', $request->query('status'));
+        $query = Project::forUser($user->id)
+            ->with('primaryMediaFile')
+            ->withCount(['captions', 'mediaFiles'])
+            ->latest();
+
+        $status = $validated['status'] ?? 'all';
+        if ($status === 'processing') {
+            $query->whereIn('status', Project::PROCESSING_STATUSES);
+        } elseif ($status === 'ready') {
+            $query->whereIn('status', [Project::STATUS_READY, Project::STATUS_COMPLETED]);
+        } elseif ($status !== 'all') {
+            $query->where('status', $status);
         }
 
-        if ($request->filled('search')) {
-            $search = $request->query('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
+        if (! empty($validated['search'])) {
+            $like = '%'.addcslashes($validated['search'], '\\%_').'%';
+            $query->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('description', 'like', $like));
         }
 
-        $perPage = min((int) $request->query('per_page', 12), 50);
-        $projects = $query->paginate($perPage);
+        $projects = $query->paginate($validated['per_page'] ?? 12);
 
         return $this->successResponse([
-            'projects' => ProjectResource::collection($projects),
+            'projects' => ProjectResource::collection($projects->getCollection()),
             'pagination' => [
                 'current_page' => $projects->currentPage(),
                 'last_page' => $projects->lastPage(),
                 'per_page' => $projects->perPage(),
                 'total' => $projects->total(),
             ],
-            'counts' => [
-                'all' => Project::forUser($user->id)->count(),
-                'processing' => Project::forUser($user->id)->where('status', 'processing')->count(),
-                'completed' => Project::forUser($user->id)->where('status', 'completed')->count(),
-                'draft' => Project::forUser($user->id)->where('status', 'draft')->count(),
-            ],
+            'counts' => self::statusCounts($user->id),
         ], 'Projects retrieved');
+    }
+
+    /** @return array{all: int, processing: int, ready: int, completed: int, draft: int, failed: int} */
+    public static function statusCounts(int $userId): array
+    {
+        $byStatus = Project::forUser($userId)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return [
+            'all' => (int) $byStatus->sum(),
+            'processing' => (int) $byStatus->only(Project::PROCESSING_STATUSES)->sum(),
+            'ready' => (int) ($byStatus[Project::STATUS_READY] ?? 0) + (int) ($byStatus[Project::STATUS_COMPLETED] ?? 0),
+            'completed' => (int) ($byStatus[Project::STATUS_COMPLETED] ?? 0),
+            'draft' => (int) ($byStatus[Project::STATUS_DRAFT] ?? 0),
+            'failed' => (int) ($byStatus[Project::STATUS_FAILED] ?? 0),
+        ];
     }
 
     /**
@@ -84,7 +110,7 @@ class ProjectController extends Controller
     {
         $this->authorize('view', $project);
 
-        $project->loadCount(['captions', 'mediaFiles']);
+        $project->load('primaryMediaFile')->loadCount(['captions', 'mediaFiles']);
 
         return $this->successResponse([
             'project' => new ProjectResource($project),
@@ -108,11 +134,12 @@ class ProjectController extends Controller
     /**
      * Remove the specified project.
      */
-    public function destroy(Project $project): JsonResponse
+    public function destroy(Project $project, UsageService $usage): JsonResponse
     {
         $this->authorize('delete', $project);
 
         $this->deleteAction->execute($project);
+        $usage->forget($project->user_id);
 
         return $this->successResponse(null, 'Project deleted successfully');
     }
@@ -185,7 +212,7 @@ class ProjectController extends Controller
             Project::STATUS_FAILED => [
                 'percentage' => 0,
                 'phase' => 'failed',
-                'phase_label' => 'Processing encountered an error. Please try generating captions again.',
+                'phase_label' => $project->processing_error ?: 'Processing failed. Please try generating captions again.',
                 'is_processing' => false,
             ],
             default => [
@@ -205,11 +232,12 @@ class ProjectController extends Controller
             'is_processing' => $phaseMeta['is_processing'],
             'is_ready' => $status === Project::STATUS_READY || $status === Project::STATUS_COMPLETED,
             'is_failed' => $status === Project::STATUS_FAILED,
+            'error' => $status === Project::STATUS_FAILED ? ($project->processing_error ?: 'Processing failed. Please try again.') : null,
             'duration' => $project->duration,
             'width' => $project->width,
             'height' => $project->height,
             'fps' => $project->fps,
-            'thumbnail' => $project->thumbnail,
+            'thumbnail' => $project->thumbnailUrl(),
             'language' => $project->language,
             'captions_count' => $captionsCount,
             'updated_at' => $project->updated_at?->toISOString(),

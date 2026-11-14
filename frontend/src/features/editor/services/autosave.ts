@@ -1,4 +1,5 @@
 import { captionService } from '../../../services/captionService';
+import { apiErrorMessage } from '../../../services/errors';
 import { projectService } from '../../../services/projectService';
 import { useCaptionStore } from '../../../stores/editor/captionStore';
 import { useEditorProjectStore } from '../../../stores/editor/editorProjectStore';
@@ -69,11 +70,11 @@ async function save(): Promise<void> {
 
   try {
     if (captionsDirty) {
-      await captionService.syncCaptions(projectUuid, serializeCaptions(doc.captions));
+      await captionService.syncCaptions(projectUuid, serializeCaptions(doc.captions), { silent: true });
     }
     if (settingsDirty) {
       const settings = { ...baseSettings, editor: serializeEditorSettings(doc) };
-      await projectService.updateProject(projectUuid, { settings });
+      await projectService.updateProject(projectUuid, { settings }, { silent: true });
       project().setBaseSettings(settings);
     }
     lastSaved = doc;
@@ -85,7 +86,7 @@ async function save(): Promise<void> {
       project().markSaved();
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
+    const message = apiErrorMessage(err, 'Could not save. Retrying…');
     project().setSaveStatus('failed', message);
     const delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)];
     retryCount += 1;

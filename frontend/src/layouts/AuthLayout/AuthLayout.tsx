@@ -2,8 +2,9 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
-import { ToastContainer } from '../../components/Toast/ToastContainer';
 import './AuthLayout.css';
+
+const YEAR = new Date().getFullYear();
 
 export const AuthLayout: React.FC = () => {
   const brand = useBrand();
@@ -23,10 +24,8 @@ export const AuthLayout: React.FC = () => {
       </div>
 
       <footer className="auth-footer">
-        © {new Date().getFullYear()} {brand.name}. All rights reserved.
+        © {YEAR} {brand.name}. All rights reserved.
       </footer>
-
-      <ToastContainer />
     </div>
   );
 };

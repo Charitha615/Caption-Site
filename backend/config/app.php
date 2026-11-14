@@ -13,7 +13,10 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'SampleCap'),
+
+    // Load balancer / reverse proxy addresses to trust for X-Forwarded-* (comma-separated, or *).
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
 
     /*
     |--------------------------------------------------------------------------

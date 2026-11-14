@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ExportApiTest extends TestCase
@@ -20,6 +21,7 @@ class ExportApiTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Project $project;
 
     protected function setUp(): void
@@ -43,7 +45,7 @@ class ExportApiTest extends TestCase
         // Sanctum caches the resolved user per test; reset it so each call really is that user.
         $this->app['auth']->forgetGuards();
 
-        return $this->withHeader('Authorization', 'Bearer ' . $user->createToken('t')->plainTextToken);
+        return $this->withHeader('Authorization', 'Bearer '.$user->createToken('t')->plainTextToken);
     }
 
     private function addVideo(int $width = 1920, int $height = 1080): MediaFile
@@ -83,6 +85,8 @@ class ExportApiTest extends TestCase
         $download->assertOk();
         $this->assertStringContainsString("1\n00:00:00,500 --> 00:00:02,000\nශ්‍රී ලංකාව", $download->streamedContent());
         $this->assertStringContainsString('application/x-subrip', $download->headers->get('Content-Type'));
+        // RFC 6266: browsers save the Sinhala name; the ASCII fallback is still a valid filename.
+        $this->assertStringContainsString("filename*=utf-8''".rawurlencode('සිංහල-ව්‍යාපෘතිය.srt'), $download->headers->get('Content-Disposition'));
     }
 
     public function test_all_text_formats_export(): void
@@ -162,7 +166,7 @@ class ExportApiTest extends TestCase
         $this->as($this->owner)->postJson($url, ['type' => 'mp4', 'resolution' => '2160'])->assertStatus(422)->assertJsonValidationErrors('resolution');
         $this->as($this->owner)->postJson($url, ['type' => 'exe'])->assertStatus(422)->assertJsonValidationErrors('type');
         $this->as($this->owner)->postJson($url, ['type' => 'mp4', 'quality' => 'ultra'])->assertStatus(422);
-        $this->as($this->owner)->postJson($url, ['type' => 'mp4', 'template' => (string) \Illuminate\Support\Str::uuid()])->assertStatus(422)->assertJsonValidationErrors('template');
+        $this->as($this->owner)->postJson($url, ['type' => 'mp4', 'template' => (string) Str::uuid()])->assertStatus(422)->assertJsonValidationErrors('template');
 
         $foreign = CaptionTemplate::create(['user_id' => User::factory()->create()->id, 'name' => 'Theirs', 'style' => []]);
         $this->as($this->owner)->postJson($url, ['type' => 'mp4', 'template' => $foreign->uuid])->assertStatus(422);
@@ -204,7 +208,8 @@ class ExportApiTest extends TestCase
     public function test_render_job_completes_export_with_fake_ffmpeg(): void
     {
         $this->addVideo(1280, 720);
-        $this->app->instance(ProcessRunner::class, new class extends ProcessRunner {
+        $this->app->instance(ProcessRunner::class, new class extends ProcessRunner
+        {
             public array $ass = [];
 
             public function run(array $command, ?callable $onStdout = null, ?callable $shouldStop = null, ?float $timeout = null): array
@@ -237,7 +242,8 @@ class ExportApiTest extends TestCase
     public function test_render_job_failure_is_recorded_with_a_safe_message(): void
     {
         $this->addVideo(1280, 720);
-        $this->app->instance(ProcessRunner::class, new class extends ProcessRunner {
+        $this->app->instance(ProcessRunner::class, new class extends ProcessRunner
+        {
             public function run(array $command, ?callable $onStdout = null, ?callable $shouldStop = null, ?float $timeout = null): array
             {
                 return ['exitCode' => 0, 'stdout' => " .. overlay VV->V\n", 'stderr' => '', 'stopped' => false];

@@ -2,10 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles/global.css';
 import App from './App.tsx';
+import { getInitialTheme } from './stores/themeStore';
 
-// Initialize theme immediately to prevent flashing
-const initialTheme = localStorage.getItem('samplecap_theme') || 'dark';
-document.documentElement.setAttribute('data-theme', initialTheme);
+// Apply the theme before first paint to avoid a flash.
+document.documentElement.setAttribute('data-theme', getInitialTheme());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

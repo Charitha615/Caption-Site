@@ -24,7 +24,8 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 
   return (
     <div
-      className={`skeleton ${circle ? 'skeleton-circle' : ''} ${className}`}
+      aria-hidden="true"
+      className={`skeleton ${circle ? "skeleton-circle" : ""} ${className}`}
       style={combinedStyle}
     />
   );

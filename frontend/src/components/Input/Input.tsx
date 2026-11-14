@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import './Input.css';
 
@@ -24,7 +24,9 @@ export const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const autoId = useId();
+  const inputId = id || autoId;
+  const messageId = `${inputId}-message`;
   const isPassword = type === 'password';
   const effectiveType = isPassword ? (showPassword ? 'text' : 'password') : type;
 
@@ -33,7 +35,7 @@ export const Input: React.FC<InputProps> = ({
       {label && (
         <label htmlFor={inputId} className="input-label">
           {label}
-          {required && <span className="input-required">*</span>}
+          {required && <span className="input-required" aria-hidden="true">*</span>}
         </label>
       )}
 
@@ -43,6 +45,9 @@ export const Input: React.FC<InputProps> = ({
         <input
           id={inputId}
           type={effectiveType}
+          required={required}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error || helperText ? messageId : undefined}
           className={`input-field ${startIcon ? 'input-has-start-icon' : ''} ${
             endIcon || isPassword ? 'input-has-end-icon' : ''
           } ${error ? 'input-error-field' : ''}`}
@@ -54,8 +59,8 @@ export const Input: React.FC<InputProps> = ({
             type="button"
             className="input-icon-end input-icon-button"
             onClick={() => setShowPassword(!showPassword)}
-            tabIndex={-1}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
@@ -65,9 +70,9 @@ export const Input: React.FC<InputProps> = ({
       </div>
 
       {error ? (
-        <span className="input-error-text">{error}</span>
+        <span id={messageId} className="input-error-text" role="alert">{error}</span>
       ) : helperText ? (
-        <span className="input-helper-text">{helperText}</span>
+        <span id={messageId} className="input-helper-text">{helperText}</span>
       ) : null}
     </div>
   );

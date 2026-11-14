@@ -47,3 +47,15 @@
   font-size: 0.9rem;
   color: var(--text-muted);
 }
+
+.profile-since { font-size: 0.8rem; color: var(--text-light); margin-top: 4px; }
+.profile-card { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.profile-card-title { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 600; }
+.profile-card-sub { color: var(--text-muted); font-size: 0.875rem; }
+.profile-form { display: flex; flex-direction: column; gap: 16px; max-width: 520px; }
+.profile-usage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; }
+
+@media (max-width: 700px) {
+  .profile-usage-grid { grid-template-columns: 1fr; }
+  .profile-card { padding: 18px; }
+}

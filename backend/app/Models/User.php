@@ -22,12 +22,16 @@ class User extends Authenticatable
         'email',
         'password',
         'avatar_url',
-        'role',
     ];
 
+    /** `plan` and `role` are never mass-assigned from requests (see RegisterUserAction). */
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    protected $attributes = [
+        'role' => 'user',
     ];
 
     protected static function boot(): void
@@ -67,6 +71,18 @@ class User extends Authenticatable
     public function usageRecords(): HasMany
     {
         return $this->hasMany(UsageRecord::class);
+    }
+
+    public function planKey(): string
+    {
+        $plan = $this->plan ?: config('plans.default');
+
+        return array_key_exists($plan, config('plans.plans')) ? $plan : config('plans.default');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
     }
 
     public function settings(): HasMany

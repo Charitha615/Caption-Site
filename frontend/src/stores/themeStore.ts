@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { STORAGE_KEYS } from '../config/constants';
+import { safeStorage } from '../utils/storage';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -8,25 +10,17 @@ interface ThemeState {
   toggleTheme: () => void;
 }
 
-const getInitialTheme = (): ThemeMode => {
-  if (typeof window === 'undefined') return 'dark';
-  const saved = localStorage.getItem('samplecap_theme') as ThemeMode | null;
-  if (saved === 'dark' || saved === 'light') {
-    return saved;
-  }
-  // Default to sleek dark mode
-  return 'dark';
+export const getInitialTheme = (): ThemeMode => {
+  const saved = safeStorage.get(STORAGE_KEYS.THEME);
+  return saved === 'light' || saved === 'dark' ? saved : 'dark';
 };
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
   theme: getInitialTheme(),
-  setTheme: (theme: ThemeMode) => {
-    localStorage.setItem('samplecap_theme', theme);
+  setTheme: (theme) => {
+    safeStorage.set(STORAGE_KEYS.THEME, theme);
     document.documentElement.setAttribute('data-theme', theme);
     set({ theme });
   },
-  toggleTheme: () => {
-    const nextTheme: ThemeMode = get().theme === 'dark' ? 'light' : 'dark';
-    get().setTheme(nextTheme);
-  },
+  toggleTheme: () => get().setTheme(get().theme === 'dark' ? 'light' : 'dark'),
 }));

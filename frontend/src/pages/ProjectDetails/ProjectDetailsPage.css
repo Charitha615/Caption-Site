@@ -255,3 +255,59 @@
   color: var(--brand-primary);
   font-weight: 500;
 }
+
+.status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--brand-primary-border);
+  background: var(--bg-surface);
+}
+
+.status-failed-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--status-error-border);
+  background: var(--status-error-bg);
+  color: var(--status-error-text);
+  font-size: 0.9rem;
+}
+
+.project-no-video { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.85rem; }
+.project-upload-box { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.project-description {
+  padding: 12px 14px;
+  background: var(--bg-main);
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-color);
+  font-size: 0.875rem;
+  white-space: pre-line;
+}
+.project-danger-row { margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 16px; }
+.project-specs-grid dd { margin: 0; }
+
+.captions-list-scroll { list-style: none; }
+.caption-row-card { content-visibility: auto; contain-intrinsic-size: auto 96px; }
+.caption-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.caption-row-actions { display: flex; gap: 4px; }
+.caption-text-content { margin: 0; }
+.icon-button-sm { width: 28px; height: 28px; color: var(--text-muted); }
+.icon-button-danger { color: var(--status-error-text); }
+
+.regen-fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.regen-option {
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  border-radius: var(--radius-md, 10px); border: 1px solid var(--border-color);
+  cursor: pointer; background: var(--bg-surface);
+}
+.regen-option-selected { border: 2px solid var(--brand-primary); background: var(--brand-primary-light); }
+.regen-option:focus-within { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.regen-warning, .regen-usage { margin-top: 14px; font-size: 0.83rem; display: flex; gap: 6px; align-items: center; }
+.regen-warning { color: var(--status-warning-text); }
+.regen-usage { color: var(--text-muted); }

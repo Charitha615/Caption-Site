@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Caption;
 use App\Models\CaptionStyle;
+use App\Models\CaptionTemplate;
 use App\Models\Project;
 use App\Models\Transcript;
 use App\Models\UsageRecord;
@@ -19,7 +20,7 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        \App\Models\CaptionTemplate::syncSystemTemplates();
+        CaptionTemplate::syncSystemTemplates();
 
         $user = User::firstOrCreate(
             ['email' => 'demo@samplecap.com'],
@@ -28,9 +29,14 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Charitha Wickramarathne',
                 'password' => Hash::make('password123'),
                 'email_verified_at' => now(),
-                'role' => 'admin',
             ]
         );
+        // role/plan are not mass-assignable; set them explicitly for the demo account.
+        $user->forceFill(['role' => 'admin', 'plan' => 'unlimited'])->save();
+
+        if ($user->projects()->exists()) {
+            return; // already seeded — keep `db:seed` idempotent
+        }
 
         // 1. Completed Sinhala Project
         $sinhalaProject = Project::create([
@@ -132,13 +138,14 @@ class DatabaseSeeder extends Seeder
             'text' => 'Generate captions with superhuman accuracy in seconds.',
         ]);
 
-        // 3. Processing Project
+        // 3. Failed project (shows the retry flow)
         Project::create([
             'uuid' => (string) Str::uuid(),
             'user_id' => $user->id,
             'name' => 'ඇල්ල සංචාරය - Travel Reel #4',
-            'description' => 'Instagram reel audio transcription in progress.',
-            'status' => 'processing',
+            'description' => 'Upload a video to generate captions.',
+            'status' => 'failed',
+            'processing_error' => 'Demo project — upload a video to generate captions.',
             'duration' => 45.0,
             'width' => 1080,
             'height' => 1920,

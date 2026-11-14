@@ -373,3 +373,29 @@
   color: var(--status-error-text);
   background-color: var(--status-error-bg);
 }
+
+.sidebar-brand-wrapper { color: inherit; }
+.sidebar-user-info { color: inherit; text-decoration: none; }
+.pro-usage-fill-warn { background: var(--status-warning-text) !important; }
+.sidebar-close-btn { display: none; margin-left: auto; }
+
+/* Tablet & mobile: off-canvas drawer opened from the navbar menu button. */
+@media (max-width: 900px) {
+  .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(300px, 86vw);
+    height: 100dvh;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    overflow-y: auto;
+    box-shadow: var(--shadow-xl);
+  }
+  .app-sidebar-open {
+    transform: translateX(0);
+  }
+  .sidebar-close-btn {
+    display: inline-flex;
+  }
+}

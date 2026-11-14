@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProjectResource;
+use App\Models\Export;
 use App\Models\Project;
-use App\Models\UsageRecord;
+use App\Services\Usage\UsageService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,26 +16,16 @@ class DashboardController extends Controller
     use ApiResponseTrait;
 
     /**
-     * Get dashboard summary metrics and recent projects.
+     * Summary metrics, plan usage and recent projects for the dashboard.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, UsageService $usage): JsonResponse
     {
         $user = $request->user();
-
-        $totalProjects = Project::forUser($user->id)->count();
-        $processingProjects = Project::forUser($user->id)->where('status', 'processing')->count();
-        $completedProjects = Project::forUser($user->id)->where('status', 'completed')->count();
-        $draftProjects = Project::forUser($user->id)->where('status', 'draft')->count();
-
-        $totalCaptionSeconds = (float) UsageRecord::where('user_id', $user->id)
-            ->where('action', 'caption_generation')
-            ->sum('quantity');
-
-        $totalVideoSeconds = (float) UsageRecord::where('user_id', $user->id)
-            ->where('action', 'video_render')
-            ->sum('quantity');
+        $counts = ProjectController::statusCounts($user->id);
+        $usageSummary = $usage->summary($user);
 
         $recentProjects = Project::forUser($user->id)
+            ->with('primaryMediaFile')
             ->withCount(['captions', 'mediaFiles'])
             ->latest()
             ->take(6)
@@ -42,14 +33,19 @@ class DashboardController extends Controller
 
         return $this->successResponse([
             'summary' => [
-                'total_projects' => $totalProjects,
-                'processing_projects' => $processingProjects,
-                'completed_projects' => $completedProjects,
-                'draft_projects' => $draftProjects,
-                'caption_minutes_used' => round($totalCaptionSeconds / 60, 1),
-                'caption_minutes_limit' => 120, // Free tier default 120 mins
-                'rendered_videos_count' => Project::forUser($user->id)->has('exports')->count(),
+                'total_projects' => $counts['all'],
+                'processing_projects' => $counts['processing'],
+                'completed_projects' => $counts['ready'],
+                'draft_projects' => $counts['draft'],
+                'failed_projects' => $counts['failed'],
+                'caption_minutes_used' => $usageSummary['caption_minutes']['used'],
+                'caption_minutes_limit' => $usageSummary['caption_minutes']['limit'],
+                'rendered_videos_count' => Export::where('user_id', $user->id)
+                    ->where('type', 'mp4')
+                    ->where('status', Export::STATUS_COMPLETED)
+                    ->count(),
             ],
+            'usage' => $usageSummary,
             'recent_projects' => ProjectResource::collection($recentProjects),
         ], 'Dashboard summary retrieved');
     }

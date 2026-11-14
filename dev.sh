@@ -20,7 +20,7 @@ command -v php >/dev/null || { echo "PHP >= 8.3 not found"; exit 1; }
 trap 'kill 0' EXIT INT TERM
 
 (cd "$ROOT/backend"  && php artisan serve --port=8000 2>&1 | sed 's/^/[api]   /') &
-(cd "$ROOT/backend"  && php artisan queue:work --queue="${RENDER_QUEUE:-default},default" --tries=1 2>&1 | sed 's/^/[queue] /') &
+(cd "$ROOT/backend"  && php artisan queue:work --queue=default,renders --tries=1 --timeout=3700 2>&1 | sed 's/^/[queue] /') &
 (cd "$ROOT/frontend" && npm run dev 2>&1 | sed 's/^/[web]   /') &
 
 wait

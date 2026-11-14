@@ -29,7 +29,9 @@ use App\Services\Caption\CaptionStyleNormalizer;
 class AssCaptionRenderer
 {
     protected const SINHALA_RE = '/[\x{0D80}-\x{0DFF}]/u';
+
     protected const ZWJ = "\u{200D}";
+
     protected const AL_LAKUNA = "\u{0DCA}";
 
     protected const ANCHORS = [
@@ -44,8 +46,8 @@ class AssCaptionRenderer
     ) {}
 
     /**
-     * @param array<int, array{start: float, end: float, text: string, language?: string, words?: ?array, style_override?: ?array}> $captions
-     * @param array $style global (project) style
+     * @param  array<int, array{start: float, end: float, text: string, language?: string, words?: ?array, style_override?: ?array}>  $captions
+     * @param  array  $style  global (project) style
      */
     public function render(array $captions, array $style, int $width, int $height): string
     {
@@ -64,7 +66,7 @@ class AssCaptionRenderer
             array_push($lines, ...$this->captionEvents($text, $start, $end, $caption['words'] ?? null, $resolved, $width, $height, $scale));
         }
 
-        return $this->header($width, $height, $global) . implode("\n", $lines) . "\n";
+        return $this->header($width, $height, $global).implode("\n", $lines)."\n";
     }
 
     /* ------------------------------------------------------------------ events */
@@ -78,8 +80,12 @@ class AssCaptionRenderer
 
         // Anchor point of the *outer* box (incl. padding), like the preview; libass anchors the text.
         [$vertical, $horizontal] = $this->anchorParts($s['alignMatrix']);
-        $x = $s['positionX'] / 100 * $w + match ($horizontal) { 'left' => $padX, 'right' => -$padX, default => 0 };
-        $y = $s['positionY'] / 100 * $h + match ($vertical) { 'top' => $padY, 'bottom' => -$padY, default => 0 };
+        $x = $s['positionX'] / 100 * $w + match ($horizontal) {
+            'left' => $padX, 'right' => -$padX, default => 0
+        };
+        $y = $s['positionY'] / 100 * $h + match ($vertical) {
+            'top' => $padY, 'bottom' => -$padY, default => 0
+        };
 
         // Wrapping width = maxWidth% of the frame minus padding, centred on the anchor.
         $wrapWidth = max($fontPx * 2, $s['maxWidth'] / 100 * $w - 2 * $padX);
@@ -100,7 +106,7 @@ class AssCaptionRenderer
         // Layer 0 — background box.
         if ($s['backgroundOpacity'] > 0) {
             // BorderStyle 4 (libass ≥ 0.17): one box around the whole event, like the preview's box.
-            $tags = $base . sprintf(
+            $tags = $base.sprintf(
                 '\bord0\xbord%s\ybord%s\shad0\1a&HFF&\3a&HFF&\4c%s\4a%s',
                 $this->num($padX), $this->num($padY), $this->color($s['backgroundColor']), $this->alpha($s['backgroundOpacity']),
             );
@@ -112,13 +118,13 @@ class AssCaptionRenderer
         $shadowCommon = $common;
         $shadowCommon['x'] += $s['shadowOffsetX'] * $scale;
         $shadowCommon['y'] += $s['shadowOffsetY'] * $scale;
-        $shadowTags = $base . sprintf(
+        $shadowTags = $base.sprintf(
             '\1c%1$s\3c%1$s\1a%2$s\3a%2$s\bord%3$s\shad0\blur%4$s',
             $this->color($s['shadowColor']), $this->alpha($s['shadowOpacity']), $this->num($stroke), $this->num($s['shadowBlur'] * $scale / 2),
         );
 
         // Layer 2 — text with outside stroke.
-        $textTags = $base . sprintf(
+        $textTags = $base.sprintf(
             '\1c%s\1a&H00&\3c%s\3a&H00&\bord%s\shad0',
             $this->color($s['textColor']), $this->color($s['outlineColor']), $this->num($stroke),
         );
@@ -143,7 +149,7 @@ class AssCaptionRenderer
             if ($f['word'] >= 0 && $s['animation'] === 'highlight') {
                 // Word box: a Box-style event where only the active word's box is opaque.
                 $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\3a&H00&'), '\3a&HFF&');
-                $hlTags = $base . sprintf('\bord0\xbord%1$s\ybord%2$s\shad0\1a&HFF&\3c%3$s\3a&HFF&\4a&HFF&', $this->num(0.14 * $fontPx), $this->num(0.08 * $fontPx), $this->color($s['highlightColor']));
+                $hlTags = $base.sprintf('\bord0\xbord%1$s\ybord%2$s\shad0\1a&HFF&\3c%3$s\3a&HFF&\4a&HFF&', $this->num(0.14 * $fontPx), $this->num(0.08 * $fontPx), $this->color($s['highlightColor']));
                 $events[] = $this->dialogue(1, 'WordBox', $f['start'], $f['end'], $common, $hlTags, $boxMarkup, false);
             }
             $events[] = $this->dialogue(2, 'Text', $f['start'], $f['end'], $common, $textTags, $markup, $entrance);
@@ -295,7 +301,7 @@ class AssCaptionRenderer
     {
         $out = '';
         foreach ($runs as $run) {
-            $out .= $this->runTags($run['script'], $s, $scale) . $this->escape($run['text']);
+            $out .= $this->runTags($run['script'], $s, $scale).$this->escape($run['text']);
         }
 
         return $out;
@@ -310,11 +316,12 @@ class AssCaptionRenderer
         foreach ($parts as $part) {
             if (preg_match('/^\s+$/u', $part)) {
                 $out .= $this->escape($part);
+
                 continue;
             }
             $wordIndex++;
             $tags = $wordIndex === $active ? $onTags : $offTags;
-            $out .= '{' . $tags . '}' . $this->markup($this->scriptRuns($part), $s, $scale);
+            $out .= '{'.$tags.'}'.$this->markup($this->scriptRuns($part), $s, $scale);
         }
 
         return $out;
@@ -328,7 +335,7 @@ class AssCaptionRenderer
         $hidden = implode('', array_slice($graphemes, $visible));
         $out = $this->markup($this->scriptRuns($shown), $s, $scale);
         if ($hidden !== '') {
-            $out .= '{\alpha&HFF&}' . $this->markup($this->scriptRuns($hidden), $s, $scale);
+            $out .= '{\alpha&HFF&}'.$this->markup($this->scriptRuns($hidden), $s, $scale);
         }
 
         return $out;
@@ -386,7 +393,7 @@ class AssCaptionRenderer
 
         return implode("\n", [
             '[Script Info]',
-            '; Generated by SampleCap caption renderer',
+            '; Generated by '.config('brand.name').' caption renderer',
             'ScriptType: v4.00+',
             "PlayResX: {$w}",
             "PlayResY: {$h}",

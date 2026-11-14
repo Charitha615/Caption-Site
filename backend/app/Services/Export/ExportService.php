@@ -6,10 +6,13 @@ use App\Jobs\RenderVideoJob;
 use App\Models\CaptionTemplate;
 use App\Models\Export;
 use App\Models\Project;
+use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\Caption\CaptionStyleNormalizer;
 use App\Services\Caption\Contracts\SubtitleFormatterInterface;
 use App\Services\Rendering\VideoRendererService;
+use App\Services\Usage\UsageService;
+use App\Support\AppLog;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -21,21 +24,21 @@ use Illuminate\Validation\ValidationException;
  */
 class ExportService
 {
-    public const MAX_ACTIVE_RENDERS_PER_USER = 2;
-
     public const LAYOUT_KEYS = ['alignMatrix', 'positionX', 'positionY', 'maxWidth', 'textAlign'];
 
     public function __construct(
         protected SubtitleFormatterInterface $formatter,
         protected CaptionStyleNormalizer $normalizer,
+        protected UsageService $usage,
     ) {}
 
     /**
-     * @param array{type: string, resolution?: ?string, quality?: ?string, template?: ?string} $data
+     * @param  array{type: string, resolution?: ?string, quality?: ?string, template?: ?string}  $data
      */
     public function create(Project $project, User $user, array $data): Export
     {
         $type = $data['type'];
+        $this->usage->ensureCanExport($user, $type);
 
         if ($type !== 'mp4') {
             $export = Export::create([
@@ -46,12 +49,14 @@ class ExportService
                 'metadata' => ['caption_count' => $project->captions()->count()],
             ]);
             $this->generateText($export);
+            $this->usage->record($user, UsageRecord::ACTION_EXPORT, 1, 'files', $project, ['type' => $type]);
+            AppLog::info('export.completed', ['export' => $export->uuid, 'project' => $project->uuid, 'type' => $type]);
 
             return $export->refresh();
         }
 
         $media = $project->primaryMediaFile;
-        if (!$media) {
+        if (! $media) {
             throw ValidationException::withMessages(['type' => 'Upload a video to this project before exporting an MP4.']);
         }
 
@@ -59,7 +64,7 @@ class ExportService
             ->where('type', 'mp4')
             ->whereIn('status', [Export::STATUS_QUEUED, Export::STATUS_PROCESSING])
             ->count();
-        if ($active >= self::MAX_ACTIVE_RENDERS_PER_USER) {
+        if ($active >= $this->usage->maxConcurrentRenders($user)) {
             throw ValidationException::withMessages(['type' => 'You already have videos rendering. Please wait for them to finish.']);
         }
 
@@ -75,9 +80,9 @@ class ExportService
         [$width, $height] = VideoRendererService::outputSize($sourceW, $sourceH, $aspect, $shortSide);
 
         $template = null;
-        if (!empty($data['template'])) {
+        if (! empty($data['template'])) {
             $template = CaptionTemplate::visibleTo($user->id)->where('uuid', $data['template'])->first();
-            if (!$template) {
+            if (! $template) {
                 throw ValidationException::withMessages(['template' => 'That caption template does not exist.']);
             }
         }
@@ -104,6 +109,7 @@ class ExportService
         ]);
 
         RenderVideoJob::dispatch($export)->onQueue(config('captions.render_queue', 'default'));
+        AppLog::info('render.queued', ['export' => $export->uuid, 'project' => $project->uuid, 'width' => $width, 'height' => $height, 'quality' => $quality]);
 
         return $export;
     }
@@ -145,6 +151,7 @@ class ExportService
         }
         // Soft delete; a running render notices and stops (see RenderVideoJob).
         $export->delete();
+        $this->usage->forget($export->user_id);
     }
 
     /** Captions in renderer shape. */

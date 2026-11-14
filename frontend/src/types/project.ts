@@ -40,10 +40,11 @@ export interface Caption {
 export interface Project {
   id: number;
   uuid: string;
-  user_id: number;
   name: string;
   description?: string | null;
   status: ProjectStatus;
+  /** User-safe reason when status is 'failed'. */
+  processing_error?: string | null;
   duration?: number | null;
   width?: number | null;
   height?: number | null;
@@ -67,6 +68,7 @@ export interface ProjectStatusResponse {
   is_processing: boolean;
   is_ready: boolean;
   is_failed: boolean;
+  error?: string | null;
   duration?: number | null;
   width?: number | null;
   height?: number | null;
@@ -88,7 +90,6 @@ export interface CreateProjectPayload {
 export interface UpdateProjectPayload {
   name?: string;
   description?: string;
-  status?: ProjectStatus;
   language?: string;
   settings?: Record<string, unknown>;
 }
@@ -98,14 +99,40 @@ export interface DashboardMetrics {
   processing_projects: number;
   completed_projects: number;
   draft_projects: number;
+  failed_projects: number;
   caption_minutes_used: number;
-  caption_minutes_limit: number;
+  caption_minutes_limit: number | null;
   rendered_videos_count: number;
+}
+
+export interface UsageMeter {
+  used: number;
+  /** null = unlimited */
+  limit: number | null;
+}
+
+export interface UsageSummary {
+  plan: { key: string; label: string };
+  period: { start: string; end: string };
+  caption_minutes: UsageMeter;
+  ai_requests_today: UsageMeter;
+  exports: UsageMeter;
+  renders: UsageMeter;
+  storage_mb: UsageMeter;
+  max_upload_mb: number | null;
+  max_video_minutes: number | null;
 }
 
 export interface DashboardData {
   summary: DashboardMetrics;
+  usage: UsageSummary;
   recent_projects: Project[];
+}
+
+export interface UploadedMedia {
+  uuid: string;
+  original_name: string;
+  file_size: number;
 }
 
 export interface ProjectsListResponse {
@@ -116,10 +143,14 @@ export interface ProjectsListResponse {
     per_page: number;
     total: number;
   };
-  counts: {
-    all: number;
-    processing: number;
-    completed: number;
-    draft: number;
-  };
+  counts: ProjectCounts;
+}
+
+export interface ProjectCounts {
+  all: number;
+  processing: number;
+  ready: number;
+  completed: number;
+  draft: number;
+  failed: number;
 }

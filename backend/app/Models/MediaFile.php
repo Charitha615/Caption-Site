@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 class MediaFile extends Model
@@ -27,6 +28,9 @@ class MediaFile extends Model
         'audio_path',
         'metadata',
     ];
+
+    /** Storage keys are internal and never serialised. */
+    protected $hidden = ['id', 'project_id', 'file_path', 'audio_path', 'disk'];
 
     protected $casts = [
         'file_size' => 'integer',
@@ -55,7 +59,11 @@ class MediaFile extends Model
     /** Signed, expiring URL to the Range-capable stream endpoint (see MediaStreamController). */
     public function streamUrl(): string
     {
-        return \Illuminate\Support\Facades\URL::temporarySignedRoute('media.stream', now()->addHours(12), ['media' => $this->uuid]);
+        return URL::temporarySignedRoute(
+            'media.stream',
+            now()->addMinutes((int) config('captions.stream_url_ttl_minutes', 720)),
+            ['media' => $this->uuid],
+        );
     }
 
     public function project(): BelongsTo

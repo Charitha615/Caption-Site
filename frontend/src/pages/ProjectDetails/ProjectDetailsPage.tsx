@@ -1,450 +1,386 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Sliders,
-  Sparkles,
-  Clock,
-  FileVideo,
-  RotateCw,
-  Trash2,
-  Edit2,
-  Check,
-  X,
-  ExternalLink,
-  AlertCircle,
-} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Sliders, Sparkles, Clock, FileVideo, Trash2, Edit2, Check, X, AlertCircle, UploadCloud, RefreshCw } from 'lucide-react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useToastStore } from '../../stores/toastStore';
+import { useUsageStore } from '../../stores/usageStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useProjectStatus } from '../../hooks/useProjectStatus';
 import { captionService } from '../../services/captionService';
+import { ChunkedUpload, UploadCancelledError, type UploadProgress } from '../../services/uploadService';
+import { toAppError, type AppError } from '../../services/errors';
 import { Button } from '../../components/Button/Button';
 import { Badge } from '../../components/Badge/Badge';
 import { Modal } from '../../components/Modal/Modal';
-import type { Caption, ProjectStatusResponse } from '../../types/project';
-import { formatDuration, formatDate, getLanguageLabel } from '../../utils/formatters';
+import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
+import { ErrorState } from '../../components/ErrorState/ErrorState';
+import { LoadingState } from '../../components/LoadingState/LoadingState';
+import { EmptyState } from '../../components/EmptyState/EmptyState';
+import { Progress } from '../../components/Progress/Progress';
+import { ProcessingSteps } from '../../features/projects/ProcessingSteps';
+import { validateVideoFile } from '../../utils/video';
+import { PROCESSING_STATUSES, VIDEO_UPLOAD } from '../../config/constants';
+import type { Caption, Project } from '../../types/project';
+import { formatDuration, formatDate, getLanguageLabel, formatFileSize } from '../../utils/formatters';
 import './ProjectDetailsPage.css';
+
+type Language = 'si' | 'en' | 'auto';
+const VISIBLE_CAPTIONS = 300;
+
+const isProcessing = (p: Project | null) => !!p && (PROCESSING_STATUSES as readonly string[]).includes(p.status);
+
+function statusBadge(status: Project['status']) {
+  if (status === 'ready' || status === 'completed') return <Badge variant="green" hasDot>Ready</Badge>;
+  if (status === 'failed') return <Badge variant="red" hasDot>Failed</Badge>;
+  if (status === 'draft') return <Badge variant="gray">Draft — no video</Badge>;
+  return <Badge variant="purple" hasDot>Processing</Badge>;
+}
 
 export const ProjectDetailsPage: React.FC = () => {
   const { uuid } = useParams<{ uuid: string }>();
   const navigate = useNavigate();
+  const { currentProject: project, loadProject, deleteProject } = useProjectStore();
+  const addToast = useToastStore((s) => s.addToast);
+  const usage = useUsageStore((s) => s.usage);
 
-  const { currentProject, loadProject, checkStatus, deleteProject } = useProjectStore();
-  const { addToast } = useToastStore();
-
+  const [loadError, setLoadError] = useState<AppError | null>(null);
   const [captions, setCaptions] = useState<Caption[]>([]);
-  const [isLoadingCaptions, setIsLoadingCaptions] = useState(false);
-  const [statusData, setStatusData] = useState<ProjectStatusResponse | null>(null);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
-  const [targetLang, setTargetLang] = useState<'si' | 'en' | 'auto'>('si');
-  const [editingCaptionUuid, setEditingCaptionUuid] = useState<string | null>(null);
+  const [captionsLoading, setCaptionsLoading] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [targetLang, setTargetLang] = useState<Language>('si');
+  const [regenerating, setRegenerating] = useState(false);
+
+  const [editingUuid, setEditingUuid] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [captionToDelete, setCaptionToDelete] = useState<Caption | null>(null);
 
-  const pollingRef = useRef<number | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  useDocumentTitle(
-    currentProject?.name ? `${currentProject.name} — Project Details` : 'Project Details'
-  );
+  const [upload, setUpload] = useState<UploadProgress | null>(null);
+  const uploadRef = useRef<ChunkedUpload | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const loadCaptionsData = async (projectUuid: string) => {
-    setIsLoadingCaptions(true);
+  const isCurrent = project?.uuid === uuid;
+  useDocumentTitle(isCurrent && project ? project.name : 'Project');
+
+  const loadCaptions = useCallback(async (id: string) => {
+    setCaptionsLoading(true);
     try {
-      const res = await captionService.getCaptions(projectUuid);
-      setCaptions(res.captions || []);
-    } catch (err) {
-      console.warn('Failed to fetch captions:', err);
+      const res = await captionService.getCaptions(id);
+      setCaptions(res.captions ?? []);
+    } catch {
+      /* toast already shown */
     } finally {
-      setIsLoadingCaptions(false);
+      setCaptionsLoading(false);
     }
-  };
+  }, []);
+
+  const load = useCallback(async () => {
+    if (!uuid) return;
+    setLoadError(null);
+    try {
+      const p = await loadProject(uuid);
+      setTargetLang((['si', 'en', 'auto'].includes(p.language) ? p.language : 'si') as Language);
+      await loadCaptions(uuid);
+    } catch (err) {
+      setLoadError(toAppError(err, 'We could not load this project.'));
+    }
+  }, [uuid, loadProject, loadCaptions]);
 
   useEffect(() => {
+    void load();
+    return () => uploadRef.current?.abortLocally();
+  }, [load]);
+
+  const polling = isCurrent && isProcessing(project);
+  // When processing finishes, reload captions and the full project (thumbnail, video URL).
+  const { status, restart } = useProjectStatus(uuid, polling, () => void load());
+
+  const startRegenerate = async () => {
     if (!uuid) return;
-
-    loadProject(uuid)
-      .then((proj) => {
-        setTargetLang((proj.language as any) || 'si');
-        loadCaptionsData(uuid);
-      })
-      .catch((err) => {
-        console.error('Project load error:', err);
-      });
-
-    // Check status
-    checkStatus(uuid)
-      .then((status) => {
-        setStatusData(status);
-        if (status.is_processing) {
-          startStatusPolling(uuid);
-        }
-      })
-      .catch(console.error);
-
-    return () => {
-      if (pollingRef.current) {
-        window.clearTimeout(pollingRef.current);
-      }
-    };
-  }, [uuid, loadProject, checkStatus]);
-
-  const startStatusPolling = (projectUuid: string) => {
-    const poll = async () => {
-      try {
-        const res = await checkStatus(projectUuid);
-        setStatusData(res);
-
-        if (res.is_ready || res.is_failed) {
-          loadCaptionsData(projectUuid);
-          loadProject(projectUuid);
-          return;
-        }
-
-        pollingRef.current = window.setTimeout(poll, 2000);
-      } catch {
-        pollingRef.current = window.setTimeout(poll, 3000);
-      }
-    };
-
-    poll();
-  };
-
-  const handleStartRegenerate = async () => {
-    if (!uuid) return;
-    setIsRegenerating(true);
-    setShowRegenerateModal(false);
-
+    setRegenerating(true);
     try {
       await captionService.generateCaptions(uuid, targetLang);
-      addToast({
-        type: 'info',
-        title: 'Caption Generation Started',
-        message: 'Speech recognition pipeline started with Gemini.',
-      });
-
-      startStatusPolling(uuid);
-    } catch (err: any) {
-      addToast({
-        type: 'error',
-        title: 'Generation Failed',
-        message: err?.response?.data?.message || 'Failed to start AI caption generation.',
-      });
+      setRegenOpen(false);
+      await loadProject(uuid);
+      restart();
+      addToast({ type: 'info', title: 'Generating captions', message: 'This usually takes a minute or two.' });
+    } catch {
+      /* API client toasts the reason (limit, already processing, …) */
     } finally {
-      setIsRegenerating(false);
+      setRegenerating(false);
     }
   };
 
-  const handleSaveCaptionText = async (caption: Caption) => {
-    if (!uuid || !editingText.trim()) return;
-
+  const startUpload = async (file: File) => {
+    if (!uuid || !project) return;
+    const problem = validateVideoFile(file, usage?.max_upload_mb ?? VIDEO_UPLOAD.DEFAULT_MAX_MB);
+    if (problem) {
+      addToast({ type: 'warning', title: 'Cannot upload this file', message: problem });
+      return;
+    }
+    const job = new ChunkedUpload(uuid, file, targetLang, setUpload);
+    uploadRef.current = job;
     try {
-      const updated = await captionService.updateCaption(uuid, caption.uuid, {
-        text: editingText.trim(),
-      });
-      setCaptions((prev) =>
-        prev.map((c) => (c.uuid === caption.uuid ? { ...c, text: updated.text } : c))
-      );
-      setEditingCaptionUuid(null);
-      addToast({
-        type: 'success',
-        title: 'Caption Saved',
-        message: 'Text updated successfully.',
-      });
-    } catch {
-      addToast({
-        type: 'error',
-        title: 'Update Failed',
-        message: 'Could not update caption text.',
-      });
+      await job.start();
+      await loadProject(uuid);
+      restart();
+    } catch (err) {
+      if (!(err instanceof UploadCancelledError)) {
+        addToast({ type: 'error', title: 'Upload failed', message: `${toAppError(err).message} Choose the same file again to resume.` });
+      }
+    } finally {
+      uploadRef.current = null;
+      setUpload(null);
     }
   };
 
-  const handleDeleteCaption = async (captionUuid: string) => {
+  const saveCaptionText = async (caption: Caption) => {
     if (!uuid) return;
+    const text = editingText.trim();
+    if (!text) return;
     try {
-      await captionService.deleteCaption(uuid, captionUuid);
-      setCaptions((prev) => prev.filter((c) => c.uuid !== captionUuid));
-      addToast({
-        type: 'info',
-        title: 'Caption Removed',
-        message: 'Caption segment deleted.',
-      });
+      const updated = await captionService.updateCaption(uuid, caption.uuid, { text });
+      setCaptions((prev) => prev.map((c) => (c.uuid === caption.uuid ? { ...c, text: updated.text } : c)));
+      setEditingUuid(null);
     } catch {
-      addToast({
-        type: 'error',
-        title: 'Delete Failed',
-        message: 'Could not delete caption.',
-      });
+      /* toast shown */
     }
   };
 
-  const handleDeleteProject = async () => {
+  const confirmDeleteCaption = async () => {
+    if (!uuid || !captionToDelete) return;
+    try {
+      await captionService.deleteCaption(uuid, captionToDelete.uuid);
+      setCaptions((prev) => prev.filter((c) => c.uuid !== captionToDelete.uuid));
+    } finally {
+      setCaptionToDelete(null);
+    }
+  };
+
+  const confirmDeleteProject = async () => {
     if (!uuid) return;
-    setIsDeleting(true);
+    setDeleting(true);
     try {
       await deleteProject(uuid);
-      addToast({
-        type: 'success',
-        title: 'Project Deleted',
-        message: 'Project and all media were deleted.',
-      });
+      addToast({ type: 'success', message: 'Project deleted.' });
       navigate('/projects');
     } catch {
-      addToast({
-        type: 'error',
-        title: 'Delete Failed',
-        message: 'Failed to delete project.',
-      });
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteModal(false);
+      setDeleting(false);
     }
   };
 
-  if (!currentProject) {
+  if (loadError) {
     return (
-      <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Loading project details...
-      </div>
+      <ErrorState
+        title={loadError.status === 404 ? 'Project not found' : loadError.status === 403 ? 'No access' : 'Could not load project'}
+        message={loadError.message}
+        onRetry={loadError.status === 404 || loadError.status === 403 ? undefined : load}
+        action={<Link to="/projects" className="btn btn-secondary btn-sm">Back to projects</Link>}
+      />
     );
   }
+  if (!project || !isCurrent) return <LoadingState label="Loading project…" />;
 
-  const langInfo = getLanguageLabel(currentProject.language);
+  const lang = getLanguageLabel(project.language);
+  const hasVideo = !!project.video_url;
+  const visibleCaptions = showAll ? captions : captions.slice(0, VISIBLE_CAPTIONS);
 
   return (
     <div className="project-details-page">
-      {/* Back button */}
       <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/projects')}
-          startIcon={<ArrowLeft size={16} />}
-        >
-          Back to Projects
+        <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} startIcon={<ArrowLeft size={16} aria-hidden="true" />}>
+          Back to projects
         </Button>
       </div>
 
-      {/* Processing Live Status Banner */}
-      {statusData?.is_processing && (
-        <div className="status-alert-banner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <RotateCw size={20} className="spin-animation" />
-            <div>
-              <div style={{ fontWeight: 700 }}>{statusData.phase_label}</div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-                Status: {statusData.status} • Progress: {statusData.progress_percentage}%
-              </div>
-            </div>
+      {polling && (
+        <section className="status-panel" aria-label="Processing status">
+          <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
+          <ProcessingSteps status={status?.status ?? project.status} />
+        </section>
+      )}
+
+      {project.status === 'failed' && (
+        <div className="status-failed-banner" role="alert">
+          <AlertCircle size={20} aria-hidden="true" />
+          <div style={{ flex: 1 }}>
+            <strong>Processing failed.</strong> {project.processing_error ?? 'Please try again.'}
           </div>
-          <div style={{ fontSize: '0.85rem' }}>Auto-updating...</div>
+          {hasVideo && (
+            <Button size="sm" variant="primary" startIcon={<RefreshCw size={14} aria-hidden="true" />} onClick={() => setRegenOpen(true)}>
+              Retry
+            </Button>
+          )}
         </div>
       )}
 
-      {/* Header Card */}
       <div className="project-header-card">
         <div className="project-title-col">
           <div className="project-title-row">
-            <h1 className="project-title">{currentProject.name}</h1>
-            <Badge variant={currentProject.status === 'ready' || currentProject.status === 'completed' ? 'green' : currentProject.status === 'failed' ? 'red' : 'purple'} hasDot>
-              {currentProject.status.toUpperCase()}
+            <h1 className="project-title">{project.name}</h1>
+            {statusBadge(project.status)}
+            <Badge variant="blue">
+              <span aria-hidden="true">{lang.flag}</span> {lang.label}
             </Badge>
-            <Badge variant="blue">{langInfo.flag} {langInfo.label}</Badge>
           </div>
           <div className="project-meta-row">
-            <span>Created {formatDate(currentProject.created_at)}</span>
-            {currentProject.duration && (
-              <span>Duration: {formatDuration(currentProject.duration)}</span>
-            )}
-            <span>{captions.length} Captions Generated</span>
+            <span>Created {formatDate(project.created_at)}</span>
+            {project.duration ? <span>Duration {formatDuration(project.duration)}</span> : null}
+            <span>{captions.length} captions</span>
           </div>
         </div>
 
         <div className="project-actions-row">
-          <Button
-            variant="secondary"
-            onClick={() => setShowRegenerateModal(true)}
-            startIcon={<Sparkles size={16} />}
-          >
-            Re-generate Captions
-          </Button>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => navigate(`/projects/${currentProject.uuid}/editor`)}
-            startIcon={<Sliders size={18} />}
-          >
-            Open in Studio Editor
+          {hasVideo && (
+            <Button variant="secondary" onClick={() => setRegenOpen(true)} disabled={polling} startIcon={<Sparkles size={16} aria-hidden="true" />}>
+              Regenerate captions
+            </Button>
+          )}
+          <Button variant="primary" size="lg" onClick={() => navigate(`/projects/${project.uuid}/editor`)} disabled={polling} startIcon={<Sliders size={18} aria-hidden="true" />}>
+            Open studio editor
           </Button>
         </div>
       </div>
 
-      {/* Main Grid: Left Media & Specs, Right Captions List */}
       <div className="project-overview-grid">
-        {/* Left Column: Media & Specs */}
         <div className="project-media-card">
           <div className="project-player-container">
-            {currentProject.video_url ? (
-              <video
-                src={currentProject.video_url}
-                controls
-                className="project-video-player"
-                poster={currentProject.thumbnail || undefined}
-              />
-            ) : currentProject.thumbnail ? (
-              <img
-                src={currentProject.thumbnail}
-                alt={currentProject.name}
-                className="project-thumbnail-img"
-              />
+            {hasVideo ? (
+              <video src={project.video_url ?? undefined} controls preload="metadata" className="project-video-player" poster={project.thumbnail || undefined} />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
-                <FileVideo size={48} />
-                <span style={{ fontSize: '0.85rem' }}>Video Preview</span>
+              <div className="project-no-video">
+                <FileVideo size={40} aria-hidden="true" />
+                <span>No video uploaded yet</span>
               </div>
             )}
           </div>
 
-          <div className="project-specs-grid">
-            <div className="project-spec-item">
-              <span className="spec-item-label">Duration</span>
-              <span className="spec-item-val">{formatDuration(currentProject.duration || 0)}</span>
-            </div>
-            <div className="project-spec-item">
-              <span className="spec-item-label">Resolution</span>
-              <span className="spec-item-val">{currentProject.width ? `${currentProject.width} x ${currentProject.height}` : '1920 x 1080'}</span>
-            </div>
-            <div className="project-spec-item">
-              <span className="spec-item-label">Frame Rate</span>
-              <span className="spec-item-val">{currentProject.fps ? `${currentProject.fps} fps` : '30 fps'}</span>
-            </div>
-            <div className="project-spec-item">
-              <span className="spec-item-label">Language</span>
-              <span className="spec-item-val">{langInfo.flag} {langInfo.label}</span>
-            </div>
-          </div>
-
-          {currentProject.description && (
-            <div style={{ marginTop: '8px', padding: '12px 14px', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: '0.875rem' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>DESCRIPTION</div>
-              <div>{currentProject.description}</div>
+          {!hasVideo && !polling && (
+            <div className="project-upload-box">
+              <input
+                ref={fileInput}
+                type="file"
+                accept={VIDEO_UPLOAD.ACCEPT}
+                className="sr-only"
+                tabIndex={-1}
+                aria-label="Choose a video to upload"
+                onChange={(e) => e.target.files?.[0] && startUpload(e.target.files[0])}
+              />
+              {upload ? (
+                <>
+                  <Progress label="Uploading video" value={upload.percent} detail={`${upload.percent}% · ${formatFileSize(upload.loaded)} of ${formatFileSize(upload.total)}`} />
+                  <Button variant="secondary" size="sm" onClick={() => uploadRef.current?.cancel()}>Cancel upload</Button>
+                </>
+              ) : (
+                <Button variant="primary" startIcon={<UploadCloud size={16} aria-hidden="true" />} onClick={() => fileInput.current?.click()}>
+                  Upload a video
+                </Button>
+              )}
             </div>
           )}
 
-          <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => setShowDeleteModal(true)}
-              startIcon={<Trash2 size={16} />}
-            >
-              Delete Project
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/projects/${currentProject.uuid}/editor`)}
-              endIcon={<ExternalLink size={14} />}
-            >
-              Editor View
+          <dl className="project-specs-grid">
+            <div className="project-spec-item">
+              <dt className="spec-item-label">Duration</dt>
+              <dd className="spec-item-val">{project.duration ? formatDuration(project.duration) : '—'}</dd>
+            </div>
+            <div className="project-spec-item">
+              <dt className="spec-item-label">Resolution</dt>
+              <dd className="spec-item-val">{project.width && hasVideo ? `${project.width} × ${project.height}` : '—'}</dd>
+            </div>
+            <div className="project-spec-item">
+              <dt className="spec-item-label">Frame rate</dt>
+              <dd className="spec-item-val">{project.fps && hasVideo ? `${project.fps} fps` : '—'}</dd>
+            </div>
+            <div className="project-spec-item">
+              <dt className="spec-item-label">Language</dt>
+              <dd className="spec-item-val">{lang.label}</dd>
+            </div>
+          </dl>
+
+          {project.description && <p className="project-description">{project.description}</p>}
+
+          <div className="project-danger-row">
+            <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)} startIcon={<Trash2 size={16} aria-hidden="true" />}>
+              Delete project
             </Button>
           </div>
         </div>
 
-        {/* Right Column: Captions List */}
-        <div className="project-captions-card">
+        <section className="project-captions-card" aria-labelledby="captions-heading">
           <div className="captions-card-header">
-            <div className="captions-header-title">
-              <Sparkles size={20} color="var(--brand-primary)" />
-              <span>AI Captions & Word Alignments ({captions.length})</span>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => loadCaptionsData(currentProject.uuid)}
-              startIcon={<RotateCw size={14} />}
-              disabled={isLoadingCaptions}
-            >
+            <h2 id="captions-heading" className="captions-header-title">
+              <Sparkles size={20} color="var(--brand-primary)" aria-hidden="true" />
+              Captions ({captions.length})
+            </h2>
+            <Button variant="secondary" size="sm" onClick={() => loadCaptions(project.uuid)} isLoading={captionsLoading} startIcon={<RefreshCw size={14} aria-hidden="true" />}>
               Refresh
             </Button>
           </div>
 
           {captions.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', background: 'var(--bg-main)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
-              <AlertCircle size={36} style={{ margin: '0 auto 12px', opacity: 0.6 }} />
-              <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>
-                No captions generated yet
-              </div>
-              <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
-                Trigger AI caption generation to transcribe speech into timed Sinhala or English subtitles.
-              </p>
-              <Button
-                variant="primary"
-                onClick={() => setShowRegenerateModal(true)}
-                startIcon={<Sparkles size={16} />}
-              >
-                Generate Captions Now
-              </Button>
-            </div>
+            <EmptyState
+              icon={<AlertCircle size={28} />}
+              title={polling ? 'Captions are on their way' : 'No captions yet'}
+              description={
+                polling
+                  ? 'They will appear here as soon as processing finishes.'
+                  : hasVideo
+                    ? 'Generate captions with AI, or add them by hand in the editor.'
+                    : 'Upload a video to generate captions automatically.'
+              }
+              action={
+                hasVideo && !polling ? (
+                  <Button variant="primary" onClick={() => setRegenOpen(true)} startIcon={<Sparkles size={16} aria-hidden="true" />}>
+                    Generate captions
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
-            <div className="captions-list-scroll">
-              {captions.map((cap) => {
-                const isEditing = editingCaptionUuid === cap.uuid;
-                const words = cap.metadata?.words || [];
-
+            <ol className="captions-list-scroll">
+              {visibleCaptions.map((cap) => {
+                const isEditing = editingUuid === cap.uuid;
+                const words = cap.metadata?.words ?? [];
                 return (
-                  <div key={cap.uuid} className="caption-row-card">
-                    <span className="caption-seq-badge">#{cap.sequence}</span>
-
+                  <li key={cap.uuid} className="caption-row-card">
+                    <span className="caption-seq-badge" aria-hidden="true">#{cap.sequence}</span>
                     <div className="caption-content-col">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div className="caption-row-head">
                         <span className="caption-time-pill">
-                          <Clock size={12} />
-                          {formatDuration(cap.start_time)} ➔ {formatDuration(cap.end_time)}
+                          <Clock size={12} aria-hidden="true" />
+                          <span className="sr-only">From </span>{formatDuration(cap.start_time)}
+                          <span aria-hidden="true"> → </span><span className="sr-only"> to </span>{formatDuration(cap.end_time)}
                         </span>
-
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {!isEditing ? (
+                        <div className="caption-row-actions">
+                          {isEditing ? (
                             <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingCaptionUuid(cap.uuid);
-                                  setEditingText(cap.text);
-                                }}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px' }}
-                                title="Edit text"
-                              >
-                                <Edit2 size={14} />
+                              <button type="button" className="icon-button icon-button-sm" onClick={() => saveCaptionText(cap)} aria-label="Save caption">
+                                <Check size={16} aria-hidden="true" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCaption(cap.uuid)}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px 4px' }}
-                                title="Delete caption"
-                              >
-                                <Trash2 size={14} />
+                              <button type="button" className="icon-button icon-button-sm" onClick={() => setEditingUuid(null)} aria-label="Cancel editing">
+                                <X size={16} aria-hidden="true" />
                               </button>
                             </>
                           ) : (
                             <>
                               <button
                                 type="button"
-                                onClick={() => handleSaveCaptionText(cap)}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#10b981', padding: '2px 4px' }}
-                                title="Save"
+                                className="icon-button icon-button-sm"
+                                onClick={() => {
+                                  setEditingUuid(cap.uuid);
+                                  setEditingText(cap.text);
+                                }}
+                                aria-label={`Edit caption ${cap.sequence}`}
                               >
-                                <Check size={16} />
+                                <Edit2 size={14} aria-hidden="true" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingCaptionUuid(null)}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px' }}
-                                title="Cancel"
-                              >
-                                <X size={16} />
+                              <button type="button" className="icon-button icon-button-sm icon-button-danger" onClick={() => setCaptionToDelete(cap)} aria-label={`Delete caption ${cap.sequence}`}>
+                                <Trash2 size={14} aria-hidden="true" />
                               </button>
                             </>
                           )}
@@ -455,128 +391,108 @@ export const ProjectDetailsPage: React.FC = () => {
                         <textarea
                           value={editingText}
                           onChange={(e) => setEditingText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void saveCaptionText(cap);
+                            if (e.key === 'Escape') setEditingUuid(null);
+                          }}
                           className="input-field"
                           rows={2}
-                          style={{ marginTop: '6px' }}
+                          maxLength={2000}
+                          aria-label={`Text of caption ${cap.sequence}`}
+                          autoFocus
                         />
                       ) : (
-                        <div className="caption-text-content">{cap.text}</div>
+                        <p className="caption-text-content" lang={cap.language === 'si' ? 'si' : undefined}>{cap.text}</p>
                       )}
 
-                      {/* Word Alignments Preview */}
                       {words.length > 0 && !isEditing && (
-                        <div className="caption-words-wrap">
-                          {words.map((w, wIdx) => (
-                            <span key={wIdx} className="caption-word-chip" title={`${w.start.toFixed(2)}s - ${w.end.toFixed(2)}s`}>
+                        <div className="caption-words-wrap" aria-hidden="true">
+                          {words.slice(0, 40).map((w, i) => (
+                            <span key={i} className="caption-word-chip" title={`${w.start.toFixed(2)}s – ${w.end.toFixed(2)}s`}>
                               {w.word}
                             </span>
                           ))}
                         </div>
                       )}
                     </div>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           )}
-        </div>
+          {captions.length > VISIBLE_CAPTIONS && !showAll && (
+            <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
+              Show all {captions.length} captions
+            </Button>
+          )}
+        </section>
       </div>
 
-      {/* Re-generate Modal */}
       <Modal
-        isOpen={showRegenerateModal}
-        onClose={() => setShowRegenerateModal(false)}
-        title="Re-generate Captions with AI"
+        isOpen={regenOpen}
+        onClose={() => setRegenOpen(false)}
+        dismissible={!regenerating}
+        title="Generate captions with AI"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowRegenerateModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleStartRegenerate}
-              isLoading={isRegenerating}
-              startIcon={<Sparkles size={16} />}
-            >
-              Start Generation
+            <Button variant="secondary" onClick={() => setRegenOpen(false)} disabled={regenerating}>Cancel</Button>
+            <Button variant="primary" onClick={startRegenerate} isLoading={regenerating} startIcon={<Sparkles size={16} aria-hidden="true" />}>
+              Generate
             </Button>
           </>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            Choose the target spoken language. Existing captions will be cleanly replaced with new timestamps and word alignments.
+        <fieldset className="regen-fieldset">
+          <legend className="form-label">Spoken language</legend>
+          {([
+            ['si', '🇱🇰', 'සිංහල (Sinhala)'],
+            ['en', '🇺🇸', 'English'],
+            ['auto', '🌐', 'Auto / mixed'],
+          ] as const).map(([value, flag, label]) => (
+            <label key={value} className={`regen-option ${targetLang === value ? 'regen-option-selected' : ''}`}>
+              <input type="radio" name="regen-language" value={value} checked={targetLang === value} onChange={() => setTargetLang(value)} />
+              <span aria-hidden="true">{flag}</span>
+              <span>{label}</span>
+            </label>
+          ))}
+        </fieldset>
+        {captions.length > 0 && (
+          <p className="regen-warning">
+            <AlertCircle size={14} aria-hidden="true" /> This replaces the current {captions.length} captions, including your edits.
           </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                border: targetLang === 'si' ? '2px solid var(--brand-primary)' : '1px solid var(--border-color)',
-                cursor: 'pointer',
-                background: targetLang === 'si' ? 'var(--brand-primary-light)' : 'var(--bg-surface)',
-              }}
-              onClick={() => setTargetLang('si')}
-            >
-              <span style={{ fontSize: '1.4rem' }}>🇱🇰</span>
-              <div>
-                <div style={{ fontWeight: 600 }}>සිංහල (Sinhala)</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Native Sinhala Unicode transcription</div>
-              </div>
-            </label>
-
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                border: targetLang === 'en' ? '2px solid var(--brand-primary)' : '1px solid var(--border-color)',
-                cursor: 'pointer',
-                background: targetLang === 'en' ? 'var(--brand-primary-light)' : 'var(--bg-surface)',
-              }}
-              onClick={() => setTargetLang('en')}
-            >
-              <span style={{ fontSize: '1.4rem' }}>🇺🇸</span>
-              <div>
-                <div style={{ fontWeight: 600 }}>English</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Global speech recognition</div>
-              </div>
-            </label>
-          </div>
-        </div>
+        )}
+        {usage && usage.caption_minutes.limit !== null && (
+          <p className="regen-usage">
+            Uses about {Math.ceil((project.duration ?? 0) / 60)} of your remaining {Math.max(0, usage.caption_minutes.limit - usage.caption_minutes.used)} caption minutes.
+          </p>
+        )}
       </Modal>
 
-      {/* Delete Project Modal */}
-      <Modal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        title="Delete Project?"
-        footer={
+      <ConfirmDialog
+        isOpen={!!captionToDelete}
+        title="Delete this caption?"
+        message={<p lang={captionToDelete?.language === 'si' ? 'si' : undefined}>“{captionToDelete?.text}”</p>}
+        confirmLabel="Delete caption"
+        tone="danger"
+        onConfirm={confirmDeleteCaption}
+        onCancel={() => setCaptionToDelete(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteOpen}
+        title="Delete project?"
+        message={
           <>
-            <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              onClick={handleDeleteProject}
-              isLoading={isDeleting}
-            >
-              Confirm Delete
-            </Button>
+            <p><strong>{project.name}</strong> will be deleted.</p>
+            <p>Its video, captions and exports are removed permanently. This cannot be undone.</p>
           </>
         }
-      >
-        <p style={{ color: 'var(--text-main)', fontSize: '0.925rem' }}>
-          Are you sure you want to permanently delete <strong>{currentProject.name}</strong>?
-          All uploaded video media, audio streams, and captions will be removed.
-        </p>
-      </Modal>
+        confirmLabel="Delete project"
+        tone="danger"
+        isLoading={deleting}
+        onConfirm={confirmDeleteProject}
+        onCancel={() => setDeleteOpen(false)}
+      />
     </div>
   );
 };

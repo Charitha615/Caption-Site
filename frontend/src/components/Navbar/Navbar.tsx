@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
-  Globe,
+  Menu,
   User,
   Settings,
   LogOut,
@@ -10,8 +10,10 @@ import {
   Moon,
   Search,
   HelpCircle,
-  Sparkles,
+  Gauge,
 } from 'lucide-react';
+import { MOD } from '../../features/editor/shortcuts';
+import { useUsageStore } from '../../stores/usageStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeStore } from '../../stores/themeStore';
 import { Dropdown } from '../Dropdown/Dropdown';
@@ -19,13 +21,29 @@ import './Navbar.css';
 
 export interface NavbarProps {
   title?: string;
-  onSearch?: (query: string) => void;
+  onMenuClick?: () => void;
+  onHelpClick?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard' }) => {
+export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard', onMenuClick, onHelpClick }) => {
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
+  const planLabel = useUsageStore((s) => s.usage?.plan.label);
   const navigate = useNavigate();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('');
+
+  // Mod+K focuses project search from anywhere in the app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -35,13 +53,13 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard' }) => {
   const dropdownItems = [
     {
       key: 'profile',
-      label: 'My Profile & Subscription',
+      label: 'Account & usage',
       icon: <User size={16} />,
       onClick: () => navigate('/profile'),
     },
     {
       key: 'settings',
-      label: 'Workspace Settings',
+      label: 'Settings',
       icon: <Settings size={16} />,
       onClick: () => navigate('/settings'),
     },
@@ -52,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard' }) => {
     },
     {
       key: 'logout',
-      label: 'Sign Out',
+      label: 'Sign out',
       icon: <LogOut size={16} />,
       danger: true,
       onClick: handleLogout,
@@ -62,73 +80,69 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard' }) => {
   return (
     <header className="app-navbar">
       <div className="navbar-left">
+        <button type="button" className="navbar-action-btn navbar-menu-btn" onClick={onMenuClick} aria-label="Open menu">
+          <Menu size={20} aria-hidden="true" />
+        </button>
         <h1 className="navbar-title">{title}</h1>
 
-        {/* Global Search Bar */}
-        <div className="navbar-search-box">
-          <Search size={15} className="navbar-search-icon" />
+        <form
+          role="search"
+          className="navbar-search-box"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = query.trim();
+            navigate(q ? `/projects?search=${encodeURIComponent(q)}` : '/projects');
+            searchRef.current?.blur();
+          }}
+        >
+          <Search size={15} className="navbar-search-icon" aria-hidden="true" />
+          <label htmlFor="navbar-search" className="sr-only">Search projects</label>
           <input
-            type="text"
-            placeholder="Search projects, transcripts, tools..."
+            id="navbar-search"
+            ref={searchRef}
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && searchRef.current?.blur()}
+            placeholder="Search projects…"
             className="navbar-search-input"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                navigate('/projects');
-              }
-            }}
+            autoComplete="off"
           />
-          <span className="navbar-search-kbd">⌘K</span>
-        </div>
+          <kbd className="navbar-search-kbd" aria-hidden="true">{MOD}K</kbd>
+        </form>
       </div>
 
       <div className="navbar-right">
-        {/* Language Badge */}
-        <div className="navbar-lang-badge" title="Unicode Sinhala & English Realtime AI">
-          <Globe size={14} />
-          <span>🇱🇰 සිංහල / 🇺🇸 EN</span>
-        </div>
-
-        {/* Theme Toggle Button */}
         <button
           type="button"
           className="navbar-action-btn theme-toggle-btn"
           onClick={toggleTheme}
-          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
-          aria-label="Toggle theme"
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
-          {theme === 'dark' ? (
-            <Sun size={18} className="theme-icon sun-icon" />
-          ) : (
-            <Moon size={18} className="theme-icon moon-icon" />
-          )}
+          {theme === 'dark' ? <Sun size={18} className="theme-icon sun-icon" aria-hidden="true" /> : <Moon size={18} className="theme-icon moon-icon" aria-hidden="true" />}
         </button>
 
-        {/* Help / Docs */}
-        <button
-          type="button"
-          className="navbar-action-btn"
-          title="Sinhala AI Captioning Guide & Shortcuts"
-          onClick={() => navigate('/settings')}
-        >
-          <HelpCircle size={18} />
+        <button type="button" className="navbar-action-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" onClick={onHelpClick}>
+          <HelpCircle size={18} aria-hidden="true" />
         </button>
 
-        {/* User Dropdown */}
         <Dropdown
           items={dropdownItems}
           align="right"
+          label="Account menu"
           trigger={
             <div className="navbar-user-btn">
-              <div className="navbar-user-avatar">
+              <div className="navbar-user-avatar" aria-hidden="true">
                 {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="navbar-user-info-text">
                 <span className="navbar-user-name">{user?.name || 'Account'}</span>
                 <span className="navbar-user-tier">
-                  <Sparkles size={10} /> Pro Plan
+                  <Gauge size={10} aria-hidden="true" /> {planLabel ? `${planLabel} plan` : '—'}
                 </span>
               </div>
-              <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />
+              <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
             </div>
           }
         />

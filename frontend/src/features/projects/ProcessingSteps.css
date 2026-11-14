@@ -1,0 +1,34 @@
+.proc-steps { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.proc-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.proc-step-icon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+}
+.proc-step-text { display: flex; flex-direction: column; min-width: 0; }
+.proc-step-title { font-weight: 600; font-size: 0.92rem; }
+.proc-step-desc { color: var(--text-muted); font-size: 0.8rem; }
+.proc-step-done .proc-step-icon { background: var(--status-success-bg); color: var(--status-success-text); }
+.proc-step-active { border-color: var(--brand-primary-border); background: var(--brand-primary-light); }
+.proc-step-active .proc-step-icon { background: var(--brand-primary); color: #fff; }
+.proc-step-failed { border-color: var(--status-error-border); }
+.proc-step-failed .proc-step-icon { background: var(--status-error-bg); color: var(--status-error-text); }
+.proc-step-pending { opacity: 0.7; }
+.proc-spin { animation: proc-spin 1s linear infinite; }
+@keyframes proc-spin { to { transform: rotate(360deg); } }
