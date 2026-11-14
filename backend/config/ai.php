@@ -28,9 +28,12 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
-        'timeout' => (int) env('GEMINI_TIMEOUT', 300),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 600),
         // Audio up to this size is sent inline; larger files use the Files API.
         'inline_max_bytes' => (int) env('GEMINI_INLINE_MAX_BYTES', 15 * 1024 * 1024),
         'max_output_tokens' => (int) env('GEMINI_MAX_OUTPUT_TOKENS', 65536),
+        // Ask Gemini for per-word timings (slower, larger responses). When false, word timings
+        // for karaoke/highlight effects are estimated from each caption line.
+        'word_timings' => (bool) env('GEMINI_WORD_TIMINGS', false),
     ],
 ];

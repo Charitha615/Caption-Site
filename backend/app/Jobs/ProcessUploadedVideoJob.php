@@ -42,7 +42,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 900;
+    public int $timeout = 1200;
 
     public bool $failOnTimeout = true;
 

@@ -67,6 +67,8 @@ class GeminiAIProvider implements AIProviderInterface
                 $mediaPart = ['fileData' => ['mimeType' => $mime, 'fileUri' => $uploadedFile['uri']]];
             }
 
+            $startedAt = microtime(true);
+            AppLog::info('ai.request_started', ['provider' => 'gemini', 'model' => $this->model, 'audio_bytes' => $size, 'mode' => $uploadedFile ? 'file_api' : 'inline', 'word_timings' => $this->wantsWordTimings()]);
             $response = $this->request()
                 ->timeout((int) config('ai.gemini.timeout'))
                 ->post("{$this->baseUrl}/models/{$this->model}:generateContent", [
@@ -80,11 +82,15 @@ class GeminiAIProvider implements AIProviderInterface
                 ]);
 
             $this->assertSuccessful($response, 'generate');
+            AppLog::info('ai.request_completed', ['provider' => 'gemini', 'model' => $this->model, 'seconds' => round(microtime(true) - $startedAt, 1), 'output_tokens' => $response->json('usageMetadata.candidatesTokenCount')]);
 
             return $this->parse($response, $language, $options['duration'] ?? null);
         } catch (ConnectionException $e) {
-            AppLog::error('ai.connection_failed', ['provider' => 'gemini', 'model' => $this->model], $e);
-            throw new AIProviderException('The AI service could not be reached. Please try again in a few minutes.', [], $e);
+            $timedOut = self::isTimeout($e);
+            AppLog::error($timedOut ? 'ai.timeout' : 'ai.connection_failed', ['provider' => 'gemini', 'model' => $this->model, 'timeout' => (int) config('ai.gemini.timeout')], $e);
+            throw new AIProviderException($timedOut
+                ? 'The AI took too long to transcribe this video. Please retry — if it keeps happening, try a shorter clip.'
+                : 'The AI service could not be reached. Please try again in a few minutes.', [], $e);
         } finally {
             if ($uploadedFile) {
                 $this->deleteFile($uploadedFile['name']);
@@ -99,10 +105,25 @@ class GeminiAIProvider implements AIProviderInterface
             ->retry(
                 3,
                 fn (int $attempt) => $attempt * 2000,
-                fn (\Throwable $e) => $e instanceof ConnectionException
+                fn (\Throwable $e) => ($e instanceof ConnectionException && ! self::isTimeout($e))
                     || ($e instanceof RequestException && in_array($e->response->status(), self::RETRYABLE, true)),
                 throw: false,
             );
+    }
+
+    /** cURL error 28 = operation timed out. */
+    public static function isTimeout(\Throwable $e): bool
+    {
+        return str_contains($e->getMessage(), 'cURL error 28') || stripos($e->getMessage(), 'timed out') !== false;
+    }
+
+    /**
+     * Asking for per-word timings multiplies the response size (and time). By default the
+     * app estimates word timings from each line's timing instead (WordTimingEstimator).
+     */
+    protected function wantsWordTimings(): bool
+    {
+        return (bool) config('ai.gemini.word_timings', false);
     }
 
     /** @return array{name: string, uri: string} */
@@ -250,13 +271,15 @@ class GeminiAIProvider implements AIProviderInterface
             default => 'Detect the spoken language (Sinhala or English, possibly mixed). Write Sinhala in Sinhala Unicode and English in Latin script.',
         };
 
+        $wordsInstruction = $this->wantsWordTimings() ? ', plus per-word timings' : '. Do not include per-word timings';
+
         return <<<PROMPT
 You are a professional subtitle transcription engine.
 {$langInstruction}
 
 Transcribe ONLY what is actually spoken. Do not invent, summarise or translate. Skip silence and music.
 Split speech into natural subtitle lines of roughly 3–8 words (at most ~42 characters).
-Give start and end times in seconds relative to the beginning of the audio, plus per-word timings.
+Give start and end times in seconds relative to the beginning of the audio{$wordsInstruction}.
 Set "language" on each line to "si" or "en".
 If nothing is spoken, return an empty "captions" array.
 PROMPT;
@@ -279,7 +302,7 @@ PROMPT;
                             'language' => ['type' => 'STRING', 'enum' => ['si', 'en']],
                             'start' => ['type' => 'NUMBER'],
                             'end' => ['type' => 'NUMBER'],
-                            'words' => ['type' => 'ARRAY', 'items' => $word],
+                            ...($this->wantsWordTimings() ? ['words' => ['type' => 'ARRAY', 'items' => $word]] : []),
                         ],
                         'required' => ['text', 'start', 'end'],
                     ],

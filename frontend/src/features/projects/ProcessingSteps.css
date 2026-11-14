@@ -41,3 +41,5 @@
   color: var(--status-warning-text);
   font-size: 0.85rem;
 }
+
+.proc-timer { font-size: 0.82rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Exceptions\AIProviderException;
 use App\Services\AI\GeminiAIProvider;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -120,5 +121,32 @@ class GeminiProviderTest extends TestCase
     {
         $this->expectException(AIProviderException::class);
         (new GeminiAIProvider(apiKey: ''))->transcribe($this->audio, 'si');
+    }
+
+    public function test_word_timings_are_not_requested_by_default_but_are_estimated(): void
+    {
+        Http::fake(['gemini.test/*' => Http::response($this->candidate(['captions' => [['text' => 'ආයුබෝවන් මිතුරනි', 'start' => 0, 'end' => 2]]]))]);
+
+        $result = $this->provider()->transcribe($this->audio, 'si');
+
+        $this->assertCount(2, $result['segments'][0]['words'], 'estimated from the line');
+        Http::assertSent(fn (Request $r) => ! isset($r['generationConfig']['responseSchema']['properties']['captions']['items']['properties']['words']));
+    }
+
+    public function test_a_timed_out_request_is_not_sent_again(): void
+    {
+        $attempts = 0;
+        Http::fake(function () use (&$attempts) {
+            $attempts++;
+            throw new ConnectionException('cURL error 28: Operation timed out after 600000 milliseconds');
+        });
+
+        try {
+            $this->provider()->transcribe($this->audio, 'si');
+            $this->fail('Expected AIProviderException');
+        } catch (AIProviderException $e) {
+            $this->assertStringContainsString('took too long', $e->getMessage());
+        }
+        $this->assertSame(1, $attempts, 'a timed-out transcription is never re-sent');
     }
 }

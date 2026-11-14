@@ -47,6 +47,7 @@ Templates: `backend/.env.example` and `frontend/.env.example`. **Never commit `.
 | `SESSION_DRIVER` | `array` | The API is stateless (tokens); sessions only matter for the Horizon page |
 | `RENDER_QUEUE` | `renders` | Queue for MP4 renders |
 | `RENDER_TIMEOUT` | `3600` | Max seconds per render |
+| `DB_QUEUE_RETRY_AFTER` / `REDIS_QUEUE_RETRY_AFTER` | `RENDER_TIMEOUT + 300` | Seconds before a running job is considered lost. Must be longer than any job, or long AI/render jobs run twice |
 | `HORIZON_BASIC_AUTH_USER`, `HORIZON_BASIC_AUTH_PASSWORD` | — | Required to open `/horizon` outside `local` |
 | `HORIZON_PIPELINE_PROCESSES`, `HORIZON_RENDER_PROCESSES` | `4`, `2` | Worker counts in production |
 
@@ -73,7 +74,8 @@ Templates: `backend/.env.example` and `frontend/.env.example`. **Never commit `.
 | `GEMINI_API_KEY` | — | Server's own key; only used when `AI_ALLOW_SERVER_KEY=true` |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Model id |
 | `GEMINI_BASE_URL`, `GEMINI_UPLOAD_URL` | Google endpoints | Override for proxies |
-| `GEMINI_TIMEOUT` | `300` | Seconds per request |
+| `GEMINI_TIMEOUT` | `600` | Seconds to wait for one transcription. Timed-out requests are **not** retried (they may still be billed) |
+| `GEMINI_WORD_TIMINGS` | `false` | Ask Gemini for per-word timings. Much slower for long videos; when `false`, word timings are estimated per line |
 | `GEMINI_INLINE_MAX_BYTES` | `15728640` | Larger audio goes through the Files API |
 | `GEMINI_MAX_OUTPUT_TOKENS` | `65536` | Upper bound for one transcription |
 

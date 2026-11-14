@@ -17,7 +17,7 @@ import { ErrorState } from '../../components/ErrorState/ErrorState';
 import { LoadingState } from '../../components/LoadingState/LoadingState';
 import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { Progress } from '../../components/Progress/Progress';
-import { ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { PhaseTimer, ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { useAiKeyMissing } from '../../stores/aiKeyStore';
 import { validateVideoFile } from '../../utils/video';
@@ -204,6 +204,7 @@ export const ProjectDetailsPage: React.FC = () => {
         <section className="status-panel" aria-label="Processing status">
           <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
           <ProcessingSteps status={status?.status ?? project.status} />
+          <PhaseTimer status={status?.status} phaseSeconds={status?.phase_seconds} durationSeconds={status?.duration} />
           <QueueStalledNotice queuedSeconds={status?.queued_seconds} />
         </section>
       )}

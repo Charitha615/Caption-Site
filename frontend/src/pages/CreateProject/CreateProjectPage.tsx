@@ -11,7 +11,7 @@ import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
 import { Progress } from '../../components/Progress/Progress';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
-import { ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { PhaseTimer, ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { useAiKeyMissing } from '../../stores/aiKeyStore';
 import { ChunkedUpload, UploadCancelledError, type UploadProgress } from '../../services/uploadService';
@@ -339,6 +339,7 @@ export const CreateProjectPage: React.FC = () => {
         <div className="processing-card">
           <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
           <ProcessingSteps status={status?.status ?? 'uploaded'} />
+          <PhaseTimer status={status?.status} phaseSeconds={status?.phase_seconds} durationSeconds={status?.duration} />
           <QueueStalledNotice queuedSeconds={status?.queued_seconds} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => project && navigate(`/projects/${project.uuid}`)}>

@@ -115,7 +115,7 @@ class FFmpegService implements VideoServiceInterface
     protected function run(array $command, int $timeout, string $tool): array
     {
         try {
-            return $this->runner->run($command, timeout: $timeout);
+            $result = $this->runner->run($command, timeout: $timeout);
         } catch (ProcessTimedOutException $e) {
             AppLog::error('ffmpeg.timeout', ['tool' => $tool, 'timeout' => $timeout]);
             throw new VideoProcessingException('Processing this video took too long. Try a shorter or smaller file.', [], $e);
@@ -123,6 +123,14 @@ class FFmpegService implements VideoServiceInterface
             AppLog::error('ffmpeg.unavailable', ['tool' => $tool, 'binary' => $command[0]], $e);
             throw new VideoProcessingException('Video processing is temporarily unavailable. Please try again later.', [], $e);
         }
+
+        // 126/127 = the binary is missing or not executable — a server problem, not a bad file.
+        if (in_array($result['exitCode'], [126, 127], true)) {
+            AppLog::error('ffmpeg.unavailable', ['tool' => $tool, 'binary' => $command[0], 'exit' => $result['exitCode'], 'stderr' => $result['stderr']]);
+            throw new VideoProcessingException('Video processing is unavailable: FFmpeg is not installed or not configured on the server. Your video is fine — retry once FFmpeg is set up.');
+        }
+
+        return $result;
     }
 
     private function parseRate(?string $rate): ?float

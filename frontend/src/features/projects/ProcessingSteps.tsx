@@ -30,6 +30,20 @@ export const QueueStalledNotice: React.FC<{ queuedSeconds?: number | null }> = (
     </p>
   ) : null;
 
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+/** "Transcribing · 2:14 elapsed — about 1–3 min for this video". Keeps long AI steps from looking frozen. */
+export const PhaseTimer: React.FC<{ status?: ProjectStatus; phaseSeconds?: number | null; durationSeconds?: number | null }> = ({ status, phaseSeconds, durationSeconds }) => {
+  if (phaseSeconds == null || status === 'uploaded') return null;
+  const minutes = Math.max(1, Math.round((durationSeconds ?? 60) / 60));
+  const hint = status === 'transcribing' ? ` · usually ${Math.max(1, Math.round(minutes * 0.5))}–${Math.max(2, minutes * 2)} min for a ${minutes}-minute video` : '';
+  return (
+    <p className="proc-timer">
+      {clock(phaseSeconds)} elapsed in this step{hint}
+    </p>
+  );
+};
+
 export const ProcessingSteps: React.FC<ProcessingStepsProps> = ({ status, failed = false }) => {
   const current = status ? ORDER.indexOf(status === 'completed' ? 'ready' : status) : 0;
 
