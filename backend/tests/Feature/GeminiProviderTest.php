@@ -7,6 +7,7 @@ use App\Services\AI\GeminiAIProvider;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
 class GeminiProviderTest extends TestCase
@@ -20,7 +21,9 @@ class GeminiProviderTest extends TestCase
             'ai.gemini.base_url' => 'https://gemini.test/v1beta',
             'ai.gemini.upload_url' => 'https://gemini.test/upload/v1beta',
             'ai.gemini.model' => 'test-model',
+            'ai.gemini.fallback_models' => [],
         ]);
+        Sleep::fake(); // retry backoff must not slow the suite
         $this->audio = tempnam(sys_get_temp_dir(), 'aud').'.mp3';
         file_put_contents($this->audio, str_repeat('a', 2048));
     }
@@ -148,5 +151,38 @@ class GeminiProviderTest extends TestCase
             $this->assertStringContainsString('took too long', $e->getMessage());
         }
         $this->assertSame(1, $attempts, 'a timed-out transcription is never re-sent');
+    }
+
+    public function test_overloaded_model_falls_back_to_the_next_model(): void
+    {
+        config(['ai.gemini.fallback_models' => ['backup-model']]);
+        Http::fake([
+            'gemini.test/v1beta/models/test-model:*' => Http::response(['error' => ['message' => 'This model is currently experiencing high demand.']], 503),
+            'gemini.test/v1beta/models/backup-model:*' => Http::response($this->candidate(['captions' => [['text' => 'ආයුබෝවන්', 'start' => 0, 'end' => 1]]])),
+        ]);
+
+        $result = $this->provider()->transcribe($this->audio, 'si');
+
+        $this->assertSame('ආයුබෝවන්', $result['segments'][0]['text']);
+        $this->assertSame('backup-model', $result['usage']['model']);
+    }
+
+    public function test_when_every_model_is_overloaded_the_user_is_told_so(): void
+    {
+        config(['ai.gemini.fallback_models' => ['backup-model']]);
+        Http::fake(['gemini.test/*' => Http::response(['error' => ['message' => 'high demand']], 503)]);
+
+        $this->expectExceptionMessage('overloaded right now');
+        $this->provider()->transcribe($this->audio, 'si');
+    }
+
+    public function test_thinking_is_kept_low_for_gemini_3_models(): void
+    {
+        config(['ai.gemini.model' => 'gemini-3.8-flash']);
+        Http::fake(['gemini.test/*' => Http::response($this->candidate(['captions' => [['text' => 'Hi', 'start' => 0, 'end' => 1]]]))]);
+
+        (new GeminiAIProvider(apiKey: 'AIzaTEST_KEY_12345678901234567890'))->transcribe($this->audio, 'en');
+
+        Http::assertSent(fn (Request $r) => ($r['generationConfig']['thinkingConfig']['thinkingLevel'] ?? null) === 'low');
     }
 }

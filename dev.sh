@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the full local stack: Laravel API (:8000), queue worker, and Vite frontend (:5173).
+# Start the full local stack: Laravel API (:8000), queue worker, scheduler, and Vite frontend (:5173).
 # Ctrl+C stops everything.
 set -euo pipefail
 
@@ -21,6 +21,7 @@ trap 'kill 0' EXIT INT TERM
 
 (cd "$ROOT/backend"  && php artisan serve --port=8000 2>&1 | sed 's/^/[api]   /') &
 (cd "$ROOT/backend"  && php artisan queue:work --queue=default,renders --tries=1 --timeout=3700 2>&1 | sed 's/^/[queue] /') &
+(cd "$ROOT/backend"  && php artisan schedule:work 2>&1 | sed 's/^/[cron]  /') &
 (cd "$ROOT/frontend" && npm run dev 2>&1 | sed 's/^/[web]   /') &
 
 wait

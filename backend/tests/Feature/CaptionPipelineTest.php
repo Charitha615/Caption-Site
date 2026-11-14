@@ -206,4 +206,20 @@ class CaptionPipelineTest extends TestCase
         $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/jpeg');
         $this->get(explode('?', $url)[0])->assertForbidden();
     }
+
+    public function test_interrupted_projects_are_reset_so_users_can_retry(): void
+    {
+        $stuck = Project::factory()->create(['status' => Project::STATUS_TRANSCRIBING]);
+        $stuck->forceFill(['updated_at' => now()->subHour()])->saveQuietly();
+        $running = Project::factory()->create(['status' => Project::STATUS_TRANSCRIBING]);
+        $waiting = Project::factory()->create(['status' => Project::STATUS_UPLOADED]);
+        $waiting->forceFill(['updated_at' => now()->subHour()])->saveQuietly();
+
+        $this->artisan('projects:reset-stuck')->assertSuccessful();
+
+        $this->assertSame(Project::STATUS_FAILED, $stuck->fresh()->status);
+        $this->assertSame('Processing was interrupted. Please retry.', $stuck->fresh()->processing_error);
+        $this->assertSame(Project::STATUS_TRANSCRIBING, $running->fresh()->status);
+        $this->assertSame(Project::STATUS_UPLOADED, $waiting->fresh()->status, 'queued jobs are not touched');
+    }
 }

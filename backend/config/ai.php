@@ -28,7 +28,12 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
-        'timeout' => (int) env('GEMINI_TIMEOUT', 600),
+        // Seconds to wait for one model's answer. A 2–3 minute video normally takes < 1 minute.
+        'timeout' => (int) env('GEMINI_TIMEOUT', 240),
+        // Tried in order when the main model is overloaded or times out (comma-separated).
+        'fallback_models' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-flash-latest'))))),
+        // Model "thinking" for transcription: low (fast, default), high, or default (model's own).
+        'thinking' => env('GEMINI_THINKING', 'low'),
         // Audio up to this size is sent inline; larger files use the Files API.
         'inline_max_bytes' => (int) env('GEMINI_INLINE_MAX_BYTES', 15 * 1024 * 1024),
         'max_output_tokens' => (int) env('GEMINI_MAX_OUTPUT_TOKENS', 65536),

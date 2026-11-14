@@ -27,6 +27,9 @@ class GeminiAIProvider implements AIProviderInterface
 {
     private const RETRYABLE = [408, 429, 500, 502, 503, 504];
 
+    /** Statuses meaning "this model is busy" — worth trying a fallback model. */
+    private const OVERLOADED = [429, 500, 502, 503, 504];
+
     public function __construct(
         protected ?string $apiKey = null,
         protected ?string $model = null,
@@ -67,35 +70,110 @@ class GeminiAIProvider implements AIProviderInterface
                 $mediaPart = ['fileData' => ['mimeType' => $mime, 'fileUri' => $uploadedFile['uri']]];
             }
 
-            $startedAt = microtime(true);
-            AppLog::info('ai.request_started', ['provider' => 'gemini', 'model' => $this->model, 'audio_bytes' => $size, 'mode' => $uploadedFile ? 'file_api' : 'inline', 'word_timings' => $this->wantsWordTimings()]);
-            $response = $this->request()
-                ->timeout((int) config('ai.gemini.timeout'))
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent", [
-                    'contents' => [['role' => 'user', 'parts' => [$mediaPart, ['text' => $this->prompt($language)]]]],
-                    'generationConfig' => [
-                        'temperature' => 0.1,
-                        'responseMimeType' => 'application/json',
-                        'responseSchema' => $this->responseSchema(),
-                        'maxOutputTokens' => (int) config('ai.gemini.max_output_tokens'),
-                    ],
-                ]);
-
-            $this->assertSuccessful($response, 'generate');
-            AppLog::info('ai.request_completed', ['provider' => 'gemini', 'model' => $this->model, 'seconds' => round(microtime(true) - $startedAt, 1), 'output_tokens' => $response->json('usageMetadata.candidatesTokenCount')]);
-
-            return $this->parse($response, $language, $options['duration'] ?? null);
+            return $this->generateWithFallback($mediaPart, $language, $options['duration'] ?? null, $size, (bool) $uploadedFile);
         } catch (ConnectionException $e) {
-            $timedOut = self::isTimeout($e);
-            AppLog::error($timedOut ? 'ai.timeout' : 'ai.connection_failed', ['provider' => 'gemini', 'model' => $this->model, 'timeout' => (int) config('ai.gemini.timeout')], $e);
-            throw new AIProviderException($timedOut
-                ? 'The AI took too long to transcribe this video. Please retry — if it keeps happening, try a shorter clip.'
-                : 'The AI service could not be reached. Please try again in a few minutes.', [], $e);
+            AppLog::error('ai.connection_failed', ['provider' => 'gemini', 'model' => $this->model, 'stage' => 'upload'], $e);
+            throw new AIProviderException('The AI service could not be reached. Please try again in a few minutes.', [], $e);
         } finally {
             if ($uploadedFile) {
                 $this->deleteFile($uploadedFile['name']);
             }
         }
+    }
+
+    /**
+     * Tries the configured model, then each fallback model, moving on only when Google is
+     * overloaded (429/500/503/504), times out, or the fallback model doesn't exist.
+     * Any other error (bad key, bad request, safety block) stops immediately.
+     */
+    protected function generateWithFallback(array $mediaPart, string $language, ?float $duration, int $size, bool $viaFileApi): array
+    {
+        $models = array_values(array_unique(array_filter([$this->model, ...(array) config('ai.gemini.fallback_models', [])])));
+        $lastOverload = null;
+
+        foreach ($models as $i => $model) {
+            $startedAt = microtime(true);
+            AppLog::info('ai.request_started', ['provider' => 'gemini', 'model' => $model, 'attempt' => $i + 1, 'audio_bytes' => $size, 'mode' => $viaFileApi ? 'file_api' : 'inline', 'word_timings' => $this->wantsWordTimings()]);
+
+            try {
+                $response = $this->send($model, $mediaPart, $language, withThinkingConfig: true);
+                // Older models reject thinking settings: resend once without them.
+                if ($response->status() === 400 && stripos((string) $response->json('error.message'), 'thinking') !== false) {
+                    $response = $this->send($model, $mediaPart, $language, withThinkingConfig: false);
+                }
+            } catch (ConnectionException $e) {
+                if (! self::isTimeout($e)) {
+                    AppLog::error('ai.connection_failed', ['provider' => 'gemini', 'model' => $model], $e);
+                    throw new AIProviderException('The AI service could not be reached. Please try again in a few minutes.', [], $e);
+                }
+                AppLog::error('ai.timeout', ['provider' => 'gemini', 'model' => $model, 'timeout' => (int) config('ai.gemini.timeout')]);
+                $lastOverload = 'timeout';
+
+                continue;
+            }
+
+            $status = $response->status();
+            $isFallback = $i > 0;
+            if (in_array($status, self::OVERLOADED, true) || ($isFallback && $status === 404)) {
+                AppLog::warning('ai.model_unavailable', [
+                    'provider' => 'gemini', 'model' => $model, 'status' => $status,
+                    'provider_error' => mb_substr((string) ($response->json('error.message') ?? ''), 0, 300),
+                ]);
+                $lastOverload = $status === 404 ? $lastOverload : 'overloaded';
+
+                continue;
+            }
+
+            $this->model = $model; // for logging/usage below
+            $this->assertSuccessful($response, 'generate');
+            AppLog::info('ai.request_completed', ['provider' => 'gemini', 'model' => $model, 'seconds' => round(microtime(true) - $startedAt, 1), 'output_tokens' => $response->json('usageMetadata.candidatesTokenCount')]);
+
+            return $this->parse($response, $language, $duration);
+        }
+
+        throw new AIProviderException($lastOverload === 'timeout'
+            ? 'Google’s AI took too long to answer. It is probably overloaded right now — please retry in a few minutes.'
+            : 'Google’s AI is overloaded right now (high demand). Please retry in a few minutes.', ['reason' => $lastOverload ?? 'overloaded']);
+    }
+
+    protected function send(string $model, array $mediaPart, string $language, bool $withThinkingConfig): Response
+    {
+        $generationConfig = [
+            'temperature' => 0.1,
+            'responseMimeType' => 'application/json',
+            'responseSchema' => $this->responseSchema(),
+            'maxOutputTokens' => (int) config('ai.gemini.max_output_tokens'),
+        ];
+        if ($withThinkingConfig && ($thinking = $this->thinkingConfig($model))) {
+            $generationConfig['thinkingConfig'] = $thinking;
+        }
+
+        return $this->request()
+            ->timeout((int) config('ai.gemini.timeout'))
+            ->post("{$this->baseUrl}/models/{$model}:generateContent", [
+                'contents' => [['role' => 'user', 'parts' => [$mediaPart, ['text' => $this->prompt($language)]]]],
+                'generationConfig' => $generationConfig,
+            ]);
+    }
+
+    /**
+     * Transcription needs no long reasoning; keeping "thinking" minimal makes responses much
+     * faster. Gemini 3 uses thinkingLevel, Gemini 2.5 uses thinkingBudget.
+     */
+    protected function thinkingConfig(string $model): ?array
+    {
+        $level = (string) config('ai.gemini.thinking', 'low');
+        if ($level === '' || $level === 'default') {
+            return null;
+        }
+        if (preg_match('/gemini-(\d+)/', $model, $m) && (int) $m[1] >= 3) {
+            return ['thinkingLevel' => $level === 'high' ? 'high' : 'low'];
+        }
+        if (str_contains($model, '2.5')) {
+            return ['thinkingBudget' => $level === 'high' ? -1 : (str_contains($model, 'pro') ? 128 : 0)];
+        }
+
+        return null;
     }
 
     protected function request(): PendingRequest
@@ -104,7 +182,7 @@ class GeminiAIProvider implements AIProviderInterface
             ->withHeaders(['x-goog-api-key' => (string) $this->apiKey])
             ->retry(
                 3,
-                fn (int $attempt) => $attempt * 2000,
+                fn (int $attempt) => [3000, 8000, 15000][$attempt - 1] ?? 15000,
                 fn (\Throwable $e) => ($e instanceof ConnectionException && ! self::isTimeout($e))
                     || ($e instanceof RequestException && in_array($e->response->status(), self::RETRYABLE, true)),
                 throw: false,
@@ -216,6 +294,7 @@ class GeminiAIProvider implements AIProviderInterface
         }
 
         $message = match (true) {
+            $status === 503 => 'Google’s AI is overloaded right now (high demand). Please retry in a few minutes.',
             $status === 429 => $this->isUserKey
                 ? 'Your Google AI key has run out of quota. Check your limits in Google AI Studio, then retry.'
                 : 'The AI service is busy right now. Please try again in a few minutes.',

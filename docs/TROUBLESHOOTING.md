@@ -23,6 +23,8 @@ If a user reports an error with a reference ("Ref: 6b1c2d3e"), search for it: `g
 
 | Symptom | Cause / fix |
 |---|---|
+| Project stuck on a processing step for a long time | The worker was stopped or crashed mid-job. `projects:reset-stuck` (scheduled every 10 min) marks it failed after the job timeout so **Retry** appears; run it by hand with `php artisan projects:reset-stuck --minutes=0`. |
+| Transcription is slow | Gemini time grows with video length; the screen shows elapsed time. Keep `GEMINI_WORD_TIMINGS=false` (default) — asking for per-word timings is much slower. |
 | Project stuck on "Uploaded" | No worker on the `default` queue. Run `./dev.sh`, `php artisan queue:work --queue=default,renders`, or Horizon. Check `php artisan queue:failed`. |
 | "Video processing is temporarily unavailable" | FFmpeg/FFprobe not found. Set `FFMPEG_BINARY` / `FFPROBE_BINARY`; test `$FFPROBE_BINARY -version` as the worker user. Event: `ffmpeg.unavailable`. |
 | "This video has no audio track" | The file really has no audio stream. |
@@ -33,6 +35,7 @@ If a user reports an error with a reference ("Ref: 6b1c2d3e"), search for it: `g
 | "Your Google AI key has run out of quota" | The user's own Google quota/billing limit. They check it in Google AI Studio. |
 | Saved keys stopped working after a deploy | `APP_KEY` changed — encrypted keys can't be decrypted. Restore the old key or ask users to re-enter theirs. |
 | "AI captioning is not configured" | Only with `AI_ALLOW_SERVER_KEY=true` and an empty `GEMINI_API_KEY`. |
+| "Google’s AI is overloaded right now" | Google returned 503 "high demand" (or timed out) for the main model **and** every `GEMINI_FALLBACK_MODELS` entry. It is temporary — press Retry later, or add another fallback model. Events: `ai.model_unavailable`, `ai.timeout`. |
 | "The AI service is busy…" | Gemini returned 429 (quota). Check your Google quota; event `ai.request_failed` has `status`. |
 | "AI captioning is temporarily unavailable" | Gemini 401/403: wrong key, key restricted to other APIs, or model not enabled. |
 | "This video has too much speech to caption in one pass" | Output hit `GEMINI_MAX_OUTPUT_TOKENS`. Use a shorter clip or raise the limit if the model allows it. |
