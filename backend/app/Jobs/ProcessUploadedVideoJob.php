@@ -34,13 +34,18 @@ use Throwable;
  *
  * The project's `status` reflects the current phase (polled by the UI). Failures set
  * status=failed with a user-safe `processing_error`; technical detail goes to the
- * structured log. Not retried automatically: a retry would repeat a paid AI call.
+ * structured log. Only "Google is overloaded / timed out" is retried automatically (it is
+ * free — no answer means no billed output); every other failure stops immediately.
  */
 class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 1;
+    /** Attempts in total; extra attempts are used only while Google is overloaded. */
+    public int $tries = 4;
+
+    /** Minutes to wait before re-trying an overloaded AI, per attempt. */
+    public const OVERLOAD_BACKOFF_MINUTES = [1, 3, 5];
 
     public int $timeout = 1200;
 
@@ -61,7 +66,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 
     public function uniqueFor(): int
     {
-        return $this->timeout + 60;
+        return ($this->timeout + 60) * $this->tries + array_sum(self::OVERLOAD_BACKOFF_MINUTES) * 60;
     }
 
     public function handle(VideoServiceInterface $video, AIProviderFactory $providers, MediaStorage $storage, UsageService $usage): void
@@ -87,6 +92,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         AppLog::info('pipeline.started', $context);
 
         try {
+            $project->update(['processing_error' => null]);
             $this->phase($project, Project::STATUS_PROCESSING);
 
             $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $refiner, $storage, $usage) {
@@ -150,6 +156,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             $project->update(['status' => Project::STATUS_READY, 'processing_error' => null]);
             AppLog::info('pipeline.completed', $context + ['seconds' => round(microtime(true) - $started, 1)]);
         } catch (UserFacingException $e) {
+            if ($this->retryWhenOverloaded($project, $e)) {
+                return;
+            }
             AppLog::error('pipeline.failed', $context + ['reason' => $e->getMessage()] + $e->context);
             if (($e->context['key_rejected'] ?? false) && $providers->usesUserKeys()) {
                 $this->flagRejectedKey($user);
@@ -160,6 +169,28 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             report($e);
             $this->markFailed($project, 'Something went wrong while processing this video. Please try again.');
         }
+    }
+
+    /**
+     * Google answered "high demand" (or not at all) for every model: queue the job again
+     * after a pause instead of failing, and tell the user it will retry by itself.
+     */
+    private function retryWhenOverloaded(Project $project, UserFacingException $e): bool
+    {
+        $attempt = $this->job ? $this->attempts() : $this->tries;
+        if (! in_array($e->context['reason'] ?? null, ['overloaded', 'timeout'], true) || $attempt >= $this->tries) {
+            return false;
+        }
+
+        $minutes = self::OVERLOAD_BACKOFF_MINUTES[$attempt - 1] ?? 5;
+        $project->update([
+            'status' => Project::STATUS_UPLOADED,
+            'processing_error' => "Google’s AI is busy right now — retrying automatically in about {$minutes} minute".($minutes > 1 ? 's' : '')." (attempt {$attempt} of ".($this->tries - 1).').',
+        ]);
+        AppLog::warning('pipeline.retry_scheduled', ['project' => $project->uuid, 'attempt' => $attempt, 'minutes' => $minutes, 'reason' => $e->context['reason']]);
+        $this->release($minutes * 60);
+
+        return true;
     }
 
     /** Timeouts and worker crashes land here. */

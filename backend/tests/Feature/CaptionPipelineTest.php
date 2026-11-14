@@ -9,10 +9,14 @@ use App\Models\MediaFile;
 use App\Models\Project;
 use App\Models\UsageRecord;
 use App\Models\User;
+use App\Services\AI\AIProviderFactory;
 use App\Services\AI\AIProviderInterface;
 use App\Services\AI\FakeAIProvider;
+use App\Services\Media\MediaStorage;
+use App\Services\Usage\UsageService;
 use App\Services\Video\Contracts\VideoServiceInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\Jobs\FakeJob;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -233,5 +237,32 @@ class CaptionPipelineTest extends TestCase
         $this->assertSame('Processing was interrupted. Please retry.', $stuck->fresh()->processing_error);
         $this->assertSame(Project::STATUS_TRANSCRIBING, $running->fresh()->status);
         $this->assertSame(Project::STATUS_UPLOADED, $waiting->fresh()->status, 'queued jobs are not touched');
+    }
+
+    public function test_google_overload_requeues_the_job_instead_of_failing(): void
+    {
+        $this->app->instance(AIProviderInterface::class, new class extends FakeAIProvider
+        {
+            public function transcribe(string $audioFilePath, string $language = 'auto', array $options = []): array
+            {
+                throw new AIProviderException('Google’s AI is overloaded right now (high demand). Please retry in a few minutes.', ['reason' => 'overloaded']);
+            }
+        });
+        $project = $this->projectWithVideo();
+        $job = new ProcessUploadedVideoJob($project, $project->primaryMediaFile, 'si');
+        $queued = new FakeJob;
+        $job->setJob($queued);
+
+        $job->handle(app(VideoServiceInterface::class), app(AIProviderFactory::class), app(MediaStorage::class), app(UsageService::class));
+
+        $this->assertTrue($queued->isReleased());
+        $this->assertSame(60, $queued->releaseDelay);
+        $project->refresh();
+        $this->assertSame(Project::STATUS_UPLOADED, $project->status);
+        $this->assertStringContainsString('retrying automatically', $project->processing_error);
+
+        [$user, $headers] = $this->userWithToken();
+        $project->forceFill(['user_id' => $user->id])->save();
+        $this->withHeaders($headers)->getJson("/api/projects/{$project->uuid}/status")->assertJsonPath('data.notice', $project->processing_error);
     }
 }

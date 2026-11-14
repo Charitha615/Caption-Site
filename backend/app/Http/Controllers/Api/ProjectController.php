@@ -235,6 +235,7 @@ class ProjectController extends Controller
             'error' => $status === Project::STATUS_FAILED ? ($project->processing_error ?: 'Processing failed. Please try again.') : null,
             // Seconds the job has waited for a worker; lets the UI flag a stalled queue.
             'phase_seconds' => $phaseMeta['is_processing'] ? (int) $project->updated_at?->diffInSeconds(now(), true) : null,
+            'notice' => $status === Project::STATUS_UPLOADED ? $project->processing_error : null,
             'queued_seconds' => $status === Project::STATUS_UPLOADED ? (int) $project->updated_at?->diffInSeconds(now(), true) : null,
             'duration' => $project->duration,
             'width' => $project->width,

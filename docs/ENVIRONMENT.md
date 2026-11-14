@@ -80,7 +80,7 @@ Templates: `backend/.env.example` and `frontend/.env.example`. **Never commit `.
 | `GEMINI_BASE_URL`, `GEMINI_UPLOAD_URL` | Google endpoints | Override for proxies |
 | `GEMINI_FALLBACK_MODELS` | `gemini-flash-latest` | Comma-separated models tried, in order, when the main model is overloaded (429/5xx) or times out |
 | `GEMINI_THINKING` | `low` | Model reasoning during transcription: `low` (fast), `high`, or `default`. Sent as `thinkingLevel` (Gemini 3) / `thinkingBudget` (2.5) |
-| `GEMINI_TIMEOUT` | `240` | Seconds to wait for one transcription. Timed-out requests are **not** retried (they may still be billed) |
+| `GEMINI_TIMEOUT` | `120` | Seconds to wait for one transcription. Timed-out requests are **not** retried (they may still be billed) |
 | `GEMINI_WORD_TIMINGS` | `false` | Ask Gemini for per-word timings. Much slower for long videos; when `false`, word timings are estimated per line |
 | `GEMINI_INLINE_MAX_BYTES` | `15728640` | Larger audio goes through the Files API |
 | `GEMINI_MAX_OUTPUT_TOKENS` | `65536` | Upper bound for one transcription |

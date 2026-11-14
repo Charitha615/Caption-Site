@@ -46,15 +46,16 @@ class GeminiTranscribeProvider extends GeminiAIProvider
         $startedAt = microtime(true);
 
         try {
-            $file = $this->uploadFile($audioFilePath, $this->mimeType($audioFilePath), $size);
+            $mime = $this->mimeType($audioFilePath);
+            $file = $this->uploadFile($audioFilePath, $mime, $size);
             AppLog::info('ai.request_started', ['provider' => $this->name(), 'model' => $this->model, 'audio_bytes' => $size, 'language' => $language]);
 
             $hints = self::languageHints($language);
-            $response = $this->interact($file['uri'], $hints);
+            $response = $this->interact($file['uri'], $mime, $hints);
             // The model may reject a language it does not officially list (e.g. si-LK): auto-detect instead.
-            if ($hints && $response->status() === 400) {
+            if ($hints && $response->status() === 400 && self::isLanguageError((string) $response->json('error.message'))) {
                 AppLog::warning('ai.language_hint_rejected', ['model' => $this->model, 'hints' => $hints, 'provider_error' => $response->json('error.message')]);
-                $response = $this->interact($file['uri'], []);
+                $response = $this->interact($file['uri'], $mime, []);
             }
             $this->assertSuccessful($response, 'transcribe');
             $interaction = $this->awaitCompletion($response->json() ?? []);
@@ -83,7 +84,13 @@ class GeminiTranscribeProvider extends GeminiAIProvider
         };
     }
 
-    protected function interact(string $fileUri, array $languageCodes): Response
+    /** A 400 about the language hint (as opposed to any other bad request). */
+    public static function isLanguageError(string $message): bool
+    {
+        return (bool) preg_match('/language|locale|bcp-?47|si-LK/i', $message);
+    }
+
+    protected function interact(string $fileUri, string $mimeType, array $languageCodes): Response
     {
         $mode = ['type' => 'verbatim', 'timestamp_granularities' => ['word']];
         if (config('ai.gemini.diarization', true)) {
@@ -98,7 +105,7 @@ class GeminiTranscribeProvider extends GeminiAIProvider
             ->timeout((int) config('ai.gemini.timeout'))
             ->post("{$this->baseUrl}/interactions", [
                 'model' => 'models/'.$this->model,
-                'input' => [['type' => 'file', 'file_uri' => $fileUri]],
+                'input' => [['type' => 'audio', 'uri' => $fileUri, 'mime_type' => $mimeType]],
                 'generation_config' => ['transcription_config' => $transcription],
             ]);
     }

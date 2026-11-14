@@ -40,8 +40,8 @@ return [
         'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 1500),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
-        // Seconds to wait for one model's answer. A 2–3 minute video normally takes < 1 minute.
-        'timeout' => (int) env('GEMINI_TIMEOUT', 240),
+        // Seconds to wait for one model's answer. A 2–3 minute video normally takes well under a minute; overloads are retried by the job.
+        'timeout' => (int) env('GEMINI_TIMEOUT', 120),
         // Tried in order when the main model is overloaded or times out (comma-separated).
         'fallback_models' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-flash-latest'))))),
         // Model "thinking" for transcription: low (fast, default), high, or default (model's own).

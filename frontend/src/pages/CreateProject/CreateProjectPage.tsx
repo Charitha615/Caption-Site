@@ -340,7 +340,7 @@ export const CreateProjectPage: React.FC = () => {
           <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
           <ProcessingSteps status={status?.status ?? 'uploaded'} />
           <PhaseTimer status={status?.status} phaseSeconds={status?.phase_seconds} durationSeconds={status?.duration} />
-          <QueueStalledNotice queuedSeconds={status?.queued_seconds} />
+          <QueueStalledNotice queuedSeconds={status?.queued_seconds} notice={status?.notice} />
           <div className="form-actions">
             <Button variant="secondary" onClick={() => project && navigate(`/projects/${project.uuid}`)}>
               Continue in the background

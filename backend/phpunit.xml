@@ -22,7 +22,8 @@
         <!-- Never call real AI providers or write to dev logs from tests. -->
         <env name="AI_PROVIDER" value="fake" force="true"/>
         <env name="GEMINI_API_KEY" value="" force="true"/>
-        <env name="LOG_STRUCTURED_CHANNEL" value="null" force="true"/>
+        <env name="LOG_STRUCTURED_CHANNEL" value="discard" force="true"/>
+        <env name="LOG_CHANNEL" value="discard" force="true"/>
         <env name="MEDIA_DISK" value="local" force="true"/>
         <env name="FILESYSTEM_DISK" value="local" force="true"/>
         <env name="EXPORT_DISK" value="local" force="true"/>

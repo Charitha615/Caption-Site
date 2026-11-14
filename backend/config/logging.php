@@ -144,6 +144,12 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        // Same as "null", but nameable from .env/phpunit.xml (env() reads the string "null" as null).
+        'discard' => [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],

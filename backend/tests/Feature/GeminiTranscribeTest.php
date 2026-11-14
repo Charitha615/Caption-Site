@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\AIProviderException;
 use App\Jobs\ProcessUploadedVideoJob;
 use App\Models\Caption;
 use App\Models\MediaFile;
@@ -88,7 +89,7 @@ class GeminiTranscribeTest extends TestCase
             && $r['model'] === 'models/gemini-3.5-transcribe'
             && $r['generation_config']['transcription_config']['mode']['timestamp_granularities'] === ['word']
             && $r['generation_config']['transcription_config']['language_codes'] === ['si-LK']
-            && $r['input'][0]['file_uri'] === 'https://gemini.test/v1beta/files/a1'
+            && $r['input'][0] === ['type' => 'audio', 'uri' => 'https://gemini.test/v1beta/files/a1', 'mime_type' => 'audio/mpeg']
             && $r->hasHeader('x-goog-api-key', self::KEY));
     }
 
@@ -231,5 +232,27 @@ class GeminiTranscribeTest extends TestCase
 
         $this->assertSame('valid', $check['result']);
         $this->assertStringContainsString("can't use gemini-3.5-transcribe", $check['message']);
+    }
+
+    public function test_an_unrelated_bad_request_does_not_trigger_the_language_retry(): void
+    {
+        $calls = 0;
+        Http::fake([
+            'gemini.test/upload/v1beta/files' => Http::response([], 200, ['x-goog-upload-url' => 'https://gemini.test/session/1']),
+            'gemini.test/session/1' => Http::response(['file' => ['name' => 'files/a1', 'uri' => 'u', 'state' => 'ACTIVE']]),
+            'gemini.test/v1beta/interactions' => function () use (&$calls) {
+                $calls++;
+
+                return Http::response(['error' => ['message' => "The value 'x' is not supported for 'type' at 'input[0]'."]], 400);
+            },
+            'gemini.test/v1beta/files/a1' => Http::response([]),
+        ]);
+
+        try {
+            (new GeminiTranscribeProvider(apiKey: self::KEY))->transcribe($this->audio, 'si');
+        } catch (AIProviderException) {
+        }
+
+        $this->assertSame(1, $calls);
     }
 }

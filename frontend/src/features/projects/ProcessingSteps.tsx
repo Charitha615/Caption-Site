@@ -23,8 +23,10 @@ export interface ProcessingStepsProps {
 /** Shown when a job has waited for a worker longer than this. */
 export const STALLED_QUEUE_SECONDS = 45;
 
-export const QueueStalledNotice: React.FC<{ queuedSeconds?: number | null }> = ({ queuedSeconds }) =>
-  queuedSeconds && queuedSeconds >= STALLED_QUEUE_SECONDS ? (
+export const QueueStalledNotice: React.FC<{ queuedSeconds?: number | null; notice?: string | null }> = ({ queuedSeconds, notice }) =>
+  notice ? (
+    <p className="proc-stalled" role="status">{notice}</p>
+  ) : queuedSeconds && queuedSeconds >= STALLED_QUEUE_SECONDS ? (
     <p className="proc-stalled" role="status">
       Processing hasn’t started yet. The server may be busy — if this persists, the background worker may not be running.
     </p>

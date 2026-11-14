@@ -71,6 +71,8 @@ export interface ProjectStatusResponse {
   error?: string | null;
   /** While status is 'uploaded': seconds spent waiting for a queue worker. */
   queued_seconds?: number | null;
+  /** While queued: why (e.g. "Google’s AI is busy — retrying automatically …"). */
+  notice?: string | null;
   /** While processing: seconds the current phase has been running. */
   phase_seconds?: number | null;
   duration?: number | null;
