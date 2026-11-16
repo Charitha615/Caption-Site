@@ -31,7 +31,8 @@ export function toAppError(err: unknown, fallback = 'Something went wrong. Pleas
       return {
         status: null,
         code: timedOut ? 'timeout' : 'network',
-        message: timedOut ? 'The request timed out. Check your connection and try again.' : 'Cannot reach the server. Check your connection and try again.',
+        // A timeout means the server was reached but answered too slowly — not a connection problem.
+        message: timedOut ? 'The server is taking too long to respond. Please try again in a moment.' : 'Cannot reach the server. Check your connection and try again.',
         fieldErrors: {},
       };
     }

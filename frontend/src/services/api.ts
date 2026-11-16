@@ -66,7 +66,7 @@ apiClient.interceptors.response.use(
       ai_key_required: 'Google AI key needed',
       rate_limited: 'Slow down',
       network: 'Connection problem',
-      timeout: 'Connection problem',
+      timeout: 'Server is slow',
       forbidden: 'Access denied',
       not_found: 'Not found',
     };

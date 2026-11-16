@@ -34,6 +34,6 @@ describe('toAppError', () => {
 
   it('describes network failures and timeouts', () => {
     expect(toAppError(new AxiosError('Network Error', 'ERR_NETWORK')).code).toBe('network');
-    expect(toAppError(new AxiosError('timeout', 'ECONNABORTED')).message).toMatch(/timed out/);
+    expect(toAppError(new AxiosError('timeout', 'ECONNABORTED')).message).toMatch(/taking too long to respond/);
   });
 });
