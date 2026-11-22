@@ -124,6 +124,35 @@ describe('ProjectCard', () => {
   });
 });
 
+describe('Dropdown inside a clipping container', () => {
+  it('renders the whole menu outside the card so overflow:hidden cannot cut it off', async () => {
+    const onDelete = vi.fn();
+    const onCard = vi.fn();
+    render(
+      <div data-testid="card" style={{ overflow: 'hidden', height: 40 }} onClick={onCard}>
+        <Dropdown
+          label="Actions for Trip"
+          trigger={<span>⋮</span>}
+          items={[{ key: 'open', label: 'Open editor' }, { key: 'details', label: 'Project details' }, { key: 'del', label: 'Delete project', danger: true, onClick: onDelete }]}
+        />
+      </div>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Trip' }));
+    const menu = screen.getByRole('menu', { name: 'Actions for Trip' });
+
+    expect(screen.getByTestId('card').contains(menu)).toBe(false);
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu.className).toContain('dropdown-menu-floating');
+    expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Open editor', 'Project details', 'Delete project']);
+
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete project' }));
+    expect(onDelete).toHaveBeenCalled();
+    expect(onCard).not.toHaveBeenCalled(); // clicking the menu never also opens the card
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});
+
 describe('validateVideoFile', () => {
   const file = (name: string, size: number) => new File([new Uint8Array(size)], name);
 

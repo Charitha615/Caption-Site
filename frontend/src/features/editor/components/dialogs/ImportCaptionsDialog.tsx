@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, AudioLines, Check, Clock, Loader2, Sparkles, Upload } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, AudioLines, Check, FileText, Loader2, Upload } from 'lucide-react';
 import { Modal } from '../../../../components/Modal/Modal';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useUIStore } from '../../../../stores/editor/uiStore';
@@ -7,52 +7,89 @@ import { useVideoStore } from '../../../../stores/editor/videoStore';
 import { useEditorProjectStore } from '../../../../stores/editor/editorProjectStore';
 import { captionService, type AlignResult } from '../../../../services/captionService';
 import { toAppError } from '../../../../services/errors';
-import { detectLanguage } from '../../utils/unicode';
-import type { CaptionLanguage } from '../../model/types';
 import {
   assignTimingsToCues,
   enhanceTextForCaptions,
   parseSubtitles,
   repairSinhalaScript,
   splitTextIntoCues,
+  stripCaptionPunctuation,
   type ParsedImportCue,
 } from '../../utils/importCaptions';
 import { createId } from '../../model/captionOps';
+import type { CaptionLanguage, CaptionSegment } from '../../model/types';
 import { formatTimecode } from '../../utils/time';
-import { LANGUAGE_LABELS } from '../../utils/unicode';
+import { detectLanguage, LANGUAGE_LABELS } from '../../utils/unicode';
 
+type TimingMode = 'speech' | 'fit-video' | 'from-playhead';
+
+/** Segmented single-choice control (radio group) with a clear selected state. */
+function Choice<T extends string>({ label, value, options, onChange }: {
+  label: string;
+  value: T;
+  options: Array<{ value: T; label: string; hint?: string }>;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="ed-imp-seg" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          className={`ed-imp-seg-btn ${value === o.value ? 'is-selected' : ''}`}
+          onClick={() => onChange(o.value)}
+          data-tip={o.hint}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Import captions from a pasted script or a .txt/.srt/.vtt file.
+ * Plain text can be matched to the video's speech (server-side alignment) or spread by length.
+ * Every imported caption keeps its original line (meta.original_text) for review/restore.
+ */
 export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
   const open = useUIStore((s) => s.isImportOpen);
   const onClose = useCallback(() => useUIStore.getState().setImportOpen(false), []);
   const videoDuration = useVideoStore((s) => s.duration || 60);
   const currentTime = useVideoStore((s) => s.currentTime || 0);
-
-  const [rawText, setRawText] = useState('');
   const projectUuid = useEditorProjectStore((s) => s.projectUuid);
   const isDemo = useEditorProjectStore((s) => s.isDemo);
   const canMatchSpeech = !!projectUuid && !isDemo;
-  const [timingMode, setTimingMode] = useState<'speech' | 'fit-video' | 'from-playhead'>(canMatchSpeech ? 'speech' : 'fit-video');
+
+  const [rawText, setRawText] = useState('');
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [timingMode, setTimingMode] = useState<TimingMode>(canMatchSpeech ? 'speech' : 'fit-video');
+  const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
+  const [removePunctuation, setRemovePunctuation] = useState(true);
+  const [smartEnglish, setSmartEnglish] = useState(true);
   const [aiEnglish, setAiEnglish] = useState(true);
   const [aligned, setAligned] = useState<AlignResult | null>(null);
   const [aligning, setAligning] = useState(false);
   const [alignError, setAlignError] = useState<string | null>(null);
-  const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
-  const [autoEnhance, setAutoEnhance] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const fileInputId = useId();
 
+  // Any change to the inputs invalidates a previous speech match.
   useEffect(() => {
     setAligned(null);
     setAlignError(null);
-  }, [rawText, aiEnglish, autoEnhance, timingMode]);
+  }, [rawText, aiEnglish, smartEnglish, timingMode]);
+
+  const isSubtitleFile = useMemo(() => parseSubtitles(rawText.trim()) !== null, [rawText]);
+  const prepared = useCallback((text: string) => (smartEnglish ? enhanceTextForCaptions(text) : repairSinhalaScript(text)), [smartEnglish]);
 
   const matchSpeech = async () => {
     if (!projectUuid || !rawText.trim()) return;
     setAligning(true);
     setAlignError(null);
     try {
-      const text = autoEnhance ? enhanceTextForCaptions(rawText) : repairSinhalaScript(rawText);
-      setAligned(await captionService.alignScript(projectUuid, text, aiEnglish));
+      setAligned(await captionService.alignScript(projectUuid, prepared(rawText), aiEnglish));
     } catch (err) {
       setAlignError(toAppError(err, 'Could not match the script to the speech.').message);
     } finally {
@@ -60,265 +97,198 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
     }
   };
 
-  // File upload handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setRawText(content);
-      }
+    reader.onload = () => {
+      setRawText(String(reader.result ?? ''));
+      setFileName(file.name);
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  // Enhance text directly in the textarea
-  const handleEnhanceClick = () => {
-    if (!rawText.trim()) return;
-    setRawText(enhanceTextForCaptions(rawText));
-  };
-
-  // Parse and preview cues
-  const parsedCues: ParsedImportCue[] = useMemo(() => {
+  /** Cues before punctuation removal; `original` keeps the line exactly as provided. */
+  const cues: ParsedImportCue[] = useMemo(() => {
     const trimmed = rawText.trim();
     if (!trimmed) return [];
 
-    // 1. Check if input has subtitle timestamps (SRT / VTT)
     const subtitleCues = parseSubtitles(trimmed);
     if (subtitleCues) {
-      if (autoEnhance) {
-        return subtitleCues.map((c) => ({
-          ...c,
-          text: enhanceTextForCaptions(c.text),
-        }));
-      }
-      return subtitleCues;
+      return subtitleCues.map((c) => ({ ...c, original: c.text, text: smartEnglish ? enhanceTextForCaptions(c.text) : c.text }));
     }
-
-    // 2. Plain text matched to the speech (server-side alignment)
     if (timingMode === 'speech') {
       return (aligned?.captions ?? []).map((c) => ({
         id: createId(),
         start: c.start_time,
         end: c.end_time,
         text: c.text,
+        original: c.text,
         language: (['si', 'en', 'mixed'].includes(c.language) ? c.language : detectLanguage(c.text)) as CaptionLanguage,
         words: c.words.map((w) => ({ text: w.word, start: w.start, end: w.end })),
       }));
     }
+    const lines = splitTextIntoCues(prepared(trimmed));
+    return assignTimingsToCues(lines, { videoDuration, startAt: currentTime, mode: timingMode }).map((c) => ({ ...c, original: c.text }));
+  }, [rawText, smartEnglish, timingMode, aligned, prepared, videoDuration, currentTime]);
 
-    // 3. Plain text / paragraphs, timed by length
-    const processedText = autoEnhance ? enhanceTextForCaptions(trimmed) : repairSinhalaScript(trimmed);
-    const cues = splitTextIntoCues(processedText);
+  /** What will actually be imported (punctuation removed if chosen). */
+  const finalCues = useMemo(() => {
+    if (!removePunctuation) return cues;
+    return cues
+      .map((c) => ({
+        ...c,
+        text: stripCaptionPunctuation(c.text),
+        words: c.words?.map((w) => ({ ...w, text: stripCaptionPunctuation(w.text) })).filter((w) => w.text !== ''),
+      }))
+      .filter((c) => c.text !== '');
+  }, [cues, removePunctuation]);
 
-    return assignTimingsToCues(cues, {
-      videoDuration,
-      startAt: currentTime,
-      mode: timingMode,
-    });
-  }, [rawText, autoEnhance, videoDuration, currentTime, timingMode, aligned]);
-
-  const isSubtitleFile = useMemo(() => parseSubtitles(rawText.trim()) !== null, [rawText]);
   const needsAlignment = timingMode === 'speech' && !isSubtitleFile && rawText.trim() !== '' && !aligned;
 
-  // Execute import
   const handleImport = () => {
-    if (parsedCues.length === 0) return;
-
-    useCaptionStore.getState().importCaptions(
-      parsedCues.map((c) => ({
-        id: c.id,
-        start: c.start,
-        end: c.end,
-        text: c.text,
-        language: c.language,
-        ...(c.words ? { words: c.words } : {}),
-      })),
-      importMode
-    );
-
+    if (finalCues.length === 0) return;
+    const source = isSubtitleFile ? 'subtitles' : timingMode === 'speech' ? 'script-matched' : 'script';
+    const segments: CaptionSegment[] = finalCues.map((c) => ({
+      id: c.id,
+      start: c.start,
+      end: c.end,
+      text: c.text,
+      language: c.language,
+      ...(c.words?.length ? { words: c.words } : {}),
+      meta: { original_text: c.original ?? c.text, source: { imported: source } },
+    }));
+    useCaptionStore.getState().importCaptions(segments, importMode);
     onClose();
     setRawText('');
+    setFileName(null);
   };
 
+  const timingOptions: Array<{ value: TimingMode; label: string; hint: string }> = [
+    ...(canMatchSpeech ? [{ value: 'speech' as const, label: 'Match speech', hint: 'Line every word up with the speech in the video (recommended)' }] : []),
+    { value: 'fit-video', label: `Spread over video (${formatTimecode(videoDuration)})`, hint: 'Share the whole video by line length' },
+    { value: 'from-playhead', label: `From playhead (${formatTimecode(currentTime)})`, hint: 'Start at the playhead, natural reading pace' },
+  ];
+
   return (
-    <Modal isOpen={open} onClose={onClose} title="Import Captions" size="lg">
-      <div className="ed-import-dialog">
-        <p className="ed-import-intro">
-          Paste script text, paragraphs, or upload an <strong>SRT / VTT / TXT</strong> subtitle file.
-          Text will be cleanly segmented into caption lines with proper timing alignment.
-        </p>
-
-        <div className="ed-import-textarea-wrap">
+    <Modal isOpen={open} onClose={onClose} title="Import captions" size="lg">
+      <div className="ed-imp">
+        {/* 1. Script */}
+        <section className="ed-imp-step">
+          <div className="ed-imp-step-head">
+            <span className="ed-imp-num" aria-hidden="true">1</span>
+            <h3>Your script or subtitle file</h3>
+            <button type="button" className="ed-btn is-ghost is-sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={13} aria-hidden="true" /> Upload .txt / .srt / .vtt
+            </button>
+            <input ref={fileInputRef} type="file" accept=".txt,.srt,.vtt,text/plain" hidden onChange={handleFile} />
+          </div>
           <textarea
-            className="ed-import-textarea"
-            rows={8}
-            placeholder={`Paste your script or subtitles here, for example:\n\nලංකාවේ තෙල් ප්රශ්නෙත් එක්ක, අදටත් මාකට් එකේ රජ කරන, ලීටරයට කිලෝමීටර් විසිපහත් තිහත් අතර තෙල් වැඩ කරන සුපිරිම හයිබ්රිඩ් කාර් එක ගැන තමයි අද කතා කරන්නේ!\n\nOr drop an SRT / WebVTT file with timestamps.`}
+            className="ed-imp-textarea"
+            rows={7}
+            lang="si"
+            aria-label="Script or subtitles to import"
+            placeholder="Paste your script here (Sinhala, English or both) — or upload an SRT / VTT file with timings."
             value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
+            onChange={(e) => {
+              setRawText(e.target.value);
+              setFileName(null);
+            }}
           />
-
-          <div className="ed-import-text-actions">
-            <button
-              type="button"
-              className="ed-btn is-ghost"
-              onClick={() => fileInputRef.current?.click()}
-              data-tip="Upload .txt, .srt or .vtt file"
-            >
-              <Upload size={13} /> Upload File
-            </button>
-            <input
-              id={fileInputId}
-              type="file"
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              accept=".txt,.srt,.vtt"
-              onChange={handleFileUpload}
-            />
-
-            <button
-              type="button"
-              className="ed-btn is-ghost"
-              disabled={!rawText.trim()}
-              onClick={handleEnhanceClick}
-              data-tip="Convert transliterated car/tech loanwords to clean English & repair Sinhala script"
-            >
-              <Sparkles size={13} /> Fix English Words & Sinhala
-            </button>
+          <div className="ed-imp-meta">
+            {fileName && <span><FileText size={12} aria-hidden="true" /> {fileName}</span>}
+            {isSubtitleFile && <span className="ed-imp-pill">Subtitle file — its own timings will be used</span>}
+            {rawText.trim() && !isSubtitleFile && <span>{rawText.trim().split(/\s+/).length} words</span>}
           </div>
-        </div>
+        </section>
 
-        <div className="ed-import-controls-row">
-          <label className="ed-import-checkbox">
-            <input
-              type="checkbox"
-              checked={autoEnhance}
-              onChange={(e) => setAutoEnhance(e.target.checked)}
-            />
-            <span>
-              <strong>Smart Auto-Format</strong>: Use standard English for vehicle/tech terms (Hybrid, Traffic, Toyota Aqua, etc.) &amp; repair Sinhala conjuncts.
-            </span>
-          </label>
-
-          <div className="ed-import-options-grid">
-            <div className="ed-import-option-group">
-              <span className="ed-import-label"><Clock size={12} /> Timing alignment:</span>
-              <div className="ed-btn-group">
-                {canMatchSpeech && (
-                  <button
-                    type="button"
-                    className={`ed-btn ${timingMode === 'speech' ? 'is-primary' : 'is-ghost'}`}
-                    onClick={() => setTimingMode('speech')}
-                    data-tip="Line each word up with the video's speech (uses the AI transcript)"
-                  >
-                    <AudioLines size={13} /> Match speech
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={`ed-btn ${timingMode === 'fit-video' ? 'is-primary' : 'is-ghost'}`}
-                  onClick={() => setTimingMode('fit-video')}
-                >
-                  Fit across video ({formatTimecode(videoDuration)})
-                </button>
-                <button
-                  type="button"
-                  className={`ed-btn ${timingMode === 'from-playhead' ? 'is-primary' : 'is-ghost'}`}
-                  onClick={() => setTimingMode('from-playhead')}
-                >
-                  From playhead ({formatTimecode(currentTime)})
-                </button>
-              </div>
+        {/* 2. Timing */}
+        {!isSubtitleFile && (
+          <section className="ed-imp-step">
+            <div className="ed-imp-step-head">
+              <span className="ed-imp-num" aria-hidden="true">2</span>
+              <h3>Timing</h3>
             </div>
+            <Choice label="Timing" value={timingMode} options={timingOptions} onChange={setTimingMode} />
+          </section>
+        )}
 
-            <div className="ed-import-option-group">
-              <span className="ed-import-label">Destination:</span>
-              <div className="ed-btn-group">
-                <button
-                  type="button"
-                  className={`ed-btn ${importMode === 'replace' ? 'is-primary' : 'is-ghost'}`}
-                  onClick={() => setImportMode('replace')}
-                >
-                  Replace existing
-                </button>
-                <button
-                  type="button"
-                  className={`ed-btn ${importMode === 'append' ? 'is-primary' : 'is-ghost'}`}
-                  onClick={() => setImportMode('append')}
-                >
-                  Append after
-                </button>
-              </div>
-            </div>
+        {/* 3. Options */}
+        <section className="ed-imp-step">
+          <div className="ed-imp-step-head">
+            <span className="ed-imp-num" aria-hidden="true">{isSubtitleFile ? 2 : 3}</span>
+            <h3>Options</h3>
           </div>
-        </div>
-
-        {timingMode === 'speech' && !isSubtitleFile && (
-          <div className="ed-import-align">
-            <label className="ed-import-checkbox">
-              <input type="checkbox" checked={aiEnglish} onChange={(e) => setAiEnglish(e.target.checked)} />
-              <span>
-                <strong>AI English words</strong>: write English words that are spelled in Sinhala letters in English (e.g. ට්‍රැෆික් → traffic). Uses your Google AI key.
-              </span>
+          <div className="ed-imp-options">
+            <label className="ed-imp-check">
+              <input type="checkbox" checked={removePunctuation} onChange={(e) => setRemovePunctuation(e.target.checked)} />
+              <span><strong>Remove punctuation</strong> — dots, commas, quotes and symbols are removed from the captions. The original text is kept for review.</span>
             </label>
+            <label className="ed-imp-check">
+              <input type="checkbox" checked={smartEnglish} onChange={(e) => setSmartEnglish(e.target.checked)} />
+              <span><strong>Common English words</strong> — e.g. හයිබ්‍රිඩ් → Hybrid, ට්‍රැෆික් → Traffic (instant, built-in list).</span>
+            </label>
+            {timingMode === 'speech' && !isSubtitleFile && (
+              <label className="ed-imp-check">
+                <input type="checkbox" checked={aiEnglish} onChange={(e) => setAiEnglish(e.target.checked)} />
+                <span><strong>AI English words</strong> — any English word spelled in Sinhala letters is written in English. Uses your Google AI key.</span>
+              </label>
+            )}
+          </div>
+          <div className="ed-imp-inline">
+            <span className="ed-field-label">Existing captions</span>
+            <Choice
+              label="Existing captions"
+              value={importMode}
+              options={[{ value: 'replace', label: 'Replace' }, { value: 'append', label: 'Keep and add' }]}
+              onChange={setImportMode}
+            />
+          </div>
+        </section>
+
+        {/* Speech matching */}
+        {timingMode === 'speech' && !isSubtitleFile && (
+          <section className="ed-imp-match">
             <button type="button" className="ed-btn is-accent" disabled={!rawText.trim() || aligning} onClick={() => void matchSpeech()}>
-              {aligning ? <Loader2 size={14} className="ed-spin" /> : <AudioLines size={14} />}
+              {aligning ? <Loader2 size={14} className="ed-spin" aria-hidden="true" /> : <AudioLines size={14} aria-hidden="true" />}
               {aligning ? 'Matching to speech…' : aligned ? 'Match again' : 'Match script to speech'}
             </button>
             {aligned && (
               <p className="ed-help" role="status">
                 {aligned.stats.matched} of {aligned.stats.script_words} words matched the speech
-                {aligned.stats.placed > 0 && <>; {aligned.stats.placed} placed between them (the AI didn’t hear them — check their timing)</>}.
-                {aiEnglish && !aligned.english_applied && ' English-word conversion was skipped (the AI was busy) — your script was used as written.'}
+                {aligned.stats.placed > 0 && <>; {aligned.stats.placed} placed between them (check their timing)</>}.
+                {aiEnglish && !aligned.english_applied && ' AI English words were skipped (the AI was busy).'}
               </p>
             )}
-            {alignError && (
-              <p className="ed-notice is-error" role="alert"><AlertTriangle size={14} /> {alignError}</p>
-            )}
-          </div>
+            {alignError && <p className="ed-notice is-error" role="alert"><AlertTriangle size={14} aria-hidden="true" /> {alignError}</p>}
+          </section>
         )}
 
-        {parsedCues.length > 0 && (
-          <div className="ed-import-preview-section">
-            <div className="ed-import-preview-header">
-              <h4>Preview ({parsedCues.length} captions generated)</h4>
-              <span className="ed-badge">{formatTimecode(parsedCues[0].start)} → {formatTimecode(parsedCues[parsedCues.length - 1].end)}</span>
+        {/* Preview */}
+        {finalCues.length > 0 && (
+          <section className="ed-imp-preview" aria-label="Preview">
+            <div className="ed-imp-preview-head">
+              <h3>Preview · {finalCues.length} captions</h3>
+              <span className="ed-badge">{formatTimecode(finalCues[0].start)} → {formatTimecode(finalCues[finalCues.length - 1].end)}</span>
             </div>
-
-            <div className="ed-import-preview-list">
-              {parsedCues.slice(0, 15).map((cue, idx) => (
-                <div key={cue.id} className="ed-import-preview-item">
-                  <span className="ed-import-cue-idx">#{idx + 1}</span>
-                  <span className="ed-import-cue-time">
-                    {formatTimecode(cue.start)} → {formatTimecode(cue.end)}
-                  </span>
-                  <span className="ed-import-cue-lang">{LANGUAGE_LABELS[cue.language]}</span>
-                  <span className="ed-import-cue-text">{cue.text}</span>
-                </div>
+            <ol className="ed-imp-preview-list">
+              {finalCues.slice(0, 30).map((cue) => (
+                <li key={cue.id}>
+                  <span className="ed-imp-time">{formatTimecode(cue.start)}</span>
+                  <span className="ed-imp-lang">{LANGUAGE_LABELS[cue.language]}</span>
+                  <span className="ed-imp-text" dir="auto">{cue.text}</span>
+                </li>
               ))}
-              {parsedCues.length > 15 && (
-                <div className="ed-import-preview-more">
-                  + {parsedCues.length - 15} more captions...
-                </div>
-              )}
-            </div>
-          </div>
+            </ol>
+            {finalCues.length > 30 && <p className="ed-help">+ {finalCues.length - 30} more</p>}
+          </section>
         )}
 
-        <div className="ed-import-footer">
-          <button type="button" className="ed-btn is-ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="ed-btn is-primary"
-            disabled={parsedCues.length === 0 || needsAlignment}
-            onClick={handleImport}
-          >
-            <Check size={14} /> Import {parsedCues.length > 0 ? `${parsedCues.length} Captions` : 'Captions'}
+        <div className="ed-imp-footer">
+          <button type="button" className="ed-btn is-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="ed-btn is-primary" disabled={finalCues.length === 0 || needsAlignment} onClick={handleImport}>
+            <Check size={14} aria-hidden="true" /> Import {finalCues.length > 0 ? `${finalCues.length} captions` : 'captions'}
           </button>
         </div>
       </div>

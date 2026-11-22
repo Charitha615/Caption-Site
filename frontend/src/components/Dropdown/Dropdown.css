@@ -94,3 +94,11 @@
     transform: translateY(0);
   }
 }
+
+/* Floating menu (portal): fixed to the viewport, above cards, modals' content and sticky bars. */
+.dropdown-menu.dropdown-menu-floating {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  z-index: 1100;
+}

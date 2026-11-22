@@ -5,6 +5,7 @@ import {
   parseSubtitles,
   repairSinhalaScript,
   splitTextIntoCues,
+  stripCaptionPunctuation,
 } from './importCaptions';
 
 describe('importCaptions utilities', () => {
@@ -68,5 +69,11 @@ Toyota Aqua වාහනය`;
     expect(parsed![0].text).toBe('ලංකාවේ තෙල් ප්‍රශ්නය');
     expect(parsed![1].start).toBe(4.6);
     expect(parsed![1].end).toBe(8.2);
+  });
+
+  it('removes dots, commas and symbols but keeps words, numbers and Sinhala joiners', () => {
+    expect(stripCaptionPunctuation('ආයුබෝවන්! මේ "Toyota Aqua"... හරිද?')).toBe('ආයුබෝවන් මේ Toyota Aqua හරිද');
+    expect(stripCaptionPunctuation('ප්‍රශ්නය — 2.5 lakhs, 50% off; it’s ok - well-known')).toBe('ප්‍රශ්නය 2.5 lakhs 50% off it’s ok well-known');
+    expect(stripCaptionPunctuation('...')).toBe('');
   });
 });

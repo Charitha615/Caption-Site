@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const captionApi = vi.hoisted(() => ({ alignScript: vi.fn() }));
@@ -41,17 +41,31 @@ describe('Import script → match speech', () => {
 
     await waitFor(() => expect(captionApi.alignScript).toHaveBeenCalledWith('p1', expect.stringContaining('Toyota Aqua'), true));
     expect(await screen.findByText(/3 of 4 words matched the speech/)).toBeInTheDocument();
-    expect(screen.getByText('මේ තමයි Toyota Aqua.')).toBeInTheDocument();
+    // Punctuation is removed by default; the preview shows what will be imported.
+    expect(screen.getByText('මේ තමයි Toyota Aqua')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /^Import\b/ }));
 
     const captions = useCaptionStore.getState().captions;
     expect(captions).toHaveLength(1);
-    expect(captions[0]).toMatchObject({ start: 2, end: 3.8, text: 'මේ තමයි Toyota Aqua.' });
+    expect(captions[0]).toMatchObject({ start: 2, end: 3.8, text: 'මේ තමයි Toyota Aqua' });
     expect(captions[0].words?.map((w) => w.start)).toEqual([2, 2.4, 2.9, 3.4]);
+    expect(captions[0].words?.[3].text).toBe('Aqua');
+    // The line exactly as provided is kept for review / restore.
+    expect(captions[0].meta).toMatchObject({ original_text: 'මේ තමයි Toyota Aqua.', source: { imported: 'script-matched' } });
 
     useCaptionStore.getState().undo();
     expect(useCaptionStore.getState().captions[0].text).toBe('old caption');
+  });
+
+  it('keeps punctuation when "Remove punctuation" is unchecked', async () => {
+    useEditorProjectStore.getState().setLoaded({ uuid: 'p1', name: 'P', duration: 30, settings: {}, isDemo: true, sourceWidth: 720, sourceHeight: 1280, hasServerVideo: false });
+    render(<ImportCaptionsDialog />);
+    await userEvent.type(screen.getByRole('textbox'), 'Hello, world!');
+    const preview = () => screen.getByRole('region', { name: 'Preview' });
+    expect(within(preview()).getByText('Hello world')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /remove punctuation/i }));
+    expect(within(preview()).getByText('Hello, world!')).toBeInTheDocument();
   });
 
   it('never turns part of a longer Sinhala word into English', () => {

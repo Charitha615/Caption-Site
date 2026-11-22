@@ -11,6 +11,24 @@ export interface ParsedImportCue {
   language: CaptionLanguage;
   /** Per-word timings when the cue was matched to speech. */
   words?: Array<{ text: string; start: number; end: number }>;
+  /** The line exactly as provided (before punctuation removal), kept for review/restore. */
+  original?: string;
+}
+
+/**
+ * Removes punctuation and symbols from a caption line (. , ! ? ; : quotes brackets dashes
+ * … ෴ * # etc.) while keeping marks that are part of a word: hyphens/apostrophes between
+ * letters ("X-Urban", "don't"), decimal points and separators inside numbers ("12.4", "1,500"),
+ * and Sinhala joiners (ZWJ/ZWNJ).
+ */
+export function stripCaptionPunctuation(input: string): string {
+  const L = '\\p{L}\\p{M}\\p{N}\\u200C\\u200D';
+  return input
+    .replace(new RegExp(`(?<=[${L}])['’\\-](?=[${L}])`, 'gu'), '\u0000$&') // protect in-word ' and -
+    .replace(/(?<=\d)[.,](?=\d)/gu, '\u0000$&') // protect 12.4 / 1,500
+    .replace(/\u0000(.)|[^\p{L}\p{M}\p{N}\s\u200C\u200D%&+@]/gu, (_m, kept) => kept ?? ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**

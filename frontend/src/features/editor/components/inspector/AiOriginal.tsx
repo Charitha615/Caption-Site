@@ -11,21 +11,22 @@ import type { CaptionSegment } from '../../model/types';
 export const AiOriginal = memo(function AiOriginal({ caption }: { caption: CaptionSegment }) {
   const meta = caption.meta ?? {};
   const original = typeof meta.original_text === 'string' ? meta.original_text : null;
-  const source = (meta.source ?? null) as { transcriber?: string; cleanup?: string } | null;
+  const source = (meta.source ?? null) as { transcriber?: string; cleanup?: string; imported?: string } | null;
   if (!source && original === null) return null;
 
   const differs = original !== null && original.normalize('NFC') !== caption.text.normalize('NFC');
   const cleanedByAi = meta.cleaned === true;
+  const imported = !!source?.imported;
 
   return (
     <div className="ed-ai-origin" role="note">
       <p className="ed-help">
-        <Sparkles size={12} aria-hidden="true" /> AI transcription
+        <Sparkles size={12} aria-hidden="true" /> {imported ? 'Imported script' : 'AI transcription'}
         {cleanedByAi ? ' · punctuation tidied by AI' : ''} — please check the words and timing.
       </p>
       {differs && (
         <div className="ed-ai-original">
-          <span className="ed-field-label">Originally transcribed</span>
+          <span className="ed-field-label">{imported ? 'Original script' : 'Originally transcribed'}</span>
           <p lang={caption.language === 'en' ? 'en' : 'si'} dir="auto">{original}</p>
           <button
             type="button"
