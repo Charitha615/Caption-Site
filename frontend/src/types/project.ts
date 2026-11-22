@@ -44,6 +44,8 @@ export interface Project {
   description?: string | null;
   /** The user gave their own script/captions; generation aligns it to the speech. */
   has_script?: boolean;
+  /** Names/special words the AI should spell exactly. */
+  vocabulary?: string | null;
   status: ProjectStatus;
   /** User-safe reason when status is 'failed'. */
   processing_error?: string | null;
@@ -92,6 +94,8 @@ export interface CreateProjectPayload {
   description?: string;
   /** The user's own script or captions (plain text). */
   script?: string;
+  /** Names and special words (brands, models, people) to spell exactly. */
+  vocabulary?: string;
   language?: string;
   duration?: number;
   settings?: Record<string, unknown>;
@@ -101,6 +105,7 @@ export interface UpdateProjectPayload {
   name?: string;
   description?: string;
   script?: string | null;
+  vocabulary?: string | null;
   language?: string;
   settings?: Record<string, unknown>;
 }

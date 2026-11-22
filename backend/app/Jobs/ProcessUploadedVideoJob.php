@@ -12,6 +12,7 @@ use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\AI\AIProviderFactory;
 use App\Services\AI\CaptionRefinerInterface;
+use App\Services\AI\GeminiMixedTranscriber;
 use App\Services\Caption\EnglishWords;
 use App\Services\Caption\ScriptAligner;
 use App\Services\Caption\SinhalaScriptRepair;
@@ -88,6 +89,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         try {
             $ai = $providers->forUser($user);
             $refiner = $providers->refinerForUser($user);
+            $mixed = $providers->mixedTranscriberForUser($user);
         } catch (UserFacingException $e) {
             $this->markFailed($project, $e->getMessage());
 
@@ -100,7 +102,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             $project->update(['processing_error' => null]);
             $this->phase($project, Project::STATUS_PROCESSING);
 
-            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $refiner, $storage, $usage) {
+            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $refiner, $mixed, $storage, $usage) {
                 // 1. Probe
                 $meta = $video->getMetadata($videoPath);
                 $media->update([
@@ -143,7 +145,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                     $usage->ensureCanRequestAI($user);
                     // With the user's own script, the transcript is only needed for speech timings.
                     $script = trim((string) $project->script);
-                    $result = $this->transcribe($ai, $refiner, $video, $storage, $usage, $user, $project, $audioTmp, (float) $meta['duration'] + $leadIn, review: $script === '');
+                    $result = $this->transcribe($ai, $refiner, $script === '' ? $mixed : null, $video, $storage, $usage, $user, $project, $audioTmp, (float) $meta['duration'] + $leadIn, review: $script === '');
                     $result = self::shiftTimeline($result, -$leadIn, (float) $meta['duration']);
                 } finally {
                     @unlink($audioTmp);
@@ -152,7 +154,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                 // 5. Store: reviewed text + re-derived word timings; the original transcription is kept.
                 $this->phase($project, Project::STATUS_GENERATING_CAPTIONS);
                 $cleaned = array_map(fn ($seg) => $seg['reviewed_text'] ?? $seg['text'], $result['segments']);
-                $scriptLines = $script !== '' ? $this->scriptCaptions($script, $result, (float) $meta['duration'], $refiner, $usage, $user, $project) : null;
+                $scriptLines = $script !== ''
+                    ? $this->scriptCaptions($script, $result, (float) $meta['duration'], $refiner, $usage, $user, $project)
+                    : ($result['lines'] ?? null); // mixed-script (Flash) captions, when used
                 $count = $this->storeCaptions($project, $media, $result, $cleaned, $ai->name(), $refiner->model(), $scriptLines);
                 if ($this->targetLanguage === 'auto' && in_array($result['language'], ['si', 'en'], true)) {
                     $project->update(['language' => $result['language']]); // detected language
@@ -242,6 +246,20 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             $segments[] = $seg;
         }
         $result['segments'] = $segments;
+        if (isset($result['lines'])) {
+            $lines = [];
+            foreach ($result['lines'] as $line) {
+                $line['start'] = $clamp((float) $line['start']);
+                $line['end'] = $clamp((float) $line['end']);
+                if ($line['end'] - $line['start'] < 0.05 && $line['start'] >= $duration) {
+                    continue;
+                }
+                $line['end'] = max($line['end'], min($duration, $line['start'] + 0.3));
+                $line['words'] = array_map(fn ($w) => ['start' => $clamp((float) $w['start']), 'end' => $clamp((float) $w['end'])] + $w, $line['words']);
+                $lines[] = $line;
+            }
+            $result['lines'] = $lines;
+        }
 
         return $result;
     }
@@ -253,9 +271,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
      * corrected words from the transcriber's word timestamps — then move on to the next part.
      * The transcriber's own text and words stay on each segment as the original.
      */
-    private function transcribe($ai, CaptionRefinerInterface $refiner, VideoServiceInterface $video, MediaStorage $storage, UsageService $usage, User $user, Project $project, string $audioPath, float $duration, bool $review = true): array
+    private function transcribe($ai, CaptionRefinerInterface $refiner, ?GeminiMixedTranscriber $mixed, VideoServiceInterface $video, MediaStorage $storage, UsageService $usage, User $user, Project $project, string $audioPath, float $duration, bool $review = true): array
     {
-        $target = min(1800, max(30, (int) config('ai.gemini.transcribe_chunk_seconds', 90)));
+        $target = min(1800, max(20, (int) config('ai.gemini.transcribe_chunk_seconds', 30)));
         $listen = (bool) config('ai.gemini.caption_review', true);
         $repair = app(SinhalaScriptRepair::class);
         $aligner = app(ScriptAligner::class);
@@ -268,7 +286,8 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                 : [['path' => $audioPath, 'offset' => 0.0, 'duration' => $duration]];
             $merged = ['text' => '', 'language' => $this->targetLanguage, 'segments' => [], 'usage' => []];
             $languages = [];
-            $stats = ['repaired' => 0, 'reviewed' => 0, 'english' => 0];
+            $stats = ['repaired' => 0, 'reviewed' => 0, 'english' => 0, 'mixed' => 0, 'mixed_rejected' => 0];
+            $lines = [];
 
             foreach ($parts as $n => $part) {
                 $this->progress($project, $n + 1, count($parts));
@@ -280,7 +299,10 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                 [$segments, $repaired] = $repair->repairSegments($segments);
                 $stats['repaired'] += $repaired;
 
-                if ($segments !== [] && $review) {
+                // Mixed-script words from the prompted Flash model, lined up with the heard words' timings.
+                $flashLines = $mixed ? $this->mixedLines($mixed, $part, $segments, $result['language'], $project, $usage, $user, $n + 1, $stats) : null;
+
+                if ($flashLines === null && $segments !== [] && $review) {
                     $reviewed = $refiner->refine($segments, $result['language'], $listen ? $part['path'] : null);
                     if ($refiner->model()) {
                         $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $listen ? 'gemini-review' : 'gemini-cleanup', 'model' => $refiner->model(), 'part' => $n + 1]);
@@ -310,6 +332,23 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 
                 $offset = (float) $part['offset'];
                 $shift = fn (array $words) => array_map(fn ($w) => ['start' => round($w['start'] + $offset, 3), 'end' => round($w['end'] + $offset, 3)] + $w, $words);
+
+                // Caption lines for this part: Flash words, or (fallback) the reviewed transcription.
+                foreach ($flashLines ?? array_map(fn ($seg) => [
+                    'start' => (float) $seg['start'],
+                    'end' => (float) $seg['end'],
+                    'text' => $seg['reviewed_text'] ?? $seg['text'],
+                    'original' => $seg['transcribed_text'] ?? $seg['text'],
+                    'language' => $seg['language'],
+                    'words' => array_map(fn ($w) => ['word' => (string) ($w['word'] ?? $w['text'] ?? ''), 'start' => (float) $w['start'], 'end' => (float) $w['end']], $seg['reviewed_words'] ?? $seg['words'] ?? []),
+                    'source' => ['transcriber' => $ai->name()],
+                    'meta' => array_filter(['reviewed' => isset($seg['reviewed_text']) ? true : null, 'speaker' => $seg['speaker'] ?? null]),
+                ], $segments) as $line) {
+                    $line['start'] = round($line['start'] + $offset, 3);
+                    $line['end'] = round($line['end'] + $offset, 3);
+                    $line['words'] = $shift($line['words']);
+                    $lines[] = $line;
+                }
                 foreach ($segments as $seg) {
                     $seg['start'] = round($seg['start'] + $offset, 3);
                     $seg['end'] = round($seg['end'] + $offset, 3);
@@ -328,12 +367,66 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             } elseif (count($languages) === 1) {
                 $merged['language'] = $languages[0];
             }
-            AppLog::info('pipeline.transcribed', ['project' => $project->uuid, 'parts' => count($parts), 'lines' => count($merged['segments'])] + $stats);
+            if ($stats['mixed'] > 0) {
+                $merged['lines'] = $lines;
+            }
+            AppLog::info('pipeline.transcribed', ['project' => $project->uuid, 'parts' => count($parts), 'lines' => count($lines)] + $stats);
 
             return $merged;
         } finally {
             File::deleteDirectory($dir);
         }
+    }
+
+    /**
+     * One part with the prompted Flash model: its mixed-script words, repaired and with the
+     * English word list applied, lined up with the words the transcribe model heard (exact
+     * timings; words it missed are placed in the gaps). Null → use the transcription instead.
+     *
+     * @return list<array<string, mixed>>|null caption lines, part-relative times
+     */
+    private function mixedLines(GeminiMixedTranscriber $mixed, array $part, array $segments, string $language, Project $project, UsageService $usage, User $user, int $partNumber, array &$stats): ?array
+    {
+        $speech = collect($segments)
+            ->flatMap(fn ($seg) => $seg['words'] ?? [])
+            ->filter(fn ($w) => isset($w['start'], $w['end']) && trim((string) ($w['word'] ?? $w['text'] ?? '')) !== '')
+            ->map(fn ($w) => ['word' => (string) ($w['word'] ?? $w['text']), 'start' => (float) $w['start'], 'end' => (float) $w['end']])
+            ->sortBy('start')->values()->all();
+
+        $usage->ensureCanRequestAI($user);
+        $text = $mixed->transcribe($part['path'], $language, (string) $project->vocabulary);
+        if ($mixed->model()) {
+            $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => 'gemini-mixed', 'model' => $mixed->model(), 'part' => $partNumber]);
+        }
+        if ($text === null) {
+            return null; // every model busy: fall back to the transcription
+        }
+        if ($text === '' && $speech === []) {
+            $stats['mixed']++;
+
+            return []; // no speech in this part
+        }
+        if (! GeminiMixedTranscriber::plausible($text, count($speech), (float) $part['duration'])) {
+            $stats['mixed_rejected']++;
+            AppLog::warning('pipeline.mixed_rejected', ['project' => $project->uuid, 'part' => $partNumber, 'heard_words' => count($speech), 'flash_words' => count(preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [])]);
+
+            return null;
+        }
+
+        $text = app(EnglishWords::class)->apply(app(SinhalaScriptRepair::class)->repair($text));
+        $aligned = app(ScriptAligner::class)->align($text, $speech, (float) $part['duration'], $language);
+        $stats['mixed']++;
+
+        return array_map(fn ($seg) => [
+            'start' => (float) $seg['start'],
+            'end' => (float) $seg['end'],
+            'text' => $seg['text'],
+            'original' => $seg['text'],
+            'language' => $seg['language'],
+            'words' => $seg['words'],
+            'source' => ['transcriber' => $mixed->model(), 'timing' => 'gemini-transcribe'],
+            'meta' => ['matched_words' => $aligned['stats']['matched'], 'placed_words' => $aligned['stats']['placed']],
+        ], $aligned['segments']);
     }
 
     public static function progressKey(Project $project): string
@@ -437,8 +530,8 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                     'metadata' => json_encode([
                         'words' => $line['words'],
                         'original_text' => $line['original'],
-                        'source' => ['imported' => 'script', 'transcriber' => $transcriber],
-                    ], JSON_UNESCAPED_UNICODE),
+                        'source' => $line['source'] ?? ['imported' => 'script', 'transcriber' => $transcriber],
+                    ] + ($line['meta'] ?? []), JSON_UNESCAPED_UNICODE),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];

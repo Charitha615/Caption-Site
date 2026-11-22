@@ -41,6 +41,7 @@ class Project extends Model
         'name',
         'description',
         'script',
+        'vocabulary',
         'status',
         'processing_error',
         'duration',

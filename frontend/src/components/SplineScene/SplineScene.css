@@ -1,0 +1,8 @@
+.spline-scene-fallback { width: 100%; height: 100%; display: grid; place-items: center; }
+.spline-scene-loader {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 3px solid var(--brand-primary-light); border-top-color: var(--brand-primary);
+  animation: spline-spin 0.9s linear infinite;
+}
+@keyframes spline-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spline-scene-loader { animation-duration: 2.4s; } }

@@ -19,6 +19,7 @@ class UpdateProjectRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'script' => ['nullable', 'string', 'max:30000'],
+            'vocabulary' => ['nullable', 'string', 'max:1000'],
             'language' => ['sometimes', 'string', 'in:si,en,auto'],
             'settings' => ['sometimes', 'array', new JsonSize(256 * 1024)],
         ];

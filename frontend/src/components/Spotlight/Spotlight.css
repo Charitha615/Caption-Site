@@ -1,0 +1,10 @@
+.spotlight {
+  position: absolute; left: 0; top: 0; z-index: 0;
+  border-radius: 50%; pointer-events: none;
+  transform: translate(var(--spot-x, -9999px), var(--spot-y, -9999px));
+  background: radial-gradient(circle at center, rgba(139, 92, 246, 0.45), rgba(251, 191, 36, 0.12) 45%, transparent 75%);
+  filter: blur(24px);
+  opacity: 0; transition: opacity 0.25s ease;
+}
+.spotlight.is-active { opacity: 1; }
+@media (hover: none) { .spotlight { display: none; } }

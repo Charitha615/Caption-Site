@@ -15,6 +15,7 @@ class UpdateProjectAction
             'name',
             'description',
             'script',
+            'vocabulary',
             'language',
             'settings',
         ]));

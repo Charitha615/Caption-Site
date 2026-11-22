@@ -41,6 +41,7 @@ export const CreateProjectPage: React.FC = () => {
   const [name, setName] = useState('');
   const [script, setScript] = useState('');
   const [scriptFile, setScriptFile] = useState<string | null>(null);
+  const [vocabulary, setVocabulary] = useState('');
   // The spoken language (Sinhala, English or mixed) is detected while processing.
   const language = 'auto';
   const scriptInputRef = useRef<HTMLInputElement>(null);
@@ -117,7 +118,7 @@ export const CreateProjectPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const scriptText = scriptFromInput(script).trim();
-      const created = project ?? (await createProject({ name: name.trim(), script: scriptText || undefined, language }));
+      const created = project ?? (await createProject({ name: name.trim(), script: scriptText || undefined, vocabulary: vocabulary.trim() || undefined, language }));
       setProject(created);
       await runUpload(created, file);
     } catch (err) {
@@ -252,6 +253,15 @@ export const CreateProjectPage: React.FC = () => {
             <Languages size={16} aria-hidden="true" />
             <span><strong>Spoken language is detected automatically</strong> — Sinhala, English or both mixed.</span>
           </p>
+
+          <Input
+            label="Names & special words (optional)"
+            placeholder="e.g. Toyota Aqua, X Urban, Talk and Tune, Kasun"
+            value={vocabulary}
+            maxLength={1000}
+            onChange={(e) => setVocabulary(e.target.value)}
+            helperText="Brands, models, people or places in the video — the AI will spell them exactly like this."
+          />
 
           <div className="input-group">
             <div className="create-script-head">

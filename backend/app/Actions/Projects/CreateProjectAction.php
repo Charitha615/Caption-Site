@@ -19,6 +19,7 @@ class CreateProjectAction
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'script' => filled($data['script'] ?? null) ? trim($data['script']) : null,
+            'vocabulary' => filled($data['vocabulary'] ?? null) ? trim($data['vocabulary']) : null,
             'status' => Project::STATUS_DRAFT,
             'language' => $data['language'] ?? 'auto',
             'duration' => 0.0,

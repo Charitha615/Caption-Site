@@ -13,6 +13,8 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@splinetool/react-spline": "^4.2.0",
+    "@splinetool/runtime": "^2.0.211",
     "axios": "^1.20.0",
     "lucide-react": "^1.56.0",
     "react": "^19.2.8",

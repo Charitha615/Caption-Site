@@ -64,6 +64,16 @@ class AIProviderFactory
         return new GeminiCaptionRefiner($this->keyFor($user)[0]);
     }
 
+    /** Prompted Flash transcription that keeps English words in English letters, or null when off / not Gemini. */
+    public function mixedTranscriberForUser(User $user): ?GeminiMixedTranscriber
+    {
+        if (! $this->usesUserKeys() || ! config('ai.gemini.mixed_transcription', true)) {
+            return null;
+        }
+
+        return new GeminiMixedTranscriber($this->keyFor($user)[0]);
+    }
+
     /** @return array{0: string, 1: bool} */
     private function keyFor(User $user): array
     {

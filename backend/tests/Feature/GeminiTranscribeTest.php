@@ -166,7 +166,7 @@ class GeminiTranscribeTest extends TestCase
     public function test_pipeline_transcribes_and_reviews_each_part_keeping_the_original(): void
     {
         Storage::fake('local');
-        config(['ai.gemini.transcribe_chunk_seconds' => 60]);
+        config(['ai.gemini.transcribe_chunk_seconds' => 60, 'ai.gemini.mixed_transcription' => false]);
         $this->app->instance(VideoServiceInterface::class, new class implements VideoServiceInterface
         {
             public function getMetadata(string $filePath): array
@@ -305,5 +305,69 @@ class GeminiTranscribeTest extends TestCase
         $this->assertSame(['මේ Toyota Aqua එක'], $lines);
         $this->assertSame('gemini-flash-latest', $refiner->model());
         @unlink($audio);
+    }
+
+    public function test_flash_writes_mixed_script_words_timed_by_the_transcribe_model(): void
+    {
+        Storage::fake('local');
+        config(['ai.gemini.mixed_models' => ['gemini-3.5-flash']]);
+        $this->app->instance(VideoServiceInterface::class, new class implements VideoServiceInterface
+        {
+            public function getMetadata(string $filePath): array
+            {
+                return ['duration' => 12.0, 'width' => 720, 'height' => 1280, 'fps' => 30.0, 'codec' => 'h264', 'audio_codec' => 'aac', 'sample_rate' => 48000, 'channels' => 1, 'has_audio' => true];
+            }
+
+            public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string
+            {
+                file_put_contents($outputPath, 'audio');
+
+                return $outputPath;
+            }
+
+            public function splitAudio(string $audioPath, float $totalSeconds, int $seconds, string $outputDir): array
+            {
+                return [];
+            }
+
+            public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool
+            {
+                return false;
+            }
+        });
+        // The transcribe model hears 3 words and writes the English brand in Sinhala letters;
+        // it also misses "මගේ" and "hybrid".
+        $this->fakeTranscribe([['ආයුබෝවන්', 1.0, 1.6], ['ටොයොටා', 2.0, 2.4], ['මිතුරනි', 3.0, 3.6]]);
+        Http::fake([
+            'gemini.test/v1beta/models/gemini-3.5-flash:generateContent' => Http::response(['candidates' => [['content' => ['parts' => [
+                ['text' => 'thinking…', 'thought' => true],
+                ['text' => "ආයුබෝවන් මගේ Toyota hybrid මිතුරනි\n"],
+            ]]]]]),
+        ]);
+
+        $owner = User::factory()->create();
+        $owner->forceFill(['gemini_api_key' => self::KEY, 'gemini_key_hint' => 'abcd', 'gemini_key_status' => 'valid'])->save();
+        $project = Project::factory()->create(['user_id' => $owner->id, 'status' => Project::STATUS_UPLOADED, 'vocabulary' => 'Toyota Aqua, Talk and Tune']);
+        Storage::disk('local')->put('media/v.mp4', 'v');
+        $media = MediaFile::create(['project_id' => $project->id, 'file_path' => 'media/v.mp4', 'file_name' => 'v.mp4', 'original_name' => 'v.mp4', 'disk' => 'local', 'mime_type' => 'video/mp4', 'file_size' => 1]);
+
+        ProcessUploadedVideoJob::dispatchSync($project, $media, 'auto');
+
+        $this->assertSame(Project::STATUS_READY, $project->fresh()->status, (string) $project->fresh()->processing_error);
+        $captions = Caption::where('project_id', $project->id)->orderBy('sequence')->get();
+        $this->assertSame('ආයුබෝවන් මගේ Toyota hybrid මිතුරනි', $captions->pluck('text')->implode(' '));
+
+        $words = collect($captions)->flatMap(fn ($c) => $c->metadata['words'])->keyBy('word');
+        $this->assertEquals(0.0, $words['ආයුබෝවන්']['start'], 'heard word keeps its time (minus the 1 s lead-in)');
+        $this->assertEquals(1.0, $words['Toyota']['start'], '"Toyota" matched to the heard "ටොයොටා"');
+        $this->assertEquals(2.0, $words['මිතුරනි']['start']);
+        $this->assertTrue($words['hybrid']['start'] >= 1.4 && $words['hybrid']['end'] <= 2.0, 'missed word placed in the gap');
+        $this->assertSame('gemini-3.5-flash', $captions[0]->metadata['source']['transcriber']);
+
+        $this->assertSame('ආයුබෝවන් ටොයොටා මිතුරනි', Transcript::where('project_id', $project->id)->value('raw_text'), 'what the transcribe model heard is kept');
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'gemini-3.5-flash:generateContent')
+            && str_contains($r['contents'][0]['parts'][1]['text'], 'මට Door එක අරගන්න ඕන')
+            && str_contains($r['contents'][0]['parts'][1]['text'], 'Toyota Aqua, Talk and Tune'));
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'gemini-3.8-flash'), 'no separate review needed');
     }
 }

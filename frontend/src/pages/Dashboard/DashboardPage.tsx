@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Plus, Timer, UploadCloud, Wand2, Download } from 'lucide-react';
+import { CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Plus, UploadCloud, Wand2, Download } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useUsageStore, meterPercent } from '../../stores/usageStore';
+import { useUsageStore } from '../../stores/usageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { Button } from '../../components/Button/Button';
@@ -11,11 +11,12 @@ import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { RetryState } from '../../components/RetryState/RetryState';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
-import { Progress } from '../../components/Progress/Progress';
+import { SplineScene } from '../../components/SplineScene/SplineScene';
+import { Spotlight } from '../../components/Spotlight/Spotlight';
 import { ProjectCard } from '../../features/projects/ProjectCard';
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { toAppError } from '../../services/errors';
-import type { Project, UsageMeter } from '../../types/project';
+import type { Project } from '../../types/project';
 import './DashboardPage.css';
 
 const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode }> = ({ icon, label, value }) => (
@@ -28,15 +29,7 @@ const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: React.Re
   </div>
 );
 
-const Meter: React.FC<{ label: string; meter: UsageMeter; unit?: string }> = ({ label, meter, unit = '' }) => {
-  const pct = meterPercent(meter.used, meter.limit);
-  const detail = meter.limit === null ? `${meter.used}${unit} · unlimited` : `${meter.used}${unit} of ${meter.limit}${unit}`;
-  return pct === null ? (
-    <div className="dash-meter-unlimited"><span>{label}</span><span>{detail}</span></div>
-  ) : (
-    <Progress label={label} value={pct} detail={detail} size="sm" tone={pct >= 90 ? 'warning' : 'primary'} />
-  );
-};
+const HERO_SCENE = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode';
 
 export const DashboardPage: React.FC = () => {
   useDocumentTitle('Dashboard');
@@ -85,21 +78,28 @@ export const DashboardPage: React.FC = () => {
   }
 
   const summary = dashboardData?.summary;
-  const usage = dashboardData?.usage;
+  const maxUploadMb = dashboardData?.usage?.max_upload_mb;
   const projects = dashboardData?.recent_projects ?? [];
   const firstName = user?.name?.split(' ')[0];
 
   return (
     <div className="dash">
-      <header className="dash-header">
-        <div>
+      <section className="dash-hero" aria-labelledby="dash-hero-title">
+        <Spotlight />
+        <div className="dash-hero-copy">
           <p className="dash-greeting">Welcome back{firstName ? `, ${firstName}` : ''}</p>
-          <h2 className="page-heading">What will you caption today?</h2>
+          <h2 id="dash-hero-title" className="dash-hero-title">What will you caption today?</h2>
+          <p className="dash-hero-text">
+            Upload a video and get accurately timed Sinhala or English captions, then style and export them in the studio.
+          </p>
+          <Button variant="accent" startIcon={<Plus size={18} aria-hidden="true" />} onClick={() => navigate('/projects/create')}>
+            New project
+          </Button>
         </div>
-        <Button variant="accent" startIcon={<Plus size={18} aria-hidden="true" />} onClick={() => navigate('/projects/create')}>
-          New project
-        </Button>
-      </header>
+        <div className="dash-hero-scene" aria-hidden="true">
+          <SplineScene scene={HERO_SCENE} className="dash-hero-canvas" />
+        </div>
+      </section>
 
       <AiKeyNotice />
 
@@ -116,35 +116,15 @@ export const DashboardPage: React.FC = () => {
         )}
       </section>
 
-      <div className="dash-grid">
-        <section className="dash-card" aria-labelledby="usage-title">
-          <div className="dash-card-head">
-            <h3 id="usage-title"><Timer size={16} aria-hidden="true" /> This month</h3>
-            {usage && <span className="dash-plan-chip">{usage.plan.label} plan</span>}
-          </div>
-          {usage ? (
-            <div className="dash-meters">
-              <Meter label="Caption minutes" meter={usage.caption_minutes} />
-              <Meter label="AI requests today" meter={usage.ai_requests_today} />
-              <Meter label="Video renders" meter={usage.renders} />
-              <Meter label="Storage" meter={usage.storage_mb} unit=" MB" />
-            </div>
-          ) : (
-            <Skeleton height={150} />
-          )}
-          <Link to="/profile" className="dash-card-link">See usage details</Link>
-        </section>
-
-        <section className="dash-card dash-howto" aria-labelledby="howto-title">
-          <h3 id="howto-title" className="dash-card-head">Getting started</h3>
-          <ol className="dash-steps">
-            <li><KeyRound size={18} aria-hidden="true" /> <span><strong>Add</strong> your Google AI key in <Link to="/profile#ai-key">Account &amp; usage</Link></span></li>
-            <li><UploadCloud size={18} aria-hidden="true" /> <span><strong>Upload</strong> a video (resumable, up to {usage?.max_upload_mb ?? 500} MB)</span></li>
-            <li><Wand2 size={18} aria-hidden="true" /> <span><strong>Review</strong> the AI captions in the studio editor</span></li>
-            <li><Download size={18} aria-hidden="true" /> <span><strong>Export</strong> SRT, VTT, TXT or a captioned MP4</span></li>
-          </ol>
-        </section>
-      </div>
+      <section className="dash-card dash-howto" aria-labelledby="howto-title">
+        <h3 id="howto-title" className="dash-card-head">Getting started</h3>
+        <ol className="dash-steps">
+          <li><KeyRound size={18} aria-hidden="true" /> <span><strong>Add</strong> your Google AI key in <Link to="/profile#ai-key">Account &amp; usage</Link></span></li>
+          <li><UploadCloud size={18} aria-hidden="true" /> <span><strong>Upload</strong> a video (resumable, up to {maxUploadMb ?? 500} MB)</span></li>
+          <li><Wand2 size={18} aria-hidden="true" /> <span><strong>Review</strong> the AI captions in the studio editor</span></li>
+          <li><Download size={18} aria-hidden="true" /> <span><strong>Export</strong> SRT, VTT, TXT or a captioned MP4</span></li>
+        </ol>
+      </section>
 
       <section aria-labelledby="recent-title">
         <div className="dash-section-head">

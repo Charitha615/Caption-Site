@@ -15,6 +15,7 @@ class ProjectResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'has_script' => filled($this->script),
+            'vocabulary' => $this->vocabulary,
             'status' => $this->status,
             'processing_error' => $this->status === 'failed' ? $this->processing_error : null,
             'duration' => $this->duration,

@@ -40,9 +40,10 @@ describe('Create a project', () => {
     const file = new File([new Uint8Array(2048)], 'clip.mp4', { type: 'video/mp4' });
     await userEvent.upload(container.querySelector('#video-file-input') as HTMLInputElement, file);
     await userEvent.type(screen.getByLabelText(/your script or captions/i), 'මේ තමයි Toyota Aqua.');
+    await userEvent.type(screen.getByLabelText(/names & special words/i), 'Toyota Aqua, X Urban');
     await userEvent.click(screen.getByRole('button', { name: /upload & generate captions/i }));
 
-    expect(createProject).toHaveBeenCalledWith({ name: 'clip', script: 'මේ තමයි Toyota Aqua.', language: 'auto' });
+    expect(createProject).toHaveBeenCalledWith({ name: 'clip', script: 'මේ තමයි Toyota Aqua.', vocabulary: 'Toyota Aqua, X Urban', language: 'auto' });
     expect(upload.language).toBe('auto');
   });
 

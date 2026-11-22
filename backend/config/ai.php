@@ -39,6 +39,12 @@ return [
         'caption_cleanup' => (bool) env('GEMINI_CAPTION_CLEANUP', true),
         // Clean-up is optional polish: give up quickly when the text model is slow.
         'cleanup_timeout' => (int) env('GEMINI_CLEANUP_TIMEOUT', 45),
+        // Mixed-script transcription (like sincap.cc / AutoSubs-Gemini): a prompted Flash model writes
+        // each ~30 s part's words, Sinhala in Sinhala letters and English in English letters; the
+        // transcribe model above only supplies the word timings these words are lined up with.
+        'mixed_transcription' => (bool) env('GEMINI_MIXED_TRANSCRIPTION', true),
+        'mixed_models' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEMINI_MIXED_MODELS', 'gemini-3.5-flash,gemini-3.6-flash'))))),
+        'mixed_timeout' => (int) env('GEMINI_MIXED_TIMEOUT', 60),
         // Listening review: after each audio part is transcribed, the text model hears that part
         // and corrects its lines (misheard Sinhala, English words, missing words).
         'caption_review' => (bool) env('GEMINI_CAPTION_REVIEW', true),
@@ -49,7 +55,7 @@ return [
         // Audio is transcribed and reviewed in parts of about this many seconds, cut at natural
         // pauses. Short parts are more accurate (fewer skipped/misheard words) and each one is
         // reviewed against its own audio before moving on. Max 1800 (30 min per request).
-        'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 90),
+        'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 30),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
         // Seconds to wait for one model's answer. A 2–3 minute video normally takes well under a minute; overloads are retried by the job.

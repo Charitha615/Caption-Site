@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => {
             if (id.includes('node_modules')) {
               if (/[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react'
               if (id.includes('lucide-react')) return 'icons'
+              // Spline (3D runtime) is huge — keep it out of vendor so only the dashboard hero loads it.
+              if (id.includes('@splinetool')) return 'spline'
               return 'vendor'
             }
           },
