@@ -6,7 +6,7 @@ export const GAMES: Array<{ id: GameId; name: string; emoji: string; blurb: stri
 ];
 
 /** Seconds of waiting before we offer a game. */
-export const OFFER_AFTER_SECONDS = 30;
+export const OFFER_AFTER_SECONDS = 15;
 
 const DISMISS_KEY = 'wait-game-offer-dismissed';
 export const offerDismissed = () => {
