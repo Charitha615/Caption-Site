@@ -18,14 +18,23 @@ export interface DropdownProps {
   items: DropdownItem[];
   align?: 'left' | 'right';
   triggerClassName?: string;
+  onOpenChange?: (isOpen: boolean) => void;
 }
 
 /**
  * Menu button (WAI-ARIA pattern): Enter/Space/↓ opens, ↑/↓ move, Esc closes and
  * returns focus to the trigger, click outside closes.
  */
-export const Dropdown: React.FC<DropdownProps> = ({ trigger, label, items, align = 'right', triggerClassName = '' }) => {
+export const Dropdown: React.FC<DropdownProps> = ({
+  trigger,
+  label,
+  items,
+  align = 'right',
+  triggerClassName = '',
+  onOpenChange,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -39,14 +48,31 @@ export const Dropdown: React.FC<DropdownProps> = ({ trigger, label, items, align
   };
 
   useEffect(() => {
-    if (!isOpen) return;
+    onOpenChange?.(isOpen);
+    if (!isOpen) {
+      setOpenUpward(false);
+      return;
+    }
+
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // If cramped below (< 160px) and there's more room above, flip upward
+      if (spaceBelow < 160 && spaceAbove > spaceBelow) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     focusItem('first'); // menu is in the DOM once this effect runs
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, onOpenChange]);
 
   const close = () => {
     setIsOpen(false);
@@ -55,7 +81,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ trigger, label, items, align
 
   return (
     <div
-      className="dropdown-wrapper"
+      className={`dropdown-wrapper ${isOpen ? 'is-open' : ''}`}
       ref={containerRef}
       onKeyDown={(e) => {
         if (!isOpen) return;
@@ -93,7 +119,13 @@ export const Dropdown: React.FC<DropdownProps> = ({ trigger, label, items, align
       </button>
 
       {isOpen && (
-        <div id={menuId} className="dropdown-menu" role="menu" aria-label={label} style={{ [align === 'left' ? 'left' : 'right']: 0 }}>
+        <div
+          id={menuId}
+          className={`dropdown-menu ${openUpward ? 'dropdown-menu-upward' : ''}`}
+          role="menu"
+          aria-label={label}
+          style={{ [align === 'left' ? 'left' : 'right']: 0 }}
+        >
           {items.map((item) =>
             item.divider ? (
               <div key={item.key} className="dropdown-divider" role="separator" />

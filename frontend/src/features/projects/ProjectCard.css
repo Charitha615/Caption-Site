@@ -1,8 +1,8 @@
 .project-card {
+  position: relative;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
@@ -13,6 +13,21 @@
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
   border-color: var(--brand-primary-border);
+  z-index: 2;
+}
+
+.project-card:focus-within {
+  border-color: var(--brand-primary-border);
+  z-index: 3;
+}
+
+/* Ensure the card whose dropdown menu is open sits above sibling cards in the grid */
+.project-card.has-dropdown-open,
+.project-card:has([aria-expanded="true"]) {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--brand-primary-border);
+  z-index: 50;
 }
 
 .project-thumbnail-wrapper {
@@ -21,6 +36,8 @@
   aspect-ratio: 16 / 9;
   background-color: var(--color-dark);
   overflow: hidden;
+  border-top-left-radius: calc(var(--radius-xl) - 1px);
+  border-top-right-radius: calc(var(--radius-xl) - 1px);
 }
 
 .project-thumbnail-img {
@@ -74,6 +91,8 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  border-bottom-left-radius: calc(var(--radius-xl) - 1px);
+  border-bottom-right-radius: calc(var(--radius-xl) - 1px);
 }
 
 .project-title-row {

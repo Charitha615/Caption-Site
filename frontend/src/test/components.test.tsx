@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog/ConfirmDialog';
 import { Progress } from '../components/Progress/Progress';
 import { Dropdown } from '../components/Dropdown/Dropdown';
+import { ProjectCard } from '../features/projects/ProjectCard';
+import type { Project } from '../types/project';
 import { validateVideoFile } from '../utils/video';
 
 describe('ConfirmDialog', () => {
@@ -72,6 +75,52 @@ describe('Dropdown', () => {
     await userEvent.keyboard('{Enter}');
     expect(onClick).toHaveBeenCalled();
     expect(trigger).toHaveFocus();
+  });
+});
+
+describe('ProjectCard', () => {
+  const mockProject: Project = {
+    id: 1,
+    uuid: 'test-uuid-123',
+    name: 'Sinhala Car Review',
+    status: 'ready',
+    duration: 120,
+    language: 'si',
+    created_at: '2026-11-22T10:00:00Z',
+    updated_at: '2026-11-22T10:00:00Z',
+  };
+
+  it('renders card and displays all 3 action items when 3 dots menu is opened', async () => {
+    const onDelete = vi.fn();
+    const { container } = render(
+      <MemoryRouter>
+        <ProjectCard project={mockProject} onDelete={onDelete} />
+      </MemoryRouter>
+    );
+
+    const card = container.querySelector('.project-card');
+    expect(card).toBeInTheDocument();
+    expect(card).not.toHaveClass('has-dropdown-open');
+
+    // Click 3 dots button
+    const actionsBtn = screen.getByRole('button', { name: `Actions for ${mockProject.name}` });
+    await userEvent.click(actionsBtn);
+
+    // Card should have has-dropdown-open class for z-index elevating
+    expect(card).toHaveClass('has-dropdown-open');
+
+    // All 3 items should be visible and rendered
+    const openEditor = await screen.findByRole('menuitem', { name: 'Open editor' });
+    const projectDetails = screen.getByRole('menuitem', { name: 'Project details' });
+    const deleteProject = screen.getByRole('menuitem', { name: 'Delete project' });
+
+    expect(openEditor).toBeInTheDocument();
+    expect(projectDetails).toBeInTheDocument();
+    expect(deleteProject).toBeInTheDocument();
+
+    // Clicking delete item triggers onDelete callback
+    await userEvent.click(deleteProject);
+    expect(onDelete).toHaveBeenCalledWith(mockProject);
   });
 });
 

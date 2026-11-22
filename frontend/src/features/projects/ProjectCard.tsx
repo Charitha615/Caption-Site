@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   MoreVertical,
@@ -20,6 +20,7 @@ export interface ProjectCardProps {
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) => {
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const langInfo = getLanguageLabel(project.language);
 
   const getStatusBadge = (status: Project['status']) => {
@@ -92,10 +93,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
     },
   ];
 
+  const handleCardClick = () => {
+    // If the dropdown menu is open, clicking on the card dismisses the menu without triggering navigation
+    if (isMenuOpen) return;
+    navigate(`/projects/${project.uuid}`);
+  };
+
   return (
     // The whole card is clickable for pointer users; keyboard users reach the title link
     // and the actions menu (no nested interactive roles).
-    <article className="project-card" onClick={() => navigate(`/projects/${project.uuid}`)}>
+    <article
+      className={`project-card ${isMenuOpen ? 'has-dropdown-open' : ''}`}
+      onClick={handleCardClick}
+    >
       {/* Video Thumbnail */}
       <div className="project-thumbnail-wrapper">
         <div className="project-thumbnail-fallback">
@@ -140,6 +150,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDelete }) =
               label={`Actions for ${project.name}`}
               triggerClassName="project-actions-btn"
               trigger={<MoreVertical size={16} aria-hidden="true" />}
+              onOpenChange={setIsMenuOpen}
             />
           </div>
         </div>

@@ -24,11 +24,17 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   padding: 6px;
   display: flex;
   flex-direction: column;
   animation: dropdownFade 0.15s ease-out;
+}
+
+.dropdown-menu-upward {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation: dropdownFadeUp 0.15s ease-out;
 }
 
 .dropdown-item {
@@ -71,6 +77,17 @@
   from {
     opacity: 0;
     transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dropdownFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
