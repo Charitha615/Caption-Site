@@ -42,7 +42,7 @@ return [
         // Listening review: after each audio part is transcribed, the text model hears that part
         // and corrects its lines (misheard Sinhala, English words, missing words).
         'caption_review' => (bool) env('GEMINI_CAPTION_REVIEW', true),
-        'review_timeout' => (int) env('GEMINI_REVIEW_TIMEOUT', 90),
+        'review_timeout' => (int) env('GEMINI_REVIEW_TIMEOUT', 60),
         'review_max_bytes' => (int) env('GEMINI_REVIEW_MAX_BYTES', 8 * 1024 * 1024),
         // Label speakers (spk_1, spk_2 …) in the transcript.
         'diarization' => (bool) env('GEMINI_DIARIZATION', true),
@@ -55,7 +55,7 @@ return [
         // Seconds to wait for one model's answer. A 2–3 minute video normally takes well under a minute; overloads are retried by the job.
         'timeout' => (int) env('GEMINI_TIMEOUT', 120),
         // Tried in order when the main model is overloaded or times out (comma-separated).
-        'fallback_models' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-flash-latest'))))),
+        'fallback_models' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash'))))),
         // Model "thinking" for transcription: low (fast, default), high, or default (model's own).
         'thinking' => env('GEMINI_THINKING', 'low'),
         // Audio up to this size is sent inline; larger files use the Files API.

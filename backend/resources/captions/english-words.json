@@ -1,6 +1,9 @@
 {
-  "_comment": "English words often spoken inside Sinhala speech, as speech models write them in Sinhala letters. Key = English spelling to show; value = Sinhala spellings (matched as whole words, ZWJ-insensitive). Only unambiguous loanwords belong here.",
+  "_comment": "English words often spoken inside Sinhala speech, as speech models write them in Sinhala letters. Key = English spelling to show; value = Sinhala spellings (matched as whole words, ZWJ-insensitive). Only unambiguous loanwords belong here. A Sinhala ending stuck to a listed word is kept (පොපියුලර්ම → popularම); a plural ස් becomes s (ඔප්ෂන්ස් → options).",
   "words": {
+    "low ground clearance": [
+      "ලෝ ග්‍රවුන්ඩ් ක්ලියරන්ස්"
+    ],
     "phone": [
       "ෆෝන්",
       "ෆොන්"
@@ -44,7 +47,8 @@
       "කමෙන්ට්ස්"
     ],
     "follow": [
-      "ෆලෝ"
+      "ෆලෝ",
+      "ෆොලෝ"
     ],
     "page": [
       "පේජ්"
@@ -120,7 +124,8 @@
     ],
     "battery": [
       "බැටරි",
-      "බැටරිය"
+      "බැටරිය",
+      "බැට්‍රි"
     ],
     "charge": [
       "චාජ්"
@@ -153,7 +158,8 @@
       "එන්ජින්"
     ],
     "hybrid": [
-      "හයිබ්‍රිඩ්"
+      "හයිබ්‍රිඩ්",
+      "හයිබ්‍රීඩ්"
     ],
     "electric": [
       "ඉලෙක්ට්‍රික්"
@@ -189,7 +195,8 @@
       "මෝඩල්"
     ],
     "mileage": [
-      "මයිලේජ්"
+      "මයිලේජ්",
+      "මයිලේජ"
     ],
     "traffic": [
       "ට්‍රැෆික්"
@@ -596,6 +603,493 @@
     ],
     "Dubai": [
       "ඩුබායි"
+    ],
+    "second hand": [
+      "සෙකන්ඩ් හෑන්ඩ්",
+      "සෙකන් හෑන්ඩ්"
+    ],
+    "grade": [
+      "ග්‍රේඩ්",
+      "ග්‍රේඩ"
+    ],
+    "grades": [
+      "ග්‍රේඩ්ස්"
+    ],
+    "L grade": [
+      "එල් ග්‍රේඩ්"
+    ],
+    "S grade": [
+      "එස් ග්‍රේඩ්"
+    ],
+    "G grade": [
+      "ජී ග්‍රේඩ්"
+    ],
+    "X grade": [
+      "එක්ස් ග්‍රේඩ්"
+    ],
+    "X": [
+      "එක්ස්"
+    ],
+    "EV mode": [
+      "ඊ වී මෝඩ්",
+      "ඊවී මෝඩ්"
+    ],
+    "EV": [
+      "ඊ වී",
+      "ඊවී"
+    ],
+    "mode": [
+      "මෝඩ්"
+    ],
+    "cc": [
+      "සි සි",
+      "සී සී",
+      "සීසී"
+    ],
+    "ABS": [
+      "ඒබීඑස්",
+      "ඒ බී එස්"
+    ],
+    "dark side": [
+      "ඩාක් සයිඩ්",
+      "ඩාර්ක් සයිඩ්"
+    ],
+    "side": [
+      "සයිඩ්"
+    ],
+    "rider": [
+      "රයිඩර්"
+    ],
+    "basic": [
+      "බේසික්"
+    ],
+    "shutters": [
+      "ෂටර්ස්"
+    ],
+    "shutter": [
+      "ෂටර්"
+    ],
+    "key start": [
+      "කී ස්ටාර්ට්"
+    ],
+    "push start": [
+      "පුෂ් ස්ටාර්ට්"
+    ],
+    "start": [
+      "ස්ටාර්ට්"
+    ],
+    "popular": [
+      "පොපියුලර්",
+      "පොප්‍යුලර්"
+    ],
+    "option": [
+      "ඔප්ෂන්"
+    ],
+    "options": [
+      "ඔප්ෂන්ස්"
+    ],
+    "danger zone": [
+      "ඩේන්ජර් සෝන්"
+    ],
+    "danger": [
+      "ඩේන්ජර්"
+    ],
+    "zone": [
+      "සෝන්"
+    ],
+    "health": [
+      "හෙල්ත්"
+    ],
+    "cell": [
+      "සෙල්"
+    ],
+    "cells": [
+      "සෙල්ස්"
+    ],
+    "actuator": [
+      "ඇක්චුවේටර්",
+      "ඇක්චුඑටර්"
+    ],
+    "unit": [
+      "යුනිට්",
+      "යුනිට",
+      "යූනිට්"
+    ],
+    "diagnostic": [
+      "ඩයග්නොස්ටික්"
+    ],
+    "scan": [
+      "ස්කෑන්"
+    ],
+    "check": [
+      "චෙක්"
+    ],
+    "ground": [
+      "ග්‍රවුන්ඩ්"
+    ],
+    "clearance": [
+      "ක්ලියරන්ස්"
+    ],
+    "inspection": [
+      "ඉන්ස්පෙක්ෂන්",
+      "ඉන්ස්පෙක්ශන්"
+    ],
+    "record": [
+      "රෙකෝඩ්",
+      "රෙකෝඩ"
+    ],
+    "records": [
+      "රෙකෝඩ්ස්"
+    ],
+    "genuine": [
+      "ජෙනුවින්",
+      "ජෙනුයින්"
+    ],
+    "choice": [
+      "චොයිස්"
+    ],
+    "Talk and Tune": [
+      "ටෝක් ඇන්ඩ් ටියුන්"
+    ],
+    "and": [
+      "ඇන්ඩ්"
+    ],
+    "Urban": [
+      "අර්බන්"
+    ],
+    "version": [
+      "වර්ෂන්"
+    ],
+    "package": [
+      "පැකේජ්"
+    ],
+    "feature": [
+      "ෆීචර්"
+    ],
+    "features": [
+      "ෆීචර්ස්"
+    ],
+    "condition": [
+      "කන්ඩිෂන්"
+    ],
+    "auction": [
+      "ඔක්ෂන්"
+    ],
+    "auction grade": [
+      "ඔක්ෂන් ග්‍රේඩ්"
+    ],
+    "registered": [
+      "රෙජිස්ටර්ඩ්"
+    ],
+    "unregistered": [
+      "අන්රෙජිස්ටර්ඩ්"
+    ],
+    "import": [
+      "ඉම්පෝට්"
+    ],
+    "imported": [
+      "ඉම්පෝටඩ්"
+    ],
+    "seat": [
+      "සීට්"
+    ],
+    "seats": [
+      "සීට්ස්"
+    ],
+    "door": [
+      "ඩෝර්"
+    ],
+    "mirror": [
+      "මිරර්"
+    ],
+    "steering": [
+      "ස්ටීයරින්"
+    ],
+    "wheel": [
+      "වීල්"
+    ],
+    "alloy wheels": [
+      "ඇලෝයි වීල්ස්"
+    ],
+    "sensor": [
+      "සෙන්සර්"
+    ],
+    "sensors": [
+      "සෙන්සර්ස්"
+    ],
+    "airbag": [
+      "එයාබෑග්"
+    ],
+    "airbags": [
+      "එයාබෑග්ස්"
+    ],
+    "AC": [
+      "ඒසී",
+      "ඒ සී"
+    ],
+    "auto AC": [
+      "ඔටෝ ඒසී"
+    ],
+    "cruise control": [
+      "ක්‍රූස් කන්ට්‍රෝල්"
+    ],
+    "control": [
+      "කන්ට්‍රෝල්"
+    ],
+    "display": [
+      "ඩිස්ප්ලේ"
+    ],
+    "reverse camera": [
+      "රිවර්ස් කැමරා"
+    ],
+    "reverse": [
+      "රිවර්ස්"
+    ],
+    "suspension": [
+      "සස්පෙන්ෂන්"
+    ],
+    "radiator": [
+      "රේඩියේටර්"
+    ],
+    "inverter": [
+      "ඉන්වර්ටර්"
+    ],
+    "motor": [
+      "මෝටර්"
+    ],
+    "oil": [
+      "ඔයිල්"
+    ],
+    "filter": [
+      "ෆිල්ටර්"
+    ],
+    "repair": [
+      "රිපෙයාර්"
+    ],
+    "garage": [
+      "ගරාජ්",
+      "ගැරේජ්"
+    ],
+    "mechanic": [
+      "මැකැනික්"
+    ],
+    "warranty": [
+      "වොරන්ටි"
+    ],
+    "test drive": [
+      "ටෙස්ට් ඩ්‍රයිව්"
+    ],
+    "drive": [
+      "ඩ්‍රයිව්"
+    ],
+    "driver": [
+      "ඩ්‍රයිවර්"
+    ],
+    "km": [
+      "කේඑම්"
+    ],
+    "tax": [
+      "ටැක්ස්"
+    ],
+    "valuation": [
+      "වැලුවේෂන්"
+    ],
+    "value": [
+      "වැලියු"
+    ],
+    "deal": [
+      "ඩීල්"
+    ],
+    "best": [
+      "බෙස්ට්"
+    ],
+    "worst": [
+      "වර්ස්ට්"
+    ],
+    "top": [
+      "ටොප්"
+    ],
+    "full": [
+      "ෆුල්"
+    ],
+    "full option": [
+      "ෆුල් ඔප්ෂන්"
+    ],
+    "premium": [
+      "ප්‍රීමියම්"
+    ],
+    "luxury": [
+      "ලක්ෂරි"
+    ],
+    "safety": [
+      "සේෆ්ටි"
+    ],
+    "comfort": [
+      "කම්ෆට්"
+    ],
+    "performance": [
+      "පර්ෆෝමන්ස්"
+    ],
+    "review": [
+      "රිවිව්",
+      "රිව්යු"
+    ],
+    "tips": [
+      "ටිප්ස්"
+    ],
+    "tip": [
+      "ටිප්"
+    ],
+    "secret": [
+      "සීක්‍රට්"
+    ],
+    "truth": [
+      "ට්‍රූත්"
+    ],
+    "real": [
+      "රියල්"
+    ],
+    "fake": [
+      "ෆේක්"
+    ],
+    "scam": [
+      "ස්කෑම්"
+    ],
+    "risk": [
+      "රිස්ක්"
+    ],
+    "important": [
+      "ඉම්පෝටන්ට්"
+    ],
+    "content": [
+      "කන්ටෙන්ට්"
+    ],
+    "episode": [
+      "එපිසෝඩ්"
+    ],
+    "part": [
+      "පාට්"
+    ],
+    "series": [
+      "සීරීස්"
+    ],
+    "challenge": [
+      "චැලෙන්ජ්"
+    ],
+    "experience": [
+      "එක්ස්පීරියන්ස්"
+    ],
+    "lifestyle": [
+      "ලයිෆ්ස්ටයිල්"
+    ],
+    "fashion": [
+      "ෆැෂන්"
+    ],
+    "smart": [
+      "ස්මාර්ට්"
+    ],
+    "smartphone": [
+      "ස්මාර්ට්ෆෝන්"
+    ],
+    "network": [
+      "නෙට්වර්ක්"
+    ],
+    "WiFi": [
+      "වයිෆයි",
+      "වයි ෆයි"
+    ],
+    "data package": [
+      "ඩේටා පැකේජ්"
+    ],
+    "SIM": [
+      "සිම්"
+    ],
+    "Bluetooth": [
+      "බ්ලූටූත්"
+    ],
+    "USB": [
+      "යූඑස්බී"
+    ],
+    "GPS": [
+      "ජීපීඑස්"
+    ],
+    "online class": [
+      "ඔන්ලයින් ක්ලාස්"
+    ],
+    "course": [
+      "කෝස්"
+    ],
+    "skill": [
+      "ස්කිල්"
+    ],
+    "skills": [
+      "ස්කිල්ස්"
+    ],
+    "job": [
+      "ජොබ්"
+    ],
+    "salary": [
+      "සැලරි"
+    ],
+    "boss": [
+      "බොස්"
+    ],
+    "startup": [
+      "ස්ටාර්ට්අප්"
+    ],
+    "freelance": [
+      "ෆ්‍රීලාන්ස්"
+    ],
+    "income": [
+      "ඉන්කම්"
+    ],
+    "dollar": [
+      "ඩොලර්"
+    ],
+    "dollars": [
+      "ඩොලර්ස්"
+    ],
+    "rate": [
+      "රේට්"
+    ],
+    "interest": [
+      "ඉන්ට්‍රස්ට්"
+    ],
+    "credit card": [
+      "ක්‍රෙඩිට් කාඩ්"
+    ],
+    "debit card": [
+      "ඩෙබිට් කාඩ්"
+    ],
+    "ATM": [
+      "ඒටීඑම්"
+    ],
+    "QR": [
+      "කිව්ආර්"
+    ],
+    "target": [
+      "ටාගට්"
+    ],
+    "goal": [
+      "ගෝල්"
+    ],
+    "result": [
+      "රිසල්ට්"
+    ],
+    "results": [
+      "රිසල්ට්ස්"
+    ],
+    "free": [
+      "ෆ්‍රී"
+    ],
+    "bonus": [
+      "බෝනස්"
+    ],
+    "promo": [
+      "ප්‍රොමෝ"
+    ],
+    "code": [
+      "කෝඩ්"
     ]
   }
 }

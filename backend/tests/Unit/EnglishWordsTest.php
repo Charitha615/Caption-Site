@@ -32,4 +32,15 @@ class EnglishWordsTest extends TestCase
         $this->assertSame(['AI', 'phone', 'එක'], array_column($line['words'], 'word'));
         $this->assertEquals([[1.0, 1.6], [1.7, 2.0], [2.0, 2.2]], array_map(fn ($w) => [$w['start'], $w['end']], $line['words']), 'merged phrase spans both spoken words');
     }
+
+    public function test_car_review_words_letters_and_sinhala_endings(): void
+    {
+        $english = new EnglishWords;
+
+        $this->assertSame('L grade මේක තමයි basicම grade එක', $english->apply('එල් ග්‍රේඩ් මේක තමයි බේසික්ම ග්‍රේඩ් එක'));
+        $this->assertSame('traffic එකේදී EV mode එකෙන්', $english->apply('ට්‍රැෆික් එකේදී ඊ වී මෝඩ් එකෙන්'));
+        $this->assertSame('options ටික', $english->apply('ඔප්ෂන්ස් ටික'), 'plural ස් → s');
+        $this->assertSame('low ground clearance', $english->apply('ලෝ ග්‍රවුන්ඩ් ක්ලියරන්ස්'));
+        $this->assertSame('ලෝකය', $english->apply('ලෝකය'), 'a short Sinhala word is never treated as English');
+    }
 }

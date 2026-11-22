@@ -294,7 +294,7 @@ class CaptionPipelineTest extends TestCase
 
         $captions = Caption::where('project_id', $project->id)->orderBy('sequence')->get();
         $all = $captions->pluck('text')->implode(' ');
-        $this->assertSame('ආයුබෝවන් අපගේ වීඩියෝවට සාදරයෙන් පිළිගනිමු අද අපි Toyota Aqua ගැන කතා කරමු', $all, 'script words, punctuation removed');
+        $this->assertSame('ආයුබෝවන් අපගේ videoට සාදරයෙන් පිළිගනිමු අද අපි Toyota Aqua ගැන කතා කරමු', $all, 'script words, English words in English, punctuation removed');
         $this->assertStringContainsString('ආයුබෝවන්,', $captions[0]->metadata['original_text'], 'script line kept as the original');
         $this->assertSame('script', $captions[0]->metadata['source']['imported']);
         $this->assertSame('ආයුබෝවන්', $captions[0]->metadata['words'][0]['word']);

@@ -42,14 +42,20 @@ class GeminiCaptionRefiner implements CaptionRefinerInterface
         $audio = $this->audioPart($audioPath);
 
         foreach (array_chunk($lines, self::BATCH, true) as $batch) {
-            $cleaned = $audio
-                ? $this->reviewBatch(array_values($batch), $language, $audio)
-                : $this->refineBatch(array_column(array_values($batch), 'text'), $language);
+            $listened = false;
+            $cleaned = null;
+            if ($audio) {
+                $cleaned = $this->reviewBatch(array_values($batch), $language, $audio);
+                $listened = $cleaned !== null;
+            }
+            // No audio, or every model was too busy to listen: the lighter text-only pass still
+            // fixes spelling and writes English words in English letters.
+            $cleaned ??= $this->refineBatch(array_column(array_values($batch), 'text'), $language);
             if ($cleaned === null) {
                 continue;
             }
             foreach (array_keys($batch) as $n => $index) {
-                $ok = $audio ? self::reviewAcceptable($original[$index], $cleaned[$n] ?? null) : self::acceptable($original[$index], $cleaned[$n] ?? null);
+                $ok = $listened ? self::reviewAcceptable($original[$index], $cleaned[$n] ?? null) : self::acceptable($original[$index], $cleaned[$n] ?? null);
                 if ($ok) {
                     $result[$index] = $cleaned[$n];
                 }
@@ -123,7 +129,7 @@ PROMPT;
                 $response = Http::acceptJson()
                     ->withHeaders(['x-goog-api-key' => $this->apiKey])
                     ->timeout($timeout)
-                    ->retry(3, fn (int $attempt) => $attempt * 4000, fn ($e) => $e instanceof RequestException && in_array($e->response->status(), [429, 500, 503], true), throw: false)
+                    ->retry(2, fn (int $attempt) => $attempt * 3000, fn ($e) => $e instanceof RequestException && in_array($e->response->status(), [429, 500, 503], true), throw: false)
                     ->post("{$this->baseUrl}/models/{$model}:generateContent", [
                         'contents' => [['role' => 'user', 'parts' => $parts]],
                         'generationConfig' => [
@@ -138,10 +144,10 @@ PROMPT;
 
                 continue; // timeout / connection: try the next model
             }
-            if (in_array($response->status(), [429, 500, 502, 503, 504], true)) {
+            if (! $response->successful()) {
                 AppLog::warning($failEvent, ['model' => $model, 'status' => $response->status(), 'provider_error' => $response->json('error.message')]);
 
-                continue; // busy: try the next model
+                continue; // busy, or this model is not available to the key: try the next one
             }
 
             return $this->lines($response, $expected, $model);

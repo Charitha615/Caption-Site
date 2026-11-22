@@ -14,6 +14,9 @@ class EnglishWords
 {
     private const MAX_PHRASE = 3;
 
+    /** Sinhala endings that attach to an English word: "පොපියුලර්ම" → "popularම". Plural ස් → s. */
+    private const SUFFIXES = ['ස්', 'ම', 'යි', 'ද', 'ත්', 'ට', 'ක්', 'ගේ', 'වල'];
+
     /** @var array<string, string>|null normalised Sinhala phrase → English */
     private ?array $map = null;
 
@@ -83,6 +86,21 @@ class EnglishWords
             $phrase = implode(' ', array_map(fn ($t) => self::core($t), array_slice($tokens, $i, $len)));
             if (isset($map[$phrase])) {
                 return [$len, $map[$phrase]];
+            }
+        }
+
+        // A listed word with a Sinhala ending stuck to it. The stem must be 3+ characters so a
+        // short Sinhala word that happens to end like a suffix is never mistaken for English.
+        $core = self::core($tokens[$i]);
+        foreach (self::SUFFIXES as $suffix) {
+            if (! str_ends_with($core, $suffix)) {
+                continue;
+            }
+            $stem = mb_substr($core, 0, mb_strlen($core) - mb_strlen($suffix));
+            if (mb_strlen($stem) >= 3 && isset($map[$stem]) && ! str_contains($map[$stem], ' ')) {
+                $english = $map[$stem];
+
+                return [1, $suffix === 'ස්' ? (str_ends_with($english, 's') ? $english : $english.'s') : $english.$suffix];
             }
         }
 
