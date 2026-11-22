@@ -1,0 +1,33 @@
+.snake {
+  --snake-head: #C4B5FD; --snake-body: #8B5CF6; --snake-food: #FBBF24; --snake-grid: rgba(255, 255, 255, 0.035);
+  width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px; color: #E4E4E7;
+}
+.snake-score-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #A1A1AA; font-variant-numeric: tabular-nums; }
+.snake-score-row strong { color: #fff; font-size: 1.05rem; margin-left: 4px; }
+.snake-board {
+  position: relative; width: 100%; aspect-ratio: 1; display: grid; place-items: center;
+  border-radius: 14px; overflow: hidden; background: #0d0e14; border: 1px solid rgba(255, 255, 255, 0.08);
+  touch-action: none;
+}
+.snake-canvas { display: block; }
+.snake-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(8, 9, 13, 0.72); backdrop-filter: blur(2px);
+}
+.snake-over-title { font-weight: 800; font-size: 1.15rem; color: #fff; }
+.snake-hint { font-size: 0.75rem; color: #A1A1AA; }
+.snake-controls { display: flex; align-items: center; justify-content: center; gap: 16px; min-height: 40px; }
+.snake-pad { display: none; grid-template-areas: ". up ." "left down right"; gap: 6px; }
+.snake-pad button {
+  width: 44px; height: 40px; display: grid; place-items: center; border-radius: 10px; cursor: pointer;
+  color: #E4E4E7; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.snake-pad button:active { background: rgba(139, 92, 246, 0.35); }
+.snake-pad-up { grid-area: up; } .snake-pad-left { grid-area: left; } .snake-pad-down { grid-area: down; } .snake-pad-right { grid-area: right; }
+@media (hover: none), (max-width: 640px) { .snake-pad { display: grid; } }
+.snake-highscores { padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); font-size: 0.8rem; }
+.snake-highscores-title { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: #71717A; margin-bottom: 4px; }
+.snake-highscores ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.snake-highscores li { display: flex; gap: 4px; color: #A1A1AA; }
+.snake-highscores li strong { color: #fff; }
+.snake-highscores li span { margin-left: auto; color: #71717A; }

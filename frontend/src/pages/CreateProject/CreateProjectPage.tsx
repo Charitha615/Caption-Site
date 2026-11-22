@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, FileVideo, Sparkles, X, AlertCircle, ArrowRight, RefreshCw, Sliders, WifiOff, Languages, FileText, Upload } from 'lucide-react';
 import { useProjectStore } from '../../stores/projectStore';
@@ -10,7 +10,13 @@ import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
 import { Progress } from '../../components/Progress/Progress';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
-import { PhaseTimer, ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { PhaseTimer, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { GeneratingStage } from '../../features/projects/GeneratingStage';
+import { stageTitleFor } from '../../features/projects/generatingStages';
+import type { GameId } from '../../features/projects/games/gameTypes';
+
+// The games (and the large sniper scene) load only when someone chooses to play.
+const GameArcade = lazy(() => import('../../features/projects/games/GameArcade'));
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { useAiKeyMissing } from '../../stores/aiKeyStore';
 import { ChunkedUpload, UploadCancelledError, type UploadProgress } from '../../services/uploadService';
@@ -57,6 +63,8 @@ export const CreateProjectPage: React.FC = () => {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [game, setGame] = useState<GameId | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<ChunkedUpload | null>(null);
 
@@ -64,6 +72,11 @@ export const CreateProjectPage: React.FC = () => {
     if (settled.is_ready) {
       setStage('ready');
       void reloadUsage(true).catch(() => undefined);
+      if (game) {
+        // Mid-game: tell them in the arcade instead of yanking them out.
+        addToast({ type: 'success', title: 'Captions ready', message: `${settled.captions_count} caption lines were generated.` });
+        return;
+      }
       addToast({ type: 'success', title: 'Captions ready', message: `${settled.captions_count} caption lines were generated — opening the editor.` });
       // Processing finished: go straight to the studio editor.
       navigate(`/projects/${settled.uuid}/editor`);
@@ -362,8 +375,7 @@ export const CreateProjectPage: React.FC = () => {
 
       {stage === 'processing' && (
         <div className="processing-card">
-          <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
-          <ProcessingSteps status={status?.status ?? 'uploaded'} />
+          <GeneratingStage status={status?.status ?? 'uploaded'} percent={status?.progress_percentage} phaseLabel={status?.phase_label} onPlayGame={setGame} />
           <PhaseTimer status={status?.status} phaseSeconds={status?.phase_seconds} durationSeconds={status?.duration} />
           <QueueStalledNotice queuedSeconds={status?.queued_seconds} notice={status?.notice} />
           <div className="form-actions">
@@ -438,6 +450,20 @@ export const CreateProjectPage: React.FC = () => {
         onConfirm={cancelUpload}
         onCancel={() => setConfirmCancel(false)}
       />
+      {game && (
+        <Suspense fallback={null}>
+          <GameArcade
+            game={game}
+            onSwitch={setGame}
+            onClose={() => setGame(null)}
+            stageTitle={stageTitleFor(status?.status ?? 'uploaded')}
+            percent={status?.progress_percentage}
+            outcome={
+              stage === 'ready' && project ? { kind: 'ready', editorHref: `/projects/${project.uuid}/editor` } : stage === 'failed' ? { kind: 'failed' } : null
+            }
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -1,0 +1,35 @@
+.code-loader {
+  width: min(340px, 100%); height: 220px; display: flex; flex-direction: column;
+  border-radius: 14px; overflow: hidden;
+  background: #0f1016; border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 40px -12px rgba(0, 0, 0, 0.6);
+  animation: code-pop 0.3s ease-out;
+}
+.code-loader-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.code-loader-lights { display: inline-flex; gap: 6px; }
+.code-loader-lights i { width: 10px; height: 10px; border-radius: 50%; background: #EF4444; }
+.code-loader-lights i:nth-child(2) { background: #EAB308; }
+.code-loader-lights i:nth-child(3) { background: #22C55E; }
+.code-loader-title {
+  flex: 1; text-align: center; margin-right: 42px; min-width: 0;
+  font: 0.72rem/1.2 var(--mono, ui-monospace, monospace); color: #9CA3AF;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.code-loader-body {
+  flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 7px;
+  padding: 12px 16px; overflow: hidden;
+  mask-image: linear-gradient(180deg, transparent, #000 35%);
+}
+.code-line { display: flex; align-items: center; gap: 7px; height: 12px; flex-shrink: 0; animation: code-line-in 0.2s ease-out; }
+.code-line-indent { padding-left: 16px; }
+.code-line-gap { margin-bottom: 8px; }
+.code-seg { height: 9px; width: var(--w); border-radius: 3px; opacity: 0.55; animation: code-grow 0.25s ease-out; }
+.code-dot { width: 12px; height: 12px; border-radius: 50%; opacity: 0.55; }
+.code-gray { background: #6B7280; } .code-teal { background: #14B8A6; } .code-blue { background: #3B82F6; }
+.code-slate { background: #4B5563; } .code-pink { background: #EC4899; }
+.code-cursor { width: 2px; height: 13px; background: #3B82F6; animation: typewriter-blink 1.06s steps(1) infinite; }
+
+@keyframes code-pop { from { opacity: 0; transform: scale(0.95); } }
+@keyframes code-line-in { from { opacity: 0; transform: translateX(-5px); } }
+@keyframes code-grow { from { width: 0; } }
+@media (prefers-reduced-motion: reduce) { .code-loader, .code-line, .code-seg, .code-cursor { animation: none; } }

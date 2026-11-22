@@ -17,7 +17,13 @@ import { ErrorState } from '../../components/ErrorState/ErrorState';
 import { LoadingState } from '../../components/LoadingState/LoadingState';
 import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { Progress } from '../../components/Progress/Progress';
-import { PhaseTimer, ProcessingSteps, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { PhaseTimer, QueueStalledNotice } from '../../features/projects/ProcessingSteps';
+import { GeneratingStage } from '../../features/projects/GeneratingStage';
+import { stageTitleFor } from '../../features/projects/generatingStages';
+import type { GameId } from '../../features/projects/games/gameTypes';
+
+// The games (and the large sniper scene) load only when someone chooses to play.
+const GameArcade = React.lazy(() => import('../../features/projects/games/GameArcade'));
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { useAiKeyMissing } from '../../stores/aiKeyStore';
 import { validateVideoFile } from '../../utils/video';
@@ -101,7 +107,16 @@ export const ProjectDetailsPage: React.FC = () => {
   const polling = isCurrent && isProcessing(project);
   // When processing finishes, reload captions and the full project (thumbnail, video URL).
   // When processing finishes: open the editor if captions are ready, otherwise reload (failure reason etc.).
+  const [game, setGame] = useState<GameId | null>(null);
+  const [gameOutcome, setGameOutcome] = useState<'ready' | 'failed' | null>(null);
   const { status, restart } = useProjectStatus(uuid, polling, (settled) => {
+    if (game) {
+      // Mid-game: refresh the page underneath and tell them in the arcade instead of navigating.
+      setGameOutcome(settled.is_ready ? 'ready' : 'failed');
+      if (settled.is_ready) addToast({ type: 'success', title: 'Captions ready', message: 'Open the editor whenever you’re done playing.' });
+      void load();
+      return;
+    }
     if (settled.is_ready) {
       addToast({ type: 'success', title: 'Captions ready', message: 'Opening the editor…' });
       navigate(`/projects/${settled.uuid}/editor`);
@@ -212,8 +227,7 @@ export const ProjectDetailsPage: React.FC = () => {
 
       {polling && (
         <section className="status-panel" aria-label="Processing status">
-          <Progress label={status?.phase_label ?? 'Queued for processing…'} value={status?.progress_percentage} />
-          <ProcessingSteps status={status?.status ?? project.status} />
+          <GeneratingStage status={status?.status ?? project.status} percent={status?.progress_percentage} phaseLabel={status?.phase_label} onPlayGame={(g) => { setGameOutcome(null); setGame(g); }} />
           <PhaseTimer status={status?.status} phaseSeconds={status?.phase_seconds} durationSeconds={status?.duration} />
           <QueueStalledNotice queuedSeconds={status?.queued_seconds} notice={status?.notice} />
         </section>
@@ -512,6 +526,18 @@ export const ProjectDetailsPage: React.FC = () => {
         onConfirm={confirmDeleteProject}
         onCancel={() => setDeleteOpen(false)}
       />
+      {game && (
+        <React.Suspense fallback={null}>
+          <GameArcade
+            game={game}
+            onSwitch={setGame}
+            onClose={() => setGame(null)}
+            stageTitle={stageTitleFor(status?.status ?? project.status)}
+            percent={status?.progress_percentage}
+            outcome={gameOutcome === 'ready' ? { kind: 'ready', editorHref: `/projects/${project.uuid}/editor` } : gameOutcome === 'failed' ? { kind: 'failed' } : null}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

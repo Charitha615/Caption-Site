@@ -1,0 +1,20 @@
+.tetris-loader {
+  display: grid; width: fit-content;
+  /* I O T S Z J L — tuned to sit next to the brand violet/amber */
+  --tetris-1: #67E8F9; --tetris-2: #FCD34D; --tetris-3: #A78BFA; --tetris-4: #6EE7B7;
+  --tetris-5: #FB7185; --tetris-6: #60A5FA; --tetris-7: #FDBA74;
+}
+.tetris-cell {
+  display: block; height: var(--tetris-cell);
+  border-radius: calc(var(--tetris-cell) / 3);
+  background: rgba(255, 255, 255, 0.07);
+}
+.tetris-cell[data-v="1"] { background: var(--tetris-1); }
+.tetris-cell[data-v="2"] { background: var(--tetris-2); }
+.tetris-cell[data-v="3"] { background: var(--tetris-3); }
+.tetris-cell[data-v="4"] { background: var(--tetris-4); }
+.tetris-cell[data-v="5"] { background: var(--tetris-5); }
+.tetris-cell[data-v="6"] { background: var(--tetris-6); }
+.tetris-cell[data-v="7"] { background: var(--tetris-7); }
+.tetris-cell[data-v="8"] { background: #fff; box-shadow: 0 0 8px rgba(255, 255, 255, 0.8); }
+.tetris-cell[data-v="9"] { background: rgba(255, 255, 255, 0.35); }
