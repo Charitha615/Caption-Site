@@ -15,6 +15,9 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
+    // Shared hosting without a process manager: run workers from the scheduler (routes/console.php).
+    'run_in_scheduler' => (bool) env('QUEUE_RUN_IN_SCHEDULER', false),
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections

@@ -1,0 +1,48 @@
+# SampleCap frontend (React SPA) — Apache / Hostinger
+Options -Indexes -MultiViews
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Force HTTPS (Hostinger terminates SSL at its proxy)
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Real files and folders are served as they are
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Every app route (/projects, /projects/…/editor, /account …) → index.html
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# Never cache index.html (so a new deploy is picked up at once)
+<FilesMatch "^index\.html$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </IfModule>
+</FilesMatch>
+
+# Hashed build assets can be cached for a year
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css|woff2?|ttf|svg|png|jpg|jpeg|webp|ico)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# Correct types for fonts / modules
+<IfModule mod_mime.c>
+    AddType application/javascript .js .mjs
+    AddType font/woff2 .woff2
+</IfModule>
