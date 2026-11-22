@@ -441,3 +441,18 @@
   .lang-selector-grid { grid-template-columns: 1fr !important; }
   .ready-preview-grid { grid-template-columns: 1fr !important; }
 }
+
+/* Auto-detected language note + optional script */
+.create-auto-lang {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--brand-primary-light); border: 1px solid var(--brand-primary-border);
+  font-size: 0.86rem; line-height: 1.45; color: var(--text-muted);
+}
+.create-auto-lang svg { flex: none; margin-top: 2px; color: var(--brand-primary); }
+.create-auto-lang strong { color: var(--text-main); }
+.create-script-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.create-script-head .btn { display: inline-flex; align-items: center; gap: 6px; }
+.create-script-text { min-height: 120px; resize: vertical; line-height: 1.6; }
+.create-script-help { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0 0; font-size: 0.8rem; opacity: 0.85; }
+.create-script-file { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }

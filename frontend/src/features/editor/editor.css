@@ -1663,11 +1663,20 @@ select.ed-input {
 }
 .ed-captions-toolbar {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 12px 12px 6px;
 }
+/* Add + Import share one row under the search, equal width, never clipped by the panel. */
+.ed-captions-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ed-captions-actions .ed-btn { width: 100%; min-width: 0; }
 .ed-search {
-  flex: 1;
+  flex: none;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2651,7 +2660,9 @@ select.ed-input {
 }
 .ed-empty-btns {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 }
 

@@ -9,12 +9,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\CreateProjectRequest;
 use App\Http\Requests\Projects\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
+use App\Jobs\ProcessUploadedVideoJob;
 use App\Models\Project;
 use App\Services\Usage\UsageService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
@@ -180,7 +182,7 @@ class ProjectController extends Controller
                 'is_processing' => true,
             ],
             Project::STATUS_TRANSCRIBING => [
-                'percentage' => 70,
+                'percentage' => 55,
                 'phase' => 'transcribing',
                 'phase_label' => 'Transcribing speech with AI...',
                 'is_processing' => true,
@@ -222,6 +224,15 @@ class ProjectController extends Controller
                 'is_processing' => false,
             ],
         };
+
+        // Transcription runs part by part (transcribe → review); show which part is in progress.
+        $parts = $status === Project::STATUS_TRANSCRIBING ? Cache::get(ProcessUploadedVideoJob::progressKey($project)) : null;
+        if (is_array($parts) && ($parts['parts'] ?? 0) > 0) {
+            $phaseMeta['percentage'] = 55 + (int) round(28 * ($parts['part'] - 1) / $parts['parts']);
+            $phaseMeta['phase_label'] = $parts['parts'] > 1
+                ? "Transcribing and reviewing part {$parts['part']} of {$parts['parts']}..."
+                : 'Transcribing and reviewing the speech...';
+        }
 
         return $this->successResponse([
             'uuid' => $project->uuid,

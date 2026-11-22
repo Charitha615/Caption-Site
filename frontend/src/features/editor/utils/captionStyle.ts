@@ -110,6 +110,7 @@ const ENUMS: Record<string, string[]> = {
   textAlign: ['left', 'center', 'right'],
   animation: ['none', 'fade', 'pop', 'bounce', 'slide', 'typewriter', 'karaoke', 'highlight'],
   textTransform: ['none', 'uppercase'],
+  lineTransition: ['none', 'cascade'],
 };
 
 const LEGACY_PX_KEYS: Array<keyof CaptionStyle> = ['fontSize', 'outlineWidth', 'shadowBlur', 'shadowOffsetX', 'shadowOffsetY', 'borderRadius', 'padding'];
@@ -170,5 +171,8 @@ export function sanitizeStyle(raw: unknown, partial = false, legacy = false): Ca
       out[key] = toHex(value);
     }
   }
-  return partial ? (out as CaptionStyleOverride) : { ...DEFAULT_STYLE, ...(out as CaptionStyleOverride) };
+  if (partial) return out as CaptionStyleOverride;
+  // Styles saved before line transitions existed: only Spotlight gets the cascade.
+  if (!('lineTransition' in out)) out.lineTransition = (out.preset ?? DEFAULT_STYLE.preset) === 'spotlight' ? 'cascade' : 'none';
+  return { ...DEFAULT_STYLE, ...(out as CaptionStyleOverride) };
 }

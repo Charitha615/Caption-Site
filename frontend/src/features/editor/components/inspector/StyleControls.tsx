@@ -71,6 +71,18 @@ export const StyleControls = memo(function StyleControls({ value, target }: { va
         />
       </Section>
 
+      <Section title="Line in / out">
+        <Segmented<'none' | 'cascade'>
+          ariaLabel="Line in and out"
+          value={value.lineTransition}
+          onChange={(v) => set('lineTransition', v)}
+          options={[
+            { value: 'none', label: 'Instant' },
+            { value: 'cascade', label: 'Word fade', tip: 'Words fade in first to last, then fade out last to first' },
+          ]}
+        />
+      </Section>
+
       <Section title="Colour & stroke">
         <div className="ed-grid-2">
           <ColorField label="Text" value={value.textColor} onChange={(v) => set('textColor', v)} />

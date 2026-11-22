@@ -204,7 +204,7 @@ return [
     */
 
     'defaults' => [
-        // AI captioning pipeline (FFmpeg probe/extract + Gemini). Must outlive ProcessUploadedVideoJob::$timeout (1200 s).
+        // AI captioning pipeline (FFmpeg probe/extract + Gemini). Must outlive ProcessUploadedVideoJob::$timeout (2700 s).
         'pipeline' => [
             'connection' => 'redis',
             'queue' => ['default'],
@@ -215,7 +215,7 @@ return [
             'maxJobs' => 0,
             'memory' => 256,
             'tries' => 1,
-            'timeout' => 1300,
+            'timeout' => 2800,
             'nice' => 0,
         ],
         // MP4 renders are CPU heavy and long; isolate them so they never block captioning.

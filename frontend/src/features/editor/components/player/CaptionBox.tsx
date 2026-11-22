@@ -4,6 +4,7 @@ import { getWordTimings } from '../../model/captionOps';
 import type { CaptionAnimation, CaptionSegment, CaptionStyle } from '../../model/types';
 import { captionBoxStyle } from '../../utils/captionStyle';
 import { splitGraphemes } from '../../utils/unicode';
+import { cascadeOpacity, cascadeWindows } from '../../utils/cascade';
 
 type CaptionLike = Pick<CaptionSegment, 'text' | 'start' | 'end' | 'words' | 'language'>;
 
@@ -31,10 +32,12 @@ export const CaptionBox = memo(function CaptionBox({
 }) {
   const box = useMemo(() => captionBoxStyle(style, scale), [style, scale]);
   const timed = animate && TIMED.includes(style.animation);
+  // The cascade works per word; typewriter already reveals text its own way.
+  const cascade = animate && style.lineTransition === 'cascade' && style.animation !== 'typewriter';
   const lang = caption.language === 'en' ? 'en' : 'si';
 
-  const content = timed ? (
-    <TimedText caption={caption} animation={style.animation} />
+  const content = timed || cascade ? (
+    <TimedText caption={caption} animation={timed ? style.animation : 'none'} cascade={cascade} />
   ) : (
     <StaticText text={caption.text} />
   );
@@ -54,9 +57,10 @@ function StaticText({ text }: { text: string }) {
 }
 
 /** Subscribes to the clock, but re-renders only when the active word / revealed length changes. */
-function TimedText({ caption, animation }: { caption: CaptionLike; animation: CaptionAnimation }) {
+function TimedText({ caption, animation, cascade }: { caption: CaptionLike; animation: CaptionAnimation; cascade: boolean }) {
   if (animation === 'typewriter') return <Typewriter caption={caption} />;
-  return <WordHighlight caption={caption} mode={animation === 'karaoke' ? 'karaoke' : 'box'} />;
+  const mode = animation === 'karaoke' ? 'karaoke' : animation === 'highlight' ? 'box' : 'none';
+  return <WordHighlight caption={caption} mode={mode} cascade={cascade} />;
 }
 
 function Typewriter({ caption }: { caption: CaptionLike }) {
@@ -80,24 +84,42 @@ function Typewriter({ caption }: { caption: CaptionLike }) {
   );
 }
 
-function WordHighlight({ caption, mode }: { caption: CaptionLike; mode: 'karaoke' | 'box' }) {
+const OPACITY_STEPS = 12;
+
+function WordHighlight({ caption, mode, cascade }: { caption: CaptionLike; mode: 'karaoke' | 'box' | 'none'; cascade: boolean }) {
   const words = useMemo(() => getWordTimings(caption as CaptionSegment), [caption]);
-  const active = useVideoStore(
+  const windows = useMemo(
+    () => (cascade ? cascadeWindows(words.length, caption.start, caption.end) : null),
+    [cascade, words.length, caption.start, caption.end]
+  );
+  // A string key (active word + quantised opacities) so React re-renders only when something visible changes.
+  const frame = useVideoStore(
     useCallback(
       (s: { currentTime: number }) => {
         const t = s.currentTime;
-        for (let i = 0; i < words.length; i++) if (t >= words[i].start && t < words[i].end) return i;
-        return t >= (words[words.length - 1]?.end ?? 0) ? words.length : -1;
+        let active = -1;
+        if (mode !== 'none') {
+          active = t >= (words[words.length - 1]?.end ?? 0) ? words.length : -1;
+          for (let i = 0; i < words.length; i++) if (t >= words[i].start && t < words[i].end) { active = i; break; }
+        }
+        const fades = windows ? windows.map((w) => Math.round(cascadeOpacity(w, t) * OPACITY_STEPS)).join(',') : '';
+        return `${active}|${fades}`;
       },
-      [words]
+      [words, windows, mode]
     )
   );
-  if (words.length === 0) return <>{' '}</>;
+  if (words.length === 0) return <>{' '}</>;
+  const [activeKey, fadeKey] = frame.split('|');
+  const active = Number(activeKey);
+  const opacities = fadeKey ? fadeKey.split(',').map((v) => Number(v) / OPACITY_STEPS) : null;
   return (
     <>
       {words.map((w, i) => (
         <React.Fragment key={i}>
-          <span className={`cap-word ${i === active ? `is-active is-${mode}` : ''} ${mode === 'karaoke' && i < active ? 'is-spoken' : ''}`}>
+          <span
+            className={`cap-word ${mode !== 'none' && i === active ? `is-active is-${mode}` : ''} ${mode === 'karaoke' && i < active ? 'is-spoken' : ''}`}
+            style={opacities ? { opacity: opacities[i] } : undefined}
+          >
             {w.text}
           </span>
           {i < words.length - 1 ? ' ' : null}

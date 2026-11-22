@@ -90,28 +90,82 @@ class FFmpegService implements VideoServiceInterface
         return $outputPath;
     }
 
+    /**
+     * Splits audio into parts of about $seconds each, cutting in the middle of natural pauses
+     * (ffmpeg silencedetect) so no word is cut in half. Falls back to fixed cuts when the
+     * audio has no usable pause.
+     */
     public function splitAudio(string $audioPath, float $totalSeconds, int $seconds, string $outputDir): array
     {
         if (! is_dir($outputDir)) {
             mkdir($outputDir, 0700, true);
         }
         $chunks = [];
-        for ($i = 0, $offset = 0.0; $offset < $totalSeconds; $i++, $offset += $seconds) {
+        foreach (self::planCuts($this->detectSilences($audioPath), $totalSeconds, $seconds) as $i => [$offset, $length]) {
             $out = sprintf('%s/chunk_%03d.mp3', $outputDir, $i);
-            $length = min($seconds, $totalSeconds - $offset);
             $result = $this->run([
                 $this->ffmpegBinary, '-hide_banner', '-nostdin', '-y',
-                '-ss', (string) $offset, '-t', (string) $length,
+                '-ss', (string) round($offset, 3), '-t', (string) round($length, 3),
                 '-i', $audioPath, '-c', 'copy', $out,
             ], 300, 'ffmpeg');
             if ($result['exitCode'] !== 0 || ! is_file($out) || filesize($out) === 0) {
                 AppLog::error('ffmpeg.split_audio_failed', ['exit' => $result['exitCode'], 'stderr' => $result['stderr'], 'chunk' => $i]);
-                throw new VideoProcessingException('We could not prepare this long video for transcription.');
+                throw new VideoProcessingException('We could not prepare this video for transcription.');
             }
             $chunks[] = ['path' => $out, 'offset' => (float) $offset, 'duration' => (float) $length];
         }
 
         return $chunks;
+    }
+
+    /**
+     * Pauses in the audio. Best effort: an empty list just means fixed-length cuts.
+     *
+     * @return list<array{start: float, end: float}>
+     */
+    public function detectSilences(string $audioPath): array
+    {
+        $result = $this->run([
+            $this->ffmpegBinary, '-hide_banner', '-nostdin',
+            '-i', $audioPath, '-af', 'silencedetect=noise=-32dB:d=0.3', '-f', 'null', '-',
+        ], 300, 'ffmpeg');
+        preg_match_all('/silence_start: ([\d.]+)[\s\S]*?silence_end: ([\d.]+)/', $result['stderr'], $m, PREG_SET_ORDER);
+
+        return array_map(fn ($x) => ['start' => (float) $x[1], 'end' => (float) $x[2]], $m);
+    }
+
+    /**
+     * Cut points for ~$target-second parts: in each window of 60–130% of the target, cut in
+     * the middle of the longest pause (closest to the target on ties); no pause → cut at the target.
+     *
+     * @param  list<array{start: float, end: float}>  $silences
+     * @return list<array{0: float, 1: float}> [offset, length] pairs covering [0, $total]
+     */
+    public static function planCuts(array $silences, float $total, int $target): array
+    {
+        $target = max(10, $target);
+        $parts = [];
+        $pos = 0.0;
+        while ($total - $pos > $target * 1.3) {
+            $ideal = $pos + $target;
+            $best = null;
+            foreach ($silences as $sil) {
+                $mid = ($sil['start'] + $sil['end']) / 2;
+                if ($mid < $pos + $target * 0.6 || $mid > $pos + $target * 1.3) {
+                    continue;
+                }
+                $score = ($sil['end'] - $sil['start']) - abs($mid - $ideal) / $target * 0.2;
+                if ($best === null || $score > $best[0]) {
+                    $best = [$score, $mid];
+                }
+            }
+            $cut = round($best[1] ?? $ideal, 3);
+            $parts[] = [$pos, round($cut - $pos, 3)];
+            $pos = $cut;
+        }
+        $parts[] = [$pos, round($total - $pos, 3)];
+
+        return $parts;
     }
 
     public function generateThumbnail(string $videoPath, string $outputPath, float $timestamp = 1.0): bool

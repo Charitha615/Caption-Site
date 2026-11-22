@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\Transcript;
 use App\Rules\JsonSize;
 use App\Services\AI\AIProviderFactory;
+use App\Services\Caption\EnglishWords;
 use App\Services\Caption\ScriptAligner;
 use App\Services\Caption\SinhalaScriptRepair;
 use App\Services\Usage\UsageService;
@@ -168,7 +169,7 @@ class CaptionController extends Controller
         }
 
         // Optional: English words written in Sinhala letters → English (best effort; never blocks).
-        $text = app(SinhalaScriptRepair::class)->repair($validated['text']);
+        $text = app(EnglishWords::class)->apply(app(SinhalaScriptRepair::class)->repair($validated['text']));
         $englishApplied = false;
         if ($request->boolean('english_words') && $providers->canCaption($request->user())) {
             $paragraphs = preg_split('/(?<=[.!?\n])\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];

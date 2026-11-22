@@ -14,6 +14,7 @@ class UpdateProjectAction
         $fillable = array_intersect_key($data, array_flip([
             'name',
             'description',
+            'script',
             'language',
             'settings',
         ]));

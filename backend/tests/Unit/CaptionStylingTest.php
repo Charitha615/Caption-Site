@@ -133,7 +133,7 @@ class CaptionStylingTest extends TestCase
             ['script' => 'sinhala', 'text' => 'සිංහල'],
         ], $runs);
 
-        $ass = $this->renderer->render([['start' => 0, 'end' => 1, 'text' => 'ලංකාව AI']], ['englishFontFamily' => '"Inter", sans-serif', 'fontWeight' => 600, 'animation' => 'none', 'backgroundOpacity' => 0, 'shadowOpacity' => 0], 1280, 720);
+        $ass = $this->renderer->render([['start' => 0, 'end' => 1, 'text' => 'ලංකාව AI']], ['englishFontFamily' => '"Inter", sans-serif', 'fontWeight' => 600, 'animation' => 'none', 'lineTransition' => 'none', 'backgroundOpacity' => 0, 'shadowOpacity' => 0], 1280, 720);
         $this->assertMatchesRegularExpression('/\{\\\\fnNoto Sans Sinhala\\\\fs[\d.]+\\\\b600\\\\i0\}ලංකාව\{\\\\fnInter\\\\fs[\d.]+\\\\b600\\\\i0\} AI$/m', $ass);
     }
 
@@ -152,7 +152,7 @@ class CaptionStylingTest extends TestCase
             [['start' => 0, 'end' => 3, 'text' => 'එක දෙක තුන', 'words' => [
                 ['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2], ['text' => 'තුන', 'start' => 2, 'end' => 3],
             ]]],
-            ['animation' => 'karaoke', 'highlightColor' => '#F97316', 'activeWordScale' => 100, 'backgroundOpacity' => 0, 'shadowOpacity' => 0],
+            ['animation' => 'karaoke', 'lineTransition' => 'none', 'highlightColor' => '#F97316', 'activeWordScale' => 100, 'backgroundOpacity' => 0, 'shadowOpacity' => 0],
             1280, 720,
         );
         $textEvents = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')));
@@ -184,7 +184,7 @@ class CaptionStylingTest extends TestCase
     {
         $ass = $this->renderer->render(
             [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
-            ['animation' => 'karaoke', 'highlightColor' => '#FFD400', 'textColor' => '#FFFFFF', 'activeWordScale' => 100, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            ['lineTransition' => 'none', 'animation' => 'karaoke', 'highlightColor' => '#FFD400', 'textColor' => '#FFFFFF', 'activeWordScale' => 100, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
             1280, 720,
         );
         $second = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')))[1];
@@ -197,7 +197,7 @@ class CaptionStylingTest extends TestCase
     {
         $ass = $this->renderer->render(
             [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
-            ['animation' => 'highlight', 'highlightColor' => '#FFD400', 'highlightTextColor' => '#000000', 'textColor' => '#FFFFFF', 'activeWordScale' => 100, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            ['lineTransition' => 'none', 'animation' => 'highlight', 'highlightColor' => '#FFD400', 'highlightTextColor' => '#000000', 'textColor' => '#FFFFFF', 'activeWordScale' => 100, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
             1280, 720,
         );
         $lines = explode("\n", $ass);
@@ -213,7 +213,7 @@ class CaptionStylingTest extends TestCase
     {
         $ass = $this->renderer->render(
             [['start' => 0, 'end' => 1, 'text' => 'ලංකාවේ bike showroom']],
-            ['textTransform' => 'uppercase', 'animation' => 'none', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            ['textTransform' => 'uppercase', 'animation' => 'none', 'lineTransition' => 'none', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
             1280, 720,
         );
 
@@ -227,25 +227,27 @@ class CaptionStylingTest extends TestCase
     {
         $text = substr($dialogue, (int) strpos($dialogue, '{\\fn'));
 
+        $text = preg_replace('/\\\\t\([^)]*\)/', '', $text); // cascade fades only animate alpha
+
         return preg_replace(['/\\\\(1c|3c|4c|1a|3a|4a|bord|xbord|ybord)[^\\\\}]*/', '/\{\}/'], '', $text);
     }
 
     public function test_highlighting_never_changes_the_line_layout(): void
     {
-        foreach (['karaoke', 'highlight'] as $animation) {
+        foreach ([['karaoke', 'none'], ['highlight', 'none'], ['karaoke', 'cascade'], ['highlight', 'cascade'], ['none', 'cascade']] as [$animation, $transition]) {
             $ass = $this->renderer->render(
                 [['start' => 0, 'end' => 3, 'text' => 'ලංකාවේ bike showroom එකකට', 'words' => [
                     ['text' => 'ලංකාවේ', 'start' => 0.2, 'end' => 0.8], ['text' => 'bike', 'start' => 0.8, 'end' => 1.2],
                     ['text' => 'showroom', 'start' => 1.4, 'end' => 2.0], ['text' => 'එකකට', 'start' => 2.0, 'end' => 2.6],
                 ]]],
-                ['animation' => $animation, 'englishFontFamily' => '"Montserrat", sans-serif', 'shadowOpacity' => 60, 'shadowBlur' => 8, 'backgroundOpacity' => 0],
+                ['animation' => $animation, 'lineTransition' => $transition, 'englishFontFamily' => '"Montserrat", sans-serif', 'shadowOpacity' => 60, 'shadowBlur' => 8, 'backgroundOpacity' => 0],
                 720, 1280,
             );
             $events = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: ')));
             $layouts = array_unique(array_map(fn ($e) => $this->layoutOf($e), $events));
 
             // Gaps (no word active), each highlighted word, the shadow layer and the word box must all lay out identically.
-            $this->assertCount(1, $layouts, "{$animation}: every frame and layer must have identical text layout");
+            $this->assertCount(1, $layouts, "{$animation}/{$transition}: every frame and layer must have identical text layout");
         }
     }
 
@@ -253,11 +255,41 @@ class CaptionStylingTest extends TestCase
     {
         $ass = $this->renderer->render(
             [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
-            ['animation' => 'highlight', 'highlightColor' => '#FFD400', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            ['lineTransition' => 'none', 'animation' => 'highlight', 'highlightColor' => '#FFD400', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
             1280, 720,
         );
         $box = array_values(array_filter(explode("\n", $ass), fn ($l) => str_contains($l, ',WordBox,')))[0];
 
         $this->assertMatchesRegularExpression('/\{\\\\3a&H00&\}එක(\{\\\\fn[^}]*\})?\{\\\\3a&HFF&\} /u', $box, 'box ends before the space');
+    }
+
+    public function test_spotlight_has_no_outline_and_words_cascade_in_and_out(): void
+    {
+        $spotlight = $this->normalizer->normalize(['preset' => 'spotlight']);
+        $this->assertSame(0, $spotlight['outlineWidth']);
+        $this->assertSame('cascade', $spotlight['lineTransition']);
+        $this->assertSame('none', $this->normalizer->normalize(['preset' => 'hormozi'])['lineTransition'], 'older non-Spotlight styles keep no transition');
+
+        // 3 words over 2 s: fade 0.22 s, stagger 0.06 s.
+        $windows = $this->renderer->cascadeWindows(3, 10.0, 12.0);
+        $this->assertEqualsWithDelta([10.0, 10.06, 10.12], array_column($windows, 'inStart'), 1e-9, 'fade in first → last');
+        $this->assertEqualsWithDelta([12.0, 11.94, 11.88], array_column($windows, 'outEnd'), 1e-9, 'fade out last → first');
+
+        $ass = $this->renderer->render(
+            [['start' => 10, 'end' => 12, 'text' => 'එක දෙක තුන', 'words' => [
+                ['text' => 'එක', 'start' => 10, 'end' => 10.6], ['text' => 'දෙක', 'start' => 10.6, 'end' => 11.2], ['text' => 'තුන', 'start' => 11.2, 'end' => 11.9],
+            ]]],
+            ['preset' => 'spotlight', 'animation' => 'karaoke', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            1280, 720,
+        );
+        $text = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')));
+
+        // First frame: every word starts invisible and fades in, the third one 120 ms after the first.
+        $this->assertMatchesRegularExpression('/\\\\1a&HFF&\\\\3a&HFF&\\\\t\(0,220,\\\\1a&H00&\\\\3a&H00&\)\}එක/u', $text[0]);
+        $this->assertMatchesRegularExpression('/\\\\1a&HFF&\\\\3a&HFF&\\\\t\(120,340,\\\\1a&H00&\\\\3a&H00&\)\}තුන/u', $text[0]);
+        // Last frame (11.2–12): the last word fades out first (11.66–11.88), the first word last (11.78–12).
+        $last = array_values(array_filter($text, fn ($l) => str_starts_with($l, 'Dialogue: 2,0:00:11.20,')))[0];
+        $this->assertMatchesRegularExpression('/\\\\t\(580,800,\\\\1a&HFF&\\\\3a&HFF&\)\}එක/u', $last);
+        $this->assertMatchesRegularExpression('/\\\\t\(460,680,\\\\1a&HFF&\\\\3a&HFF&\)\}තුන/u', $last);
     }
 }

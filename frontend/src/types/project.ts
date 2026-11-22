@@ -42,6 +42,8 @@ export interface Project {
   uuid: string;
   name: string;
   description?: string | null;
+  /** The user gave their own script/captions; generation aligns it to the speech. */
+  has_script?: boolean;
   status: ProjectStatus;
   /** User-safe reason when status is 'failed'. */
   processing_error?: string | null;
@@ -88,6 +90,8 @@ export interface ProjectStatusResponse {
 export interface CreateProjectPayload {
   name: string;
   description?: string;
+  /** The user's own script or captions (plain text). */
+  script?: string;
   language?: string;
   duration?: number;
   settings?: Record<string, unknown>;
@@ -96,6 +100,7 @@ export interface CreateProjectPayload {
 export interface UpdateProjectPayload {
   name?: string;
   description?: string;
+  script?: string | null;
   language?: string;
   settings?: Record<string, unknown>;
 }

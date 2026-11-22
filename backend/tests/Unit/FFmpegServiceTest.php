@@ -55,4 +55,27 @@ class FFmpegServiceTest extends TestCase
         $this->assertSame(29.97, $meta['fps']);
         $this->assertTrue($meta['has_audio']);
     }
+
+    public function test_audio_is_cut_in_the_middle_of_the_longest_pause_near_each_target(): void
+    {
+        $silences = [
+            ['start' => 50.0, 'end' => 50.4],   // too early (< 60 % of 90 s)
+            ['start' => 70.0, 'end' => 70.4],
+            ['start' => 95.0, 'end' => 96.2],   // longest pause in the window → cut at 95.6
+            ['start' => 180.0, 'end' => 180.8],
+        ];
+
+        $parts = FFmpegService::planCuts($silences, 250.0, 90);
+
+        $this->assertSame([[0.0, 95.6], [95.6, 84.8], [180.4, 69.6]], $parts);
+        $this->assertSame([[0.0, 100.0]], FFmpegService::planCuts([], 100.0, 90), 'short audio stays whole');
+        $this->assertSame([[0.0, 90.0], [90.0, 110.0]], FFmpegService::planCuts([], 200.0, 90), 'no pause → cut at the target');
+    }
+
+    public function test_silences_are_parsed_from_silencedetect_output(): void
+    {
+        $stderr = "[silencedetect @ 0x1] silence_start: 12.5\n[silencedetect @ 0x1] silence_end: 13.25 | silence_duration: 0.75\n[silencedetect @ 0x1] silence_start: 40\n[silencedetect @ 0x1] silence_end: 41.1 | silence_duration: 1.1\n";
+
+        $this->assertSame([['start' => 12.5, 'end' => 13.25], ['start' => 40.0, 'end' => 41.1]], $this->serviceReturning(0, '', $stderr)->detectSilences('/tmp/a.mp3'));
+    }
 }

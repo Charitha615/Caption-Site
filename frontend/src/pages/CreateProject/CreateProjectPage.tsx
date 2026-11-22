@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, FileVideo, Sparkles, X, AlertCircle, ArrowRight, RefreshCw, Sliders, WifiOff } from 'lucide-react';
+import { UploadCloud, FileVideo, Sparkles, X, AlertCircle, ArrowRight, RefreshCw, Sliders, WifiOff, Languages, FileText, Upload } from 'lucide-react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useUsageStore } from '../../stores/usageStore';
-import { useSettingsStore } from '../../stores/settingsStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useProjectStatus } from '../../hooks/useProjectStatus';
 import { Button } from '../../components/Button/Button';
@@ -21,16 +20,12 @@ import { VIDEO_UPLOAD } from '../../config/constants';
 import type { Project } from '../../types/project';
 import { formatDuration, formatFileSize } from '../../utils/formatters';
 import { validateVideoFile } from '../../utils/video';
+import { scriptFromInput } from '../../features/editor/utils/importCaptions';
 import './CreateProjectPage.css';
 
 type Stage = 'setup' | 'uploading' | 'upload-error' | 'processing' | 'ready' | 'failed';
-type Language = 'si' | 'en' | 'auto';
-
-const LANGUAGES: Array<{ value: Language; flag: string; title: string; sub: string }> = [
-  { value: 'si', flag: '🇱🇰', title: 'සිංහල (Sinhala)', sub: 'Sinhala speech' },
-  { value: 'en', flag: '🇺🇸', title: 'English', sub: 'English speech' },
-  { value: 'auto', flag: '🌐', title: 'Auto / mixed', sub: 'Sinhala + English' },
-];
+const LANGUAGE_NAMES: Record<string, string> = { si: 'සිංහල (Sinhala)', en: 'English', mixed: 'Sinhala + English', auto: 'Detected automatically' };
+const SCRIPT_MAX = 30000;
 
 const formatEta = (s: number | null) => (s === null ? 'estimating…' : s < 60 ? `${s}s left` : `${Math.ceil(s / 60)} min left`);
 
@@ -44,9 +39,11 @@ export const CreateProjectPage: React.FC = () => {
   const maxMb = usage?.max_upload_mb ?? VIDEO_UPLOAD.DEFAULT_MAX_MB;
 
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const defaultLanguage = useSettingsStore((st) => st.settings?.default_language);
-  const [language, setLanguage] = useState<Language>(defaultLanguage ?? 'si');
+  const [script, setScript] = useState('');
+  const [scriptFile, setScriptFile] = useState<string | null>(null);
+  // The spoken language (Sinhala, English or mixed) is detected while processing.
+  const language = 'auto';
+  const scriptInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -119,7 +116,8 @@ export const CreateProjectPage: React.FC = () => {
     if (!file || !name.trim()) return;
     setIsSubmitting(true);
     try {
-      const created = project ?? (await createProject({ name: name.trim(), description: description.trim() || undefined, language }));
+      const scriptText = scriptFromInput(script).trim();
+      const created = project ?? (await createProject({ name: name.trim(), script: scriptText || undefined, language }));
       setProject(created);
       await runUpload(created, file);
     } catch (err) {
@@ -250,40 +248,55 @@ export const CreateProjectPage: React.FC = () => {
             helperText="Sinhala and English titles are supported."
           />
 
-          <fieldset className="lang-fieldset">
-            <legend className="form-label">Spoken language</legend>
-            <div className="lang-selector-grid" role="radiogroup">
-              {LANGUAGES.map((opt) => (
-                <label key={opt.value} className={`lang-option-card ${language === opt.value ? 'lang-option-card-selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="language"
-                    value={opt.value}
-                    checked={language === opt.value}
-                    onChange={() => setLanguage(opt.value)}
-                    className="sr-only"
-                  />
-                  <span className="lang-option-flag" aria-hidden="true">{opt.flag}</span>
-                  <span className="lang-option-text">
-                    <span className="lang-option-title">{opt.title}</span>
-                    <span className="lang-option-sub">{opt.sub}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <p className="create-auto-lang">
+            <Languages size={16} aria-hidden="true" />
+            <span><strong>Spoken language is detected automatically</strong> — Sinhala, English or both mixed.</span>
+          </p>
 
           <div className="input-group">
-            <label className="input-label" htmlFor="project-description">Description (optional)</label>
+            <div className="create-script-head">
+              <label className="input-label" htmlFor="project-script">Your script or captions (optional)</label>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => scriptInputRef.current?.click()}>
+                <Upload size={14} aria-hidden="true" /> Upload .txt / .srt / .vtt
+              </button>
+              <input
+                ref={scriptInputRef}
+                type="file"
+                accept=".txt,.srt,.vtt,text/plain"
+                className="sr-only"
+                tabIndex={-1}
+                aria-label="Upload script file"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  void f.text().then((t) => {
+                    setScript(t.slice(0, SCRIPT_MAX));
+                    setScriptFile(f.name);
+                  });
+                }}
+              />
+            </div>
             <textarea
-              id="project-description"
-              className="input-field"
-              rows={2}
-              maxLength={1000}
-              placeholder="Notes about the content or speakers…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              id="project-script"
+              className="input-field create-script-text"
+              rows={5}
+              lang="si"
+              maxLength={SCRIPT_MAX}
+              placeholder="Already have the words? Paste your script here (Sinhala, English or both). We'll match every word to the speech in the video instead of guessing them."
+              value={script}
+              onChange={(e) => {
+                setScript(e.target.value);
+                setScriptFile(null);
+              }}
+              aria-describedby="project-script-help"
             />
+            <p id="project-script-help" className="input-helper-text create-script-help">
+              {scriptFile && <span className="create-script-file"><FileText size={13} aria-hidden="true" /> {scriptFile}</span>}
+              {script.trim()
+                ? 'Your words become the captions, timed to the speech. Dots and symbols are removed; your original lines are kept so you can review them in the editor.'
+                : 'Leave empty to let AI write the captions from the speech.'}
+            </p>
           </div>
 
           <div className="form-actions">
@@ -383,7 +396,7 @@ export const CreateProjectPage: React.FC = () => {
                 </div>
                 <div className="ready-stat-chip">
                   <span className="ready-stat-label">Language</span>
-                  <span className="ready-stat-value">{LANGUAGES.find((l) => l.value === (status?.language ?? language))?.title}</span>
+                  <span className="ready-stat-value">{LANGUAGE_NAMES[status?.language ?? language] ?? status?.language}</span>
                 </div>
                 {status?.width ? (
                   <div className="ready-stat-chip">

@@ -40,6 +40,11 @@ class AssCaptionRenderer
         'bottom-left' => 1, 'bottom-center' => 2, 'bottom-right' => 3,
     ];
 
+    /** Cascade line transition timing — keep equal to frontend utils/cascade.ts. */
+    public const CASCADE_MAX_FADE = 0.22;
+
+    public const CASCADE_MAX_STAGGER = 0.06;
+
     public function __construct(
         protected CaptionStyleNormalizer $normalizer,
         protected FontRegistry $fonts,
@@ -141,6 +146,14 @@ class AssCaptionRenderer
             default => [['start' => $start, 'end' => $end, 'word' => -1, 'visible' => null]],
         };
 
+        // Cascade line transition: per-word fade in (first → last) and out (last → first).
+        $cascade = ($s['lineTransition'] ?? 'none') === 'cascade' && $s['animation'] !== 'typewriter'
+            ? $this->cascadeWindows(count($this->tokens($text)), $start, $end)
+            : null;
+        $shadowAlpha = 255 - (int) round(max(0, min(100, $s['shadowOpacity'])) / 100 * 255);
+        $fadeFor = fn (array $f, array $targets, ?int $onlyWord = null) => $cascade === null ? null
+            : fn (int $word) => $onlyWord === null || $onlyWord === $word ? $this->cascadeTags($cascade[$word] ?? null, $f['start'], $f['end'], $targets) : '';
+
         // Keep font metrics and stroke width constant across all word frames so
         // text alignment and line layout stay 100% rock-solid without horizontal shifts.
         foreach ($frames as $i => $f) {
@@ -148,19 +161,22 @@ class AssCaptionRenderer
             if ($hasShadow) {
                 $markup = match (true) {
                     $f['visible'] !== null => $this->typewriterMarkup($text, $f['visible'], $s, $scale),
+                    $cascade !== null => $this->wordMarkup($text, -1, $s, $scale, '', '', $fadeFor($f, ['1a' => $shadowAlpha, '3a' => $shadowAlpha])),
                     default => $this->markup($runs, $s, $scale),
                 };
                 $events[] = $this->dialogue(1, 'Text', $f['start'], $f['end'], $shadowCommon, $shadowTags, $markup, $entrance);
             }
+            $textFade = $fadeFor($f, ['1a' => 0, '3a' => 0]);
             $markup = match (true) {
                 $f['visible'] !== null => $this->typewriterMarkup($text, $f['visible'], $s, $scale),
-                $f['word'] >= 0 && $s['animation'] === 'karaoke' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s', $this->color($s['highlightColor'])), sprintf('\1c%s', $this->color($s['textColor']))),
-                $f['word'] >= 0 && $s['animation'] === 'highlight' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s\3c%s\bord%s', $this->color($s['highlightTextColor'] ?? '#000000'), $this->color($s['highlightColor']), $this->num($stroke)), sprintf('\1c%s\3c%s\bord%s', $this->color($s['textColor']), $this->color($s['outlineColor']), $this->num($stroke))),
+                $f['word'] >= 0 && $s['animation'] === 'karaoke' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s', $this->color($s['highlightColor'])), sprintf('\1c%s', $this->color($s['textColor'])), $textFade),
+                $f['word'] >= 0 && $s['animation'] === 'highlight' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s\3c%s\bord%s', $this->color($s['highlightTextColor'] ?? '#000000'), $this->color($s['highlightColor']), $this->num($stroke)), sprintf('\1c%s\3c%s\bord%s', $this->color($s['textColor']), $this->color($s['outlineColor']), $this->num($stroke)), $textFade),
+                $cascade !== null => $this->wordMarkup($text, -1, $s, $scale, '', '', $textFade),
                 default => $this->markup($runs, $s, $scale),
             };
             if ($f['word'] >= 0 && $s['animation'] === 'highlight') {
                 // Word box: a Box-style event where only the active word's box is opaque.
-                $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, '\3a&H00&', '\3a&HFF&');
+                $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, '\3a&H00&', '\3a&HFF&', $fadeFor($f, ['3a' => 0], $f['word']));
                 $hlTags = $base.sprintf('\bord0\xbord%1$s\ybord%2$s\shad0\1a&HFF&\3c%3$s\3a&HFF&\4a&HFF&', $this->num(0.14 * $fontPx), $this->num(0.08 * $fontPx), $this->color($s['highlightColor']));
                 $events[] = $this->dialogue(1, 'WordBox', $f['start'], $f['end'], $common, $hlTags, $boxMarkup, false);
             }
@@ -327,7 +343,7 @@ class AssCaptionRenderer
      * every word frame, gap frame, shadow and word box lines up to the pixel (no shifting
      * when the highlight moves). Words are whitespace-separated and may span script runs.
      */
-    protected function wordMarkup(string $text, int $active, array $s, float $scale, string $onTags, string $offTags): string
+    protected function wordMarkup(string $text, int $active, array $s, float $scale, string $onTags, string $offTags, ?\Closure $wordTags = null): string
     {
         $out = '';
         $wordIndex = -1;
@@ -345,7 +361,7 @@ class AssCaptionRenderer
                 } elseif (! $inWord) {
                     $inWord = true;
                     $wordIndex++;
-                    $tags = $wordIndex === $active ? $onTags : $offTags;
+                    $tags = ($wordIndex === $active ? $onTags : $offTags).($wordTags ? $wordTags($wordIndex) : '');
                     if ($tags !== '') {
                         $out .= '{'.$tags.'}';
                     }
@@ -355,6 +371,62 @@ class AssCaptionRenderer
         }
 
         return $out;
+    }
+
+    /**
+     * Per-word fade windows for the "cascade" line transition (mirrors frontend utils/cascade.ts):
+     * words fade in first → last, and fade out last → first.
+     *
+     * @return list<array{inStart: float, inEnd: float, outStart: float, outEnd: float}>
+     */
+    public function cascadeWindows(int $count, float $start, float $end): array
+    {
+        $duration = max(0.0, $end - $start);
+        $fade = min(self::CASCADE_MAX_FADE, $duration * 0.15);
+        $stagger = $count > 1 ? max(0.0, min(self::CASCADE_MAX_STAGGER, ($duration * 0.3 - $fade) / ($count - 1))) : 0.0;
+        $windows = [];
+        for ($i = 0; $i < $count; $i++) {
+            $windows[] = [
+                'inStart' => $start + $i * $stagger,
+                'inEnd' => $start + $i * $stagger + $fade,
+                'outStart' => $end - $i * $stagger - $fade,
+                'outEnd' => $end - $i * $stagger,
+            ];
+        }
+
+        return $windows;
+    }
+
+    /**
+     * Alpha tags making one word follow its cascade window during an event [$from, $to].
+     * Starts at the word's opacity at $from, then \t-animates the fade in / fade out
+     * (event-relative ms, never negative).
+     *
+     * @param  array{inStart: float, inEnd: float, outStart: float, outEnd: float}|null  $w
+     * @param  array<string, int>  $targets  alpha tag ('1a', '3a') => fully visible alpha (0 = opaque)
+     */
+    protected function cascadeTags(?array $w, float $from, float $to, array $targets): string
+    {
+        if ($w === null || $targets === []) {
+            return '';
+        }
+        $span = max(0.001, $w['inEnd'] - $w['inStart']);
+        $opacity = max(0.0, min(1.0, ($from - $w['inStart']) / $span, ($w['outEnd'] - $from) / $span));
+        $set = fn (float $o) => implode('', array_map(
+            fn ($tag, $visible) => sprintf('\\%s&H%02X&', $tag, (int) round(255 - (255 - $visible) * $o)),
+            array_keys($targets), $targets,
+        ));
+        $ms = fn (float $t) => (int) round(max(0.0, $t - $from) * 1000);
+
+        $tags = $set($opacity);
+        if ($from < $w['inEnd'] && $to > $w['inStart']) {
+            $tags .= sprintf('\\t(%d,%d,%s)', $ms($w['inStart']), $ms($w['inEnd']), $set(1.0));
+        }
+        if ($to > $w['outStart'] && $from < $w['outEnd']) {
+            $tags .= sprintf('\\t(%d,%d,%s)', $ms($w['outStart']), $ms($w['outEnd']), $set(0.0));
+        }
+
+        return $tags;
     }
 
     /** First $visible graphemes shown, the rest fully transparent (keeps layout stable). */

@@ -7,16 +7,19 @@ use App\Jobs\ProcessUploadedVideoJob;
 use App\Models\Caption;
 use App\Models\MediaFile;
 use App\Models\Project;
+use App\Models\Transcript;
 use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\AI\AIProviderFactory;
 use App\Services\AI\AIProviderInterface;
 use App\Services\AI\FakeAIProvider;
+use App\Services\Caption\ScriptAligner;
 use App\Services\Media\MediaStorage;
 use App\Services\Usage\UsageService;
 use App\Services\Video\Contracts\VideoServiceInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Jobs\FakeJob;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -264,5 +267,45 @@ class CaptionPipelineTest extends TestCase
         [$user, $headers] = $this->userWithToken();
         $project->forceFill(['user_id' => $user->id])->save();
         $this->withHeaders($headers)->getJson("/api/projects/{$project->uuid}/status")->assertJsonPath('data.notice', $project->processing_error);
+    }
+
+    public function test_status_endpoint_shows_which_part_is_being_transcribed(): void
+    {
+        [$user, $headers] = $this->userWithToken();
+        $project = Project::factory()->create(['user_id' => $user->id, 'status' => Project::STATUS_TRANSCRIBING]);
+        Cache::put(ProcessUploadedVideoJob::progressKey($project), ['part' => 3, 'parts' => 5]);
+
+        $this->withHeaders($headers)->getJson("/api/projects/{$project->uuid}/status")
+            ->assertOk()
+            ->assertJsonPath('data.phase_label', 'Transcribing and reviewing part 3 of 5...')
+            ->assertJsonPath('data.progress_percentage', 66);
+    }
+
+    public function test_users_own_script_becomes_the_captions_aligned_to_the_speech(): void
+    {
+        $project = $this->projectWithVideo();
+        $project->update(['language' => 'auto', 'script' => 'ආයුබෝවන්, අපගේ වීඩියෝවට සාදරයෙන් පිළිගනිමු! අද අපි "Toyota Aqua" ගැන කතා කරමු.']);
+
+        ProcessUploadedVideoJob::dispatchSync($project, $project->primaryMediaFile, 'auto');
+
+        $project->refresh();
+        $this->assertSame(Project::STATUS_READY, $project->status, (string) $project->processing_error);
+        $this->assertSame('si', $project->language, 'spoken language detected and saved');
+
+        $captions = Caption::where('project_id', $project->id)->orderBy('sequence')->get();
+        $all = $captions->pluck('text')->implode(' ');
+        $this->assertSame('ආයුබෝවන් අපගේ වීඩියෝවට සාදරයෙන් පිළිගනිමු අද අපි Toyota Aqua ගැන කතා කරමු', $all, 'script words, punctuation removed');
+        $this->assertStringContainsString('ආයුබෝවන්,', $captions[0]->metadata['original_text'], 'script line kept as the original');
+        $this->assertSame('script', $captions[0]->metadata['source']['imported']);
+        $this->assertSame('ආයුබෝවන්', $captions[0]->metadata['words'][0]['word']);
+        $transcript = Transcript::where('project_id', $project->id)->first();
+        $this->assertSame((float) $transcript->words_json[0]['words'][0]['start'], (float) $captions[0]->metadata['words'][0]['start'], 'timed from the speech');
+        $this->assertStringContainsString('සැබෑ උපසිරැසි', $transcript->raw_text, 'AI transcript kept untouched');
+    }
+
+    public function test_script_punctuation_is_removed_like_in_the_editor(): void
+    {
+        $this->assertSame('ආයුබෝවන් මේ Toyota Aqua හරිද', ScriptAligner::stripPunctuation('ආයුබෝවන්! මේ "Toyota Aqua"... හරිද?'));
+        $this->assertSame("ප්\u{200D}රශ්නය 2.5 lakhs 50% it’s well-known", ScriptAligner::stripPunctuation("ප්\u{200D}රශ්නය — 2.5 lakhs, 50%; it’s well-known."));
     }
 }

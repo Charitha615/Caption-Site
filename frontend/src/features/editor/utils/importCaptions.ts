@@ -26,7 +26,8 @@ export function stripCaptionPunctuation(input: string): string {
   return input
     .replace(new RegExp(`(?<=[${L}])['’\\-](?=[${L}])`, 'gu'), '\u0000$&') // protect in-word ' and -
     .replace(/(?<=\d)[.,](?=\d)/gu, '\u0000$&') // protect 12.4 / 1,500
-    .replace(/\u0000(.)|[^\p{L}\p{M}\p{N}\s\u200C\u200D%&+@]/gu, (_m, kept) => kept ?? ' ')
+    // eslint-disable-next-line no-control-regex, no-misleading-character-class -- NUL is our own marker; ZWJ/ZWNJ belong to Sinhala conjuncts
+    .replace(/\u0000(.)|[^\p{L}\p{M}\p{N}\s\u{200C}\u{200D}%&+@]/gu, (_m, kept) => kept ?? ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -289,4 +290,10 @@ export function assignTimingsToCues(cues: string[], options: TimingOptions): Par
   }
 
   return parsed;
+}
+
+/** A pasted/uploaded .srt or .vtt becomes plain lines (timings then come from the speech). */
+export function scriptFromInput(raw: string): string {
+  const cues = parseSubtitles(raw.trim());
+  return cues ? cues.map((c) => c.text).join('\n') : raw;
 }

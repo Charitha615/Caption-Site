@@ -311,6 +311,8 @@
 .regen-warning, .regen-usage { margin-top: 14px; font-size: 0.83rem; display: flex; gap: 6px; align-items: center; }
 .regen-warning { color: var(--status-warning-text); }
 .regen-usage { color: var(--text-muted); }
+.regen-script-option { align-items: flex-start; margin-top: 12px; font-size: 0.86rem; line-height: 1.45; }
+.regen-script-option input { margin-top: 3px; accent-color: var(--brand-primary); }
 
 .caption-original { font-size: 0.8rem; color: var(--text-muted); }
 .caption-original summary { cursor: pointer; width: fit-content; }

@@ -40,6 +40,7 @@ class Project extends Model
         'user_id',
         'name',
         'description',
+        'script',
         'status',
         'processing_error',
         'duration',

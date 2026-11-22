@@ -5,7 +5,7 @@ namespace App\Services\AI;
 /** Leaves captions exactly as transcribed (cleanup disabled, or the fake provider). */
 class NullCaptionRefiner implements CaptionRefinerInterface
 {
-    public function refine(array $lines, string $language): array
+    public function refine(array $lines, string $language, ?string $audioPath = null): array
     {
         return array_column($lines, 'text');
     }

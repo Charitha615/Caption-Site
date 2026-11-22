@@ -72,6 +72,60 @@ class ScriptAligner
         ];
     }
 
+    /**
+     * Word timings for a corrected caption line, taken from the words the transcriber heard
+     * in that line: matching words keep their exact time, added words go into the gaps,
+     * dropped words are ignored. Everything stays inside [$start, $end].
+     *
+     * @param  list<array{word: string, start: float, end: float}>  $speech
+     * @return list<array{word: string, start: float, end: float}>
+     */
+    public function alignWords(string $text, array $speech, float $start, float $end): array
+    {
+        $words = self::tokenize($text);
+        if ($words === []) {
+            return [];
+        }
+        $speech = array_values($speech);
+        if (count($speech) === count($words)) {
+            return array_map(fn ($w, $s) => ['word' => $w, 'start' => (float) $s['start'], 'end' => (float) $s['end']], $words, $speech);
+        }
+
+        $pairs = $this->alignSequences(
+            array_map(fn ($w) => self::key($w), $words),
+            array_map(fn ($w) => self::key((string) ($w['word'] ?? '')), $speech),
+        );
+        $timed = [];
+        foreach ($words as $i => $word) {
+            $j = $pairs[$i] ?? null;
+            $timed[] = ['word' => $word, 'start' => $j !== null ? (float) $speech[$j]['start'] : null, 'end' => $j !== null ? (float) $speech[$j]['end'] : null];
+        }
+        $timed = $this->fillGaps($timed, $end, $start);
+
+        $clamp = fn (float $t) => round(min(max($t, $start), $end), 3);
+
+        return array_map(fn ($w) => ['word' => $w['word'], 'start' => $clamp($w['start']), 'end' => max($clamp($w['end']), $clamp($w['start']))], $timed);
+    }
+
+    /**
+     * Caption text without punctuation or symbols (mirrors the editor's stripCaptionPunctuation):
+     * keeps letters, Sinhala signs, ZWJ/ZWNJ, digits, in-word ' and -, decimals, and % & + @.
+     */
+    public static function stripPunctuation(string $text): string
+    {
+        $mark = "\u{E000}";
+        $letters = '\p{L}\p{M}\p{N}\x{200C}\x{200D}';
+        $text = preg_replace("/(?<=[{$letters}])(['’\-])(?=[{$letters}])/u", $mark.'$1', $text) ?? $text;
+        $text = preg_replace('/(?<=\d)([.,])(?=\d)/u', $mark.'$1', $text) ?? $text;
+        $text = preg_replace_callback(
+            "/{$mark}(.)|[^\p{L}\p{M}\p{N}\s\x{200C}\x{200D}%&+@]/u",
+            fn ($m) => ($m[1] ?? '') !== '' ? $m[1] : ' ',
+            $text,
+        ) ?? $text;
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+    }
+
     /** @return list<string> */
     public static function tokenize(string $script): array
     {
@@ -208,7 +262,7 @@ class ScriptAligner
      * @param  list<array{word: string, start: ?float, end: ?float}>  $words
      * @return list<array{word: string, start: float, end: float}>
      */
-    private function fillGaps(array $words, float $duration): array
+    private function fillGaps(array $words, float $duration, float $floor = 0.0): array
     {
         $n = count($words);
         $i = 0;
@@ -222,7 +276,7 @@ class ScriptAligner
             while ($i < $n && $words[$i]['start'] === null) {
                 $i++;
             }
-            $from = $runStart > 0 ? (float) $words[$runStart - 1]['end'] : 0.0;
+            $from = $runStart > 0 ? (float) $words[$runStart - 1]['end'] : $floor;
             $to = $i < $n ? (float) $words[$i]['start'] : max($from + 0.4 * ($i - $runStart), $duration);
             if ($to - $from < 0.15 * ($i - $runStart)) {
                 $to = $from + 0.15 * ($i - $runStart); // squeezed: give each word a minimal slot
@@ -239,7 +293,7 @@ class ScriptAligner
         }
 
         // Keep time monotonic (matched words can overlap after interpolation).
-        $prevEnd = 0.0;
+        $prevEnd = $floor;
         foreach ($words as &$w) {
             $w['start'] = max((float) $w['start'], $prevEnd);
             $w['end'] = max((float) $w['end'], $w['start'] + 0.05);

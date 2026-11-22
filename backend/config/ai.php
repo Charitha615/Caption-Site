@@ -39,11 +39,17 @@ return [
         'caption_cleanup' => (bool) env('GEMINI_CAPTION_CLEANUP', true),
         // Clean-up is optional polish: give up quickly when the text model is slow.
         'cleanup_timeout' => (int) env('GEMINI_CLEANUP_TIMEOUT', 45),
+        // Listening review: after each audio part is transcribed, the text model hears that part
+        // and corrects its lines (misheard Sinhala, English words, missing words).
+        'caption_review' => (bool) env('GEMINI_CAPTION_REVIEW', true),
+        'review_timeout' => (int) env('GEMINI_REVIEW_TIMEOUT', 90),
+        'review_max_bytes' => (int) env('GEMINI_REVIEW_MAX_BYTES', 8 * 1024 * 1024),
         // Label speakers (spk_1, spk_2 …) in the transcript.
         'diarization' => (bool) env('GEMINI_DIARIZATION', true),
-        // Gemini 3.5 Transcribe allows 30 min per request with word timestamps; longer audio
-        // is split into chunks of this many seconds and stitched back together.
-        'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 1500),
+        // Audio is transcribed and reviewed in parts of about this many seconds, cut at natural
+        // pauses. Short parts are more accurate (fewer skipped/misheard words) and each one is
+        // reviewed against its own audio before moving on. Max 1800 (30 min per request).
+        'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 90),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
         // Seconds to wait for one model's answer. A 2–3 minute video normally takes well under a minute; overloads are retried by the job.

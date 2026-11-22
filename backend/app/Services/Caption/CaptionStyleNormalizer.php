@@ -28,11 +28,12 @@ class CaptionStyleNormalizer
         'highlightTextColor' => '#000000',
         'activeWordScale' => 100,
         'textTransform' => 'none',
+        'lineTransition' => 'cascade',
         'outlineColor' => '#000000',
-        'outlineWidth' => 6,
+        'outlineWidth' => 0,
         'shadowColor' => '#000000',
-        'shadowOpacity' => 60,
-        'shadowBlur' => 8,
+        'shadowOpacity' => 70,
+        'shadowBlur' => 10,
         'shadowOffsetX' => 0,
         'shadowOffsetY' => 3,
         'backgroundColor' => '#000000',
@@ -77,6 +78,7 @@ class CaptionStyleNormalizer
         ],
         'animation' => ['none', 'fade', 'pop', 'bounce', 'slide', 'typewriter', 'karaoke', 'highlight'],
         'textTransform' => ['none', 'uppercase'],
+        'lineTransition' => ['none', 'cascade'],
     ];
 
     public const COLORS = ['textColor', 'highlightColor', 'highlightTextColor', 'outlineColor', 'shadowColor', 'backgroundColor'];
@@ -88,7 +90,11 @@ class CaptionStyleNormalizer
      */
     public function normalize(mixed $raw): array
     {
-        return array_merge(self::DEFAULTS, $this->normalizePartial($raw));
+        $style = $this->normalizePartial($raw);
+        // Styles saved before line transitions existed: only Spotlight gets the cascade.
+        $style['lineTransition'] ??= ($style['preset'] ?? self::DEFAULTS['preset']) === 'spotlight' ? 'cascade' : 'none';
+
+        return array_merge(self::DEFAULTS, $style);
     }
 
     /**

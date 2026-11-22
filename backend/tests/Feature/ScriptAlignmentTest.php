@@ -84,4 +84,18 @@ class ScriptAlignmentTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('errors.code.0', 'no_transcript');
     }
+
+    public function test_corrected_line_keeps_heard_word_times_and_places_added_words_in_gaps(): void
+    {
+        $speech = [['word' => 'ටොයොටා', 'start' => 10.0, 'end' => 10.5], ['word' => 'අක්වා', 'start' => 10.6, 'end' => 11.0], ['word' => 'කාර්', 'start' => 11.6, 'end' => 12.0]];
+
+        $words = (new ScriptAligner)->alignWords('Toyota Aqua hybrid car', $speech, 9.8, 12.2);
+
+        $this->assertSame(['Toyota', 'Aqua', 'hybrid', 'car'], array_column($words, 'word'));
+        $this->assertEquals([10.0, 10.6, 11.0, 11.6], array_column($words, 'start'), 'heard words keep their time; "hybrid" fills the pause');
+        $this->assertEquals(11.6, $words[2]['end']);
+
+        $same = (new ScriptAligner)->alignWords('Toyota Aqua car', $speech, 9.8, 12.2);
+        $this->assertEquals([10.0, 10.6, 11.6], array_column($same, 'start'), 'same word count → exact times');
+    }
 }

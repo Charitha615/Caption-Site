@@ -20,7 +20,7 @@ interface VideoServiceInterface
     public function extractAudio(string $videoPath, string $outputPath, float $leadInSeconds = 0.0): string;
 
     /**
-     * Splits audio into consecutive pieces of at most $seconds each.
+     * Splits audio into consecutive parts of about $seconds each (implementations should cut at pauses).
      *
      * @return list<array{path: string, offset: float, duration: float}>
      */

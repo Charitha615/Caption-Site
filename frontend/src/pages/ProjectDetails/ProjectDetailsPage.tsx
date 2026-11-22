@@ -26,7 +26,6 @@ import type { Caption, Project } from '../../types/project';
 import { formatDuration, formatDate, getLanguageLabel, formatFileSize } from '../../utils/formatters';
 import './ProjectDetailsPage.css';
 
-type Language = 'si' | 'en' | 'auto';
 const VISIBLE_CAPTIONS = 300;
 
 const isProcessing = (p: Project | null) => !!p && (PROCESSING_STATUSES as readonly string[]).includes(p.status);
@@ -41,7 +40,7 @@ function statusBadge(status: Project['status']) {
 export const ProjectDetailsPage: React.FC = () => {
   const { uuid } = useParams<{ uuid: string }>();
   const navigate = useNavigate();
-  const { currentProject: project, loadProject, deleteProject } = useProjectStore();
+  const { currentProject: project, loadProject, deleteProject, updateProject } = useProjectStore();
   const addToast = useToastStore((s) => s.addToast);
   const usage = useUsageStore((s) => s.usage);
 
@@ -51,7 +50,9 @@ export const ProjectDetailsPage: React.FC = () => {
   const [showAll, setShowAll] = useState(false);
 
   const [regenOpen, setRegenOpen] = useState(false);
-  const [targetLang, setTargetLang] = useState<Language>('si');
+  // The spoken language is always detected while processing.
+  const targetLang = 'auto';
+  const [useScript, setUseScript] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
 
   const [editingUuid, setEditingUuid] = useState<string | null>(null);
@@ -85,8 +86,7 @@ export const ProjectDetailsPage: React.FC = () => {
     if (!uuid) return;
     setLoadError(null);
     try {
-      const p = await loadProject(uuid);
-      setTargetLang((['si', 'en', 'auto'].includes(p.language) ? p.language : 'si') as Language);
+      await loadProject(uuid);
       await loadCaptions(uuid);
     } catch (err) {
       setLoadError(toAppError(err, 'We could not load this project.'));
@@ -114,6 +114,8 @@ export const ProjectDetailsPage: React.FC = () => {
     if (!uuid) return;
     setRegenerating(true);
     try {
+      // Not using the script this time: remove it so the AI writes the captions.
+      if (project?.has_script && !useScript) await updateProject(uuid, { script: null });
       await captionService.generateCaptions(uuid, targetLang);
       setRegenOpen(false);
       await loadProject(uuid);
@@ -464,20 +466,15 @@ export const ProjectDetailsPage: React.FC = () => {
           </>
         }
       >
-        <fieldset className="regen-fieldset">
-          <legend className="form-label">Spoken language</legend>
-          {([
-            ['si', '🇱🇰', 'සිංහල (Sinhala)'],
-            ['en', '🇺🇸', 'English'],
-            ['auto', '🌐', 'Auto / mixed'],
-          ] as const).map(([value, flag, label]) => (
-            <label key={value} className={`regen-option ${targetLang === value ? 'regen-option-selected' : ''}`}>
-              <input type="radio" name="regen-language" value={value} checked={targetLang === value} onChange={() => setTargetLang(value)} />
-              <span aria-hidden="true">{flag}</span>
-              <span>{label}</span>
-            </label>
-          ))}
-        </fieldset>
+        <p className="regen-usage">Spoken language is detected automatically (Sinhala, English or both).</p>
+        {project.has_script && (
+          <label className="regen-option regen-script-option">
+            <input type="checkbox" checked={useScript} onChange={(e) => setUseScript(e.target.checked)} />
+            <span>
+              <strong>Use my script</strong> — your own words become the captions, timed to the speech. Untick to let AI write them (your script will be removed).
+            </span>
+          </label>
+        )}
         {captions.length > 0 && (
           <p className="regen-warning">
             <AlertCircle size={14} aria-hidden="true" /> This replaces the current {captions.length} captions, including your edits.

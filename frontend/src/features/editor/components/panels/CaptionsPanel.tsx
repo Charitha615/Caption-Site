@@ -121,22 +121,24 @@ export const CaptionsPanel = memo(function CaptionsPanel() {
             </button>
           )}
         </div>
-        <button
-          type="button"
-          className="ed-btn is-primary"
-          onClick={() => useCaptionStore.getState().addCaption(useVideoStore.getState().currentTime)}
-          data-tip={tip('Add caption at playhead', 'add')}
-        >
-          <Plus size={14} /> Add
-        </button>
-        <button
-          type="button"
-          className="ed-btn"
-          onClick={() => useUIStore.getState().setImportOpen(true)}
-          data-tip="Import captions from script text or subtitle files"
-        >
-          <Upload size={14} /> Import
-        </button>
+        <div className="ed-captions-actions">
+          <button
+            type="button"
+            className="ed-btn is-primary"
+            onClick={() => useCaptionStore.getState().addCaption(useVideoStore.getState().currentTime)}
+            data-tip={tip('Add caption at playhead', 'add')}
+          >
+            <Plus size={14} aria-hidden="true" /> Add
+          </button>
+          <button
+            type="button"
+            className="ed-btn"
+            onClick={() => useUIStore.getState().setImportOpen(true)}
+            data-tip="Import captions from script text or subtitle files"
+          >
+            <Upload size={14} aria-hidden="true" /> Import
+          </button>
+        </div>
       </div>
       <div className="ed-captions-meta">
         {query ? `${rows.length} of ${captions.length} captions` : `${captions.length} captions`}

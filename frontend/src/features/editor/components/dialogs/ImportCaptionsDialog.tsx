@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, AudioLines, Check, FileText, Loader2, Upload } from 'lucide-react';
 import { Modal } from '../../../../components/Modal/Modal';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
@@ -70,16 +70,14 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
   const [removePunctuation, setRemovePunctuation] = useState(true);
   const [smartEnglish, setSmartEnglish] = useState(true);
   const [aiEnglish, setAiEnglish] = useState(true);
-  const [aligned, setAligned] = useState<AlignResult | null>(null);
+  // A speech match is only valid for the exact inputs it was made from.
+  const [match, setMatch] = useState<{ key: string; result: AlignResult } | null>(null);
   const [aligning, setAligning] = useState(false);
   const [alignError, setAlignError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Any change to the inputs invalidates a previous speech match.
-  useEffect(() => {
-    setAligned(null);
-    setAlignError(null);
-  }, [rawText, aiEnglish, smartEnglish, timingMode]);
+  const matchKey = `${timingMode}|${smartEnglish}|${aiEnglish}|${rawText}`;
+  const aligned = match?.key === matchKey ? match.result : null;
 
   const isSubtitleFile = useMemo(() => parseSubtitles(rawText.trim()) !== null, [rawText]);
   const prepared = useCallback((text: string) => (smartEnglish ? enhanceTextForCaptions(text) : repairSinhalaScript(text)), [smartEnglish]);
@@ -89,7 +87,7 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
     setAligning(true);
     setAlignError(null);
     try {
-      setAligned(await captionService.alignScript(projectUuid, prepared(rawText), aiEnglish));
+      setMatch({ key: matchKey, result: await captionService.alignScript(projectUuid, prepared(rawText), aiEnglish) });
     } catch (err) {
       setAlignError(toAppError(err, 'Could not match the script to the speech.').message);
     } finally {
@@ -194,6 +192,7 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
             onChange={(e) => {
               setRawText(e.target.value);
               setFileName(null);
+              setAlignError(null);
             }}
           />
           <div className="ed-imp-meta">

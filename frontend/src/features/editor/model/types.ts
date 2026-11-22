@@ -29,6 +29,9 @@ export type FontStyle = 'normal' | 'italic';
 
 export type TextTransform = 'none' | 'uppercase';
 
+/** How a whole caption line appears/disappears. 'cascade': words fade in first→last, fade out last→first. */
+export type LineTransition = 'none' | 'cascade';
+
 export type CanvasAspect = 'source' | '16:9' | '9:16' | '1:1' | '4:5';
 
 export interface CaptionWord {
@@ -68,6 +71,8 @@ export interface CaptionStyle {
   activeWordScale: number;
   /** 'uppercase' capitalises Latin letters (Sinhala has no case). */
   textTransform: TextTransform;
+  /** Line appear/disappear effect, independent of the word animation. */
+  lineTransition: LineTransition;
 
   /** Stroke ("outline") — names kept for compatibility with stored overrides. */
   outlineColor: string;

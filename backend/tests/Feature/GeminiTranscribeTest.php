@@ -163,7 +163,7 @@ class GeminiTranscribeTest extends TestCase
         $this->assertLessThanOrEqual(CaptionLineBuilder::MAX_WORDS, count($lines[1]['words']));
     }
 
-    public function test_pipeline_keeps_the_original_transcript_and_stores_cleaned_captions(): void
+    public function test_pipeline_transcribes_and_reviews_each_part_keeping_the_original(): void
     {
         Storage::fake('local');
         config(['ai.gemini.transcribe_chunk_seconds' => 60]);
@@ -195,7 +195,8 @@ class GeminiTranscribeTest extends TestCase
                 return false;
             }
         });
-        $this->fakeTranscribe([['ආයුබෝවන්', 1.0, 1.6], ['මිතුරනි', 1.7, 2.3]], cleanup: ['lines' => ['ආයුබෝවන්, මිතුරනි!', 'ආයුබෝවන්, මිතුරනි!']]);
+        // The listening review hears a word the transcriber missed ("මගේ").
+        $this->fakeTranscribe([['ආයුබෝවන්', 1.0, 1.6], ['මිතුරනි', 2.0, 2.4]], cleanup: ['lines' => ['ආයුබෝවන් මගේ මිතුරනි']]);
 
         $owner = User::factory()->create();
         $owner->forceFill(['gemini_api_key' => self::KEY, 'gemini_key_hint' => 'abcd', 'gemini_key_status' => 'valid'])->save();
@@ -211,16 +212,25 @@ class GeminiTranscribeTest extends TestCase
         $this->assertSame(60.0, (float) $captions[1]->start_time, 'second chunk shifted by its offset, minus the 1 s lead-in');
 
         $first = $captions[0];
-        $this->assertSame('ආයුබෝවන්, මිතුරනි!', $first->text);
+        $this->assertSame('ආයුබෝවන් මගේ මිතුරනි', $first->text);
         $this->assertSame('ආයුබෝවන් මිතුරනි', $first->metadata['original_text']);
         $this->assertTrue($first->metadata['cleaned']);
-        $this->assertEquals([0.0, 0.7], array_column($first->metadata['words'], 'start'), 'lead-in removed; timings otherwise untouched by clean-up');
+        $this->assertTrue($first->metadata['reviewed']);
+        $this->assertSame(['ආයුබෝවන්', 'මගේ', 'මිතුරනි'], array_column($first->metadata['words'], 'word'));
+        $this->assertEquals([0.0, 0.6, 1.0], array_column($first->metadata['words'], 'start'), 'heard words keep their time; the added word fills the gap; lead-in removed');
         $this->assertSame('gemini-transcribe', $first->metadata['source']['transcriber']);
         $this->assertSame('gemini-3.8-flash', $first->metadata['source']['cleanup']);
 
         $transcript = Transcript::where('project_id', $project->id)->first();
         $this->assertStringContainsString('ආයුබෝවන් මිතුරනි', $transcript->raw_text);
         $this->assertSame('ආයුබෝවන් මිතුරනි', $transcript->words_json[0]['text'], 'original transcript is not cleaned');
+        $this->assertSame(['ආයුබෝවන්', 'මිතුරනි'], array_column($transcript->words_json[0]['words'], 'word'), 'original word timestamps kept');
+
+        // Each part was reviewed against its own audio, in order.
+        $reviews = Http::recorded(fn (Request $r) => str_contains($r->url(), 'gemini-3.8-flash:generateContent'))->values();
+        $this->assertCount(2, $reviews);
+        $this->assertSame('audio/mpeg', $reviews[0][0]['contents'][0]['parts'][0]['inline_data']['mime_type']);
+        $this->assertStringContainsString('"time":"1.0-2.4"', $reviews[0][0]['contents'][0]['parts'][1]['text'], 'line times relative to the part');
     }
 
     public function test_verify_reports_whether_the_key_can_use_the_transcribe_model(): void
@@ -268,5 +278,32 @@ class GeminiTranscribeTest extends TestCase
         $this->assertCount(1, $result['segments'], 'lines beyond the video are dropped');
         $this->assertSame(0.02, $result['segments'][0]['start']);
         $this->assertSame([0.02, 0.6], array_column($result['segments'][0]['words'], 'start'));
+    }
+
+    public function test_listening_review_may_fix_and_add_words_but_not_translate_or_drop_the_line(): void
+    {
+        $this->assertTrue(GeminiCaptionRefiner::reviewAcceptable('මේ ටොයොටා අක්වා', 'මේ තමයි Toyota Aqua'), 'fixes and added words');
+        $this->assertFalse(GeminiCaptionRefiner::reviewAcceptable('මේ තමයි අපේ අලුත් වාහනය', 'This is our new vehicle'), 'translation');
+        $this->assertFalse(GeminiCaptionRefiner::reviewAcceptable('මේ තමයි අපේ අලුත් වාහනය', ''), 'emptied');
+        $this->assertFalse(GeminiCaptionRefiner::reviewAcceptable('එක දෙක', 'එක දෙක තුන හතර පහ හය සත අට නවය'), 'ballooned');
+    }
+
+    public function test_busy_text_model_falls_back_to_the_backup_model(): void
+    {
+        Sleep::fake();
+        config(['ai.gemini.fallback_models' => ['gemini-flash-latest']]);
+        Http::fake([
+            'gemini.test/v1beta/models/gemini-3.8-flash:generateContent' => Http::response(['error' => ['message' => 'This model is currently experiencing high demand.']], 503),
+            'gemini.test/v1beta/models/gemini-flash-latest:generateContent' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode(['lines' => ['මේ Toyota Aqua එක']], JSON_UNESCAPED_UNICODE)]]]]]]),
+        ]);
+        $audio = tempnam(sys_get_temp_dir(), 'a');
+        file_put_contents($audio, 'mp3');
+
+        $refiner = new GeminiCaptionRefiner(self::KEY, 'gemini-3.8-flash', 'https://gemini.test/v1beta');
+        $lines = $refiner->refine([['text' => 'මේ ටොයොටා අක්වා එක', 'language' => 'si', 'start' => 0.0, 'end' => 2.0]], 'si', $audio);
+
+        $this->assertSame(['මේ Toyota Aqua එක'], $lines);
+        $this->assertSame('gemini-flash-latest', $refiner->model());
+        @unlink($audio);
     }
 }

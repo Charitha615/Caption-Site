@@ -18,8 +18,9 @@ class CreateProjectAction
             'user_id' => $user->id,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'script' => filled($data['script'] ?? null) ? trim($data['script']) : null,
             'status' => Project::STATUS_DRAFT,
-            'language' => $data['language'] ?? config('brand.locale.default_language', 'si'),
+            'language' => $data['language'] ?? 'auto',
             'duration' => 0.0,
             'settings' => $data['settings'] ?? [
                 'caption_style' => 'default',
