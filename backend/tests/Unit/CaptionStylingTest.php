@@ -159,7 +159,7 @@ class CaptionStylingTest extends TestCase
 
         $this->assertCount(3, $textEvents);
         $this->assertStringContainsString('0:00:01.00,0:00:02.00', $textEvents[1]);
-        $this->assertMatchesRegularExpression('/\{\\\\1c&H1673F9&\}\{[^}]*\}දෙක/u', $textEvents[1]);
+        $this->assertMatchesRegularExpression('/\{\\\\1c&H1673F9&\}දෙක/u', $textEvents[1]);
     }
 
     public function test_font_weight_resolves_to_installed_face_like_css(): void
@@ -180,17 +180,17 @@ class CaptionStylingTest extends TestCase
         $this->assertStringContainsString('{\alpha&HFF&}', $ass);
     }
 
-    public function test_spotlight_zooms_and_colours_only_the_spoken_word(): void
+    public function test_spotlight_colours_only_the_spoken_word_and_maintains_alignment(): void
     {
         $ass = $this->renderer->render(
             [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
-            ['animation' => 'karaoke', 'highlightColor' => '#FFD400', 'textColor' => '#FFFFFF', 'activeWordScale' => 115, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            ['animation' => 'karaoke', 'highlightColor' => '#FFD400', 'textColor' => '#FFFFFF', 'activeWordScale' => 100, 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
             1280, 720,
         );
         $second = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: 2,')))[1];
 
-        $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\\\\fscx100\\\\fscy100\}\{[^}]*\}එක/u', $second, 'other words white, normal size');
-        $this->assertMatchesRegularExpression('/\{\\\\1c&H00D4FF&\\\\fscx115\\\\fscy115\}\{[^}]*\}දෙක/u', $second, 'spoken word yellow and 115%');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\}එක/u', $second, 'other words white');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&H00D4FF&\}දෙක/u', $second, 'spoken word yellow');
     }
 
     public function test_word_box_puts_black_text_inside_a_yellow_box(): void
@@ -205,8 +205,8 @@ class CaptionStylingTest extends TestCase
         $text = array_values(array_filter($lines, fn ($l) => str_starts_with($l, 'Dialogue: 2,')))[0];
 
         $this->assertStringContainsString('\\3c&H00D4FF&', $box, 'yellow box');
-        $this->assertMatchesRegularExpression('/\{\\\\1c&H000000&\\\\bord0\}\{[^}]*\}එක/u', $text, 'black text in the box');
-        $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\\\\bord[\d.]+\}\{[^}]*\}දෙක/u', $text, 'other words white');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&H000000&\\\\3c&H00D4FF&\\\\bord[\d.]+\}එක/u', $text, 'black text with matching border in the box');
+        $this->assertMatchesRegularExpression('/\{\\\\1c&HFFFFFF&\\\\3c&H000000&\\\\bord[\d.]+\}දෙක/u', $text, 'other words white');
     }
 
     public function test_uppercase_capitalises_english_and_leaves_sinhala_unchanged(): void
@@ -220,5 +220,44 @@ class CaptionStylingTest extends TestCase
         $this->assertStringContainsString('ලංකාවේ', $ass);
         $this->assertStringContainsString(' BIKE SHOWROOM', $ass);
         $this->assertStringNotContainsString('bike', $ass);
+    }
+
+    /** The layout part of an event: its text from the first font run, minus colour/alpha/border tags. */
+    private function layoutOf(string $dialogue): string
+    {
+        $text = substr($dialogue, (int) strpos($dialogue, '{\\fn'));
+
+        return preg_replace(['/\\\\(1c|3c|4c|1a|3a|4a|bord|xbord|ybord)[^\\\\}]*/', '/\{\}/'], '', $text);
+    }
+
+    public function test_highlighting_never_changes_the_line_layout(): void
+    {
+        foreach (['karaoke', 'highlight'] as $animation) {
+            $ass = $this->renderer->render(
+                [['start' => 0, 'end' => 3, 'text' => 'ලංකාවේ bike showroom එකකට', 'words' => [
+                    ['text' => 'ලංකාවේ', 'start' => 0.2, 'end' => 0.8], ['text' => 'bike', 'start' => 0.8, 'end' => 1.2],
+                    ['text' => 'showroom', 'start' => 1.4, 'end' => 2.0], ['text' => 'එකකට', 'start' => 2.0, 'end' => 2.6],
+                ]]],
+                ['animation' => $animation, 'englishFontFamily' => '"Montserrat", sans-serif', 'shadowOpacity' => 60, 'shadowBlur' => 8, 'backgroundOpacity' => 0],
+                720, 1280,
+            );
+            $events = array_values(array_filter(explode("\n", $ass), fn ($l) => str_starts_with($l, 'Dialogue: ')));
+            $layouts = array_unique(array_map(fn ($e) => $this->layoutOf($e), $events));
+
+            // Gaps (no word active), each highlighted word, the shadow layer and the word box must all lay out identically.
+            $this->assertCount(1, $layouts, "{$animation}: every frame and layer must have identical text layout");
+        }
+    }
+
+    public function test_word_box_does_not_cover_the_following_space(): void
+    {
+        $ass = $this->renderer->render(
+            [['start' => 0, 'end' => 2, 'text' => 'එක දෙක', 'words' => [['text' => 'එක', 'start' => 0, 'end' => 1], ['text' => 'දෙක', 'start' => 1, 'end' => 2]]]],
+            ['animation' => 'highlight', 'highlightColor' => '#FFD400', 'shadowOpacity' => 0, 'backgroundOpacity' => 0],
+            1280, 720,
+        );
+        $box = array_values(array_filter(explode("\n", $ass), fn ($l) => str_contains($l, ',WordBox,')))[0];
+
+        $this->assertMatchesRegularExpression('/\{\\\\3a&H00&\}එක(\{\\\\fn[^}]*\})?\{\\\\3a&HFF&\} /u', $box, 'box ends before the space');
     }
 }

@@ -7,6 +7,7 @@ interface UIState {
   isPreviewMode: boolean;
   isShortcutsOpen: boolean;
   isExportOpen: boolean;
+  isImportOpen: boolean;
   /** Tablet: left tool panel drawer. Desktop always shows it. */
   isToolPanelOpen: boolean;
   /** Tablet: right property drawer. Desktop always shows it. */
@@ -17,6 +18,7 @@ interface UIState {
   setPreviewMode: (v: boolean) => void;
   setShortcutsOpen: (v: boolean) => void;
   setExportOpen: (v: boolean) => void;
+  setImportOpen: (v: boolean) => void;
   setToolPanelOpen: (v: boolean) => void;
   setInspectorOpen: (v: boolean) => void;
   setShowSafeArea: (v: boolean) => void;
@@ -27,6 +29,7 @@ export const useUIStore = create<UIState>()((set) => ({
   isPreviewMode: false,
   isShortcutsOpen: false,
   isExportOpen: false,
+  isImportOpen: false,
   isToolPanelOpen: false,
   isInspectorOpen: false,
   showSafeArea: false,
@@ -35,6 +38,7 @@ export const useUIStore = create<UIState>()((set) => ({
   setPreviewMode: (isPreviewMode) => set({ isPreviewMode }),
   setShortcutsOpen: (isShortcutsOpen) => set({ isShortcutsOpen }),
   setExportOpen: (isExportOpen) => set({ isExportOpen }),
+  setImportOpen: (isImportOpen) => set({ isImportOpen }),
   setToolPanelOpen: (isToolPanelOpen) => set({ isToolPanelOpen }),
   setInspectorOpen: (isInspectorOpen) => set({ isInspectorOpen }),
   setShowSafeArea: (showSafeArea) => set({ showSafeArea }),

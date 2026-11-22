@@ -24,7 +24,31 @@ export interface CaptionUpdatePayload {
   metadata?: Record<string, unknown> | null;
 }
 
+export interface AlignedCaption {
+  start_time: number;
+  end_time: number;
+  text: string;
+  language: string;
+  words: Array<{ word: string; start: number; end: number }>;
+}
+
+export interface AlignResult {
+  captions: AlignedCaption[];
+  stats: { script_words: number; matched: number; placed: number };
+  english_applied: boolean;
+}
+
 export const captionService = {
+  /** Line up a pasted script with the video's speech timings (preview only — nothing is saved). */
+  async alignScript(projectUuid: string, text: string, englishWords: boolean): Promise<AlignResult> {
+    const res = await apiClient.post<ApiResponse<AlignResult>>(
+      `/projects/${projectUuid}/captions/align`,
+      { text, english_words: englishWords },
+      { silent: true, timeout: 120_000 }
+    );
+    return res.data.data;
+  },
+
   async getCaptions(projectUuid: string): Promise<{ captions: Caption[]; count: number }> {
     const res = await apiClient.get<ApiResponse<{ captions: Caption[]; count: number }>>(
       `/projects/${projectUuid}/captions`

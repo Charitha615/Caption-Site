@@ -88,6 +88,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::get('/projects/{project}/captions', [CaptionController::class, 'index']);
         Route::post('/projects/{project}/captions', [CaptionController::class, 'store']);
         Route::put('/projects/{project}/captions/sync', [CaptionController::class, 'sync'])->middleware('throttle:autosave');
+        Route::post('/projects/{project}/captions/align', [CaptionController::class, 'align'])->middleware('throttle:exports');
         Route::patch('/projects/{project}/captions/{caption}', [CaptionController::class, 'update']);
         Route::delete('/projects/{project}/captions/{caption}', [CaptionController::class, 'destroy']);
     });

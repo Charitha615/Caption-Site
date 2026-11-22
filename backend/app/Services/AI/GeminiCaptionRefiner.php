@@ -65,8 +65,9 @@ class GeminiCaptionRefiner implements CaptionRefinerInterface
         };
         $prompt = <<<PROMPT
 You clean up machine-transcribed video captions. {$langNote}
-For each line: fix punctuation, spacing and capitalisation, and repair broken Sinhala Unicode (e.g. ZWJ conjuncts like ශ්‍රී).
-English words spoken inside Sinhala speech are often written phonetically in Sinhala letters — write those in English (Latin) letters: e.g. "බයික් ෂෝරූම්" → "bike showroom", "ෆියුල්" → "fuel", "සිස්ටම්" → "system", "මාකට් ස්ට්‍රැටජි" → "market strategy". Brand and model names too (e.g. "යමහා" → "Yamaha").
+For each line: fix punctuation, spacing and capitalisation, and repair broken Sinhala Unicode (e.g. ZWJ conjuncts like ශ්‍රී, ප්‍ර, ත්‍ර).
+Correct Sinhala spelling mistakes thoroughly (standard dictionary spelling, correct ණ/න, ළ/ල, ශ/ෂ/ස, and vowels).
+English words spoken inside Sinhala speech are often written phonetically in Sinhala letters — write those in English (Latin) letters: e.g. "බයික් ෂෝරූම්" → "bike showroom", "ෆියුල්" → "fuel", "සිස්ටම්" → "system", "මාකට් ස්ට්‍රැටජි" → "market strategy". Brand and model names too (e.g. "යමහා" → "Yamaha", "ටොයොටා ඇක්වා" → "Toyota Aqua", "හයිබ්‍රිඩ්" → "Hybrid").
 Rules: keep the SAME words, word order and meaning; never translate Sinhala words into English or English into Sinhala; do not add, remove, merge or split lines; if a line is already fine, return it unchanged.
 Return a JSON object {"lines": [...]} with exactly one string per input line, in order.
 Input lines (JSON): 

@@ -141,30 +141,26 @@ class AssCaptionRenderer
             default => [['start' => $start, 'end' => $end, 'word' => -1, 'visible' => null]],
         };
 
-        // Spoken word: optional zoom (\fscx/\fscy) — reset to 100 for the other words.
-        $zoom = (int) ($s['activeWordScale'] ?? 100);
-        $zoomOn = $zoom !== 100 ? sprintf('\fscx%1$d\fscy%1$d', $zoom) : '';
-        $zoomOff = $zoom !== 100 ? '\fscx100\fscy100' : '';
-
+        // Keep font metrics and stroke width constant across all word frames so
+        // text alignment and line layout stay 100% rock-solid without horizontal shifts.
         foreach ($frames as $i => $f) {
             $entrance = $i === 0;
             if ($hasShadow) {
                 $markup = match (true) {
                     $f['visible'] !== null => $this->typewriterMarkup($text, $f['visible'], $s, $scale),
-                    $f['word'] >= 0 && $zoomOn !== '' => $this->wordMarkup($text, $f['word'], $s, $scale, $zoomOn, $zoomOff),
                     default => $this->markup($runs, $s, $scale),
                 };
                 $events[] = $this->dialogue(1, 'Text', $f['start'], $f['end'], $shadowCommon, $shadowTags, $markup, $entrance);
             }
             $markup = match (true) {
                 $f['visible'] !== null => $this->typewriterMarkup($text, $f['visible'], $s, $scale),
-                $f['word'] >= 0 && $s['animation'] === 'karaoke' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s', $this->color($s['highlightColor'])).$zoomOn, sprintf('\1c%s', $this->color($s['textColor'])).$zoomOff),
-                $f['word'] >= 0 && $s['animation'] === 'highlight' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s\bord0', $this->color($s['highlightTextColor'] ?? '#000000')).$zoomOn, sprintf('\1c%s\bord%s', $this->color($s['textColor']), $this->num($stroke)).$zoomOff),
+                $f['word'] >= 0 && $s['animation'] === 'karaoke' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s', $this->color($s['highlightColor'])), sprintf('\1c%s', $this->color($s['textColor']))),
+                $f['word'] >= 0 && $s['animation'] === 'highlight' => $this->wordMarkup($text, $f['word'], $s, $scale, sprintf('\1c%s\3c%s\bord%s', $this->color($s['highlightTextColor'] ?? '#000000'), $this->color($s['highlightColor']), $this->num($stroke)), sprintf('\1c%s\3c%s\bord%s', $this->color($s['textColor']), $this->color($s['outlineColor']), $this->num($stroke))),
                 default => $this->markup($runs, $s, $scale),
             };
             if ($f['word'] >= 0 && $s['animation'] === 'highlight') {
                 // Word box: a Box-style event where only the active word's box is opaque.
-                $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, '\3a&H00&'.$zoomOn, '\3a&HFF&'.$zoomOff);
+                $boxMarkup = $this->wordMarkup($text, $f['word'], $s, $scale, '\3a&H00&', '\3a&HFF&');
                 $hlTags = $base.sprintf('\bord0\xbord%1$s\ybord%2$s\shad0\1a&HFF&\3c%3$s\3a&HFF&\4a&HFF&', $this->num(0.14 * $fontPx), $this->num(0.08 * $fontPx), $this->color($s['highlightColor']));
                 $events[] = $this->dialogue(1, 'WordBox', $f['start'], $f['end'], $common, $hlTags, $boxMarkup, false);
             }
@@ -323,21 +319,39 @@ class AssCaptionRenderer
         return $out;
     }
 
-    /** Full text where word $active gets $onTags and every other word $offTags. */
+    /**
+     * Full text where word $active gets $onTags and every other word $offTags.
+     *
+     * The text is emitted with exactly the same font runs as markup() — spaces included —
+     * and only colour/border tags are inserted at word starts. Those never affect layout, so
+     * every word frame, gap frame, shadow and word box lines up to the pixel (no shifting
+     * when the highlight moves). Words are whitespace-separated and may span script runs.
+     */
     protected function wordMarkup(string $text, int $active, array $s, float $scale, string $onTags, string $offTags): string
     {
-        $parts = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
         $out = '';
         $wordIndex = -1;
-        foreach ($parts as $part) {
-            if (preg_match('/^\s+$/u', $part)) {
+        $inWord = false;
+        foreach ($this->scriptRuns($text) as $run) {
+            $out .= $this->runTags($run['script'], $s, $scale);
+            foreach (preg_split('/(\s+)/u', $run['text'], -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
+                if (preg_match('/^\s+$/u', $part)) {
+                    // End the active word's styling at the word itself, so a highlight box never
+                    // spills over the following space.
+                    if ($inWord && $wordIndex === $active && $offTags !== '') {
+                        $out .= '{'.$offTags.'}';
+                    }
+                    $inWord = false;
+                } elseif (! $inWord) {
+                    $inWord = true;
+                    $wordIndex++;
+                    $tags = $wordIndex === $active ? $onTags : $offTags;
+                    if ($tags !== '') {
+                        $out .= '{'.$tags.'}';
+                    }
+                }
                 $out .= $this->escape($part);
-
-                continue;
             }
-            $wordIndex++;
-            $tags = $wordIndex === $active ? $onTags : $offTags;
-            $out .= '{'.$tags.'}'.$this->markup($this->scriptRuns($part), $s, $scale);
         }
 
         return $out;

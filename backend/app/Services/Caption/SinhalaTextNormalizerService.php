@@ -18,6 +18,12 @@ class SinhalaTextNormalizerService
         // Ensure proper line endings
         $text = str_replace(["\r\n", "\r"], "\n", $text);
 
+        // Repair missing ZWJ on rakaranshaya: [ක-ෆ]්(?!‍)ර -> [ක-ෆ]්‍ර
+        $text = preg_replace('/([\x{0D9A}-\x{0DC6}])\x{0DCA}(?!\x{200D})\x{0DBB}/u', '$1'."\u{0DCA}\u{200D}\u{0DBB}", $text) ?? $text;
+
+        // Repair missing ZWJ on yansaya: [ක-ෆ]්(?!‍)ය -> [ක-ෆ]්‍ය
+        $text = preg_replace('/([\x{0D9A}-\x{0DC6}])\x{0DCA}(?!\x{200D})\x{0DBA}/u', '$1'."\u{0DCA}\u{200D}\u{0DBA}", $text) ?? $text;
+
         return $text;
     }
 
@@ -40,6 +46,7 @@ class SinhalaTextNormalizerService
         }
 
         $words = preg_split('/\s+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY);
+
         return count($words);
     }
 }

@@ -26,7 +26,7 @@ class CaptionStyleNormalizer
         'textColor' => '#FFFFFF',
         'highlightColor' => '#FFD400',
         'highlightTextColor' => '#000000',
-        'activeWordScale' => 115,
+        'activeWordScale' => 100,
         'textTransform' => 'none',
         'outlineColor' => '#000000',
         'outlineWidth' => 6,

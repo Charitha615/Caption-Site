@@ -8,8 +8,11 @@ use App\Http\Resources\ProjectResource;
 use App\Jobs\ProcessUploadedVideoJob;
 use App\Models\Caption;
 use App\Models\Project;
+use App\Models\Transcript;
 use App\Rules\JsonSize;
 use App\Services\AI\AIProviderFactory;
+use App\Services\Caption\ScriptAligner;
+use App\Services\Caption\SinhalaScriptRepair;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
 use App\Traits\ApiResponseTrait;
@@ -138,6 +141,57 @@ class CaptionController extends Controller
         $caption->delete();
 
         return $this->successResponse(null, 'Caption deleted successfully');
+    }
+
+    /**
+     * Line up a pasted script with the video's speech timings (from the AI transcript).
+     * Returns caption lines for the editor to preview — nothing is saved here.
+     */
+    public function align(Request $request, Project $project, ScriptAligner $aligner, AIProviderFactory $providers): JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'text' => ['required', 'string', 'max:30000'],
+            'english_words' => ['sometimes', 'boolean'],
+        ]);
+
+        $speech = collect(Transcript::where('project_id', $project->id)->value('words_json') ?? [])
+            ->flatMap(fn ($segment) => $segment['words'] ?? [])
+            ->filter(fn ($w) => isset($w['start'], $w['end']) && trim((string) ($w['word'] ?? $w['text'] ?? '')) !== '')
+            ->map(fn ($w) => ['word' => (string) ($w['word'] ?? $w['text']), 'start' => (float) $w['start'], 'end' => (float) $w['end']])
+            ->sortBy('start')
+            ->values()
+            ->all();
+        if ($speech === []) {
+            return $this->errorResponse('This video has no speech timings yet. Generate captions with AI first, then import your script to match them.', 422, ['code' => ['no_transcript']]);
+        }
+
+        // Optional: English words written in Sinhala letters → English (best effort; never blocks).
+        $text = app(SinhalaScriptRepair::class)->repair($validated['text']);
+        $englishApplied = false;
+        if ($request->boolean('english_words') && $providers->canCaption($request->user())) {
+            $paragraphs = preg_split('/(?<=[.!?\n])\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $refiner = $providers->refinerForUser($request->user());
+            $cleaned = $refiner->refine(array_map(fn ($p) => ['text' => $p, 'language' => 'si'], $paragraphs), $project->language ?: 'si');
+            $englishApplied = $refiner->model() !== null;
+            $text = implode(' ', $cleaned);
+        }
+
+        $duration = (float) ($project->duration ?: end($speech)['end']);
+        $result = $aligner->align($text, $speech, $duration, $project->language ?: 'si');
+
+        return $this->successResponse([
+            'captions' => array_map(fn ($seg) => [
+                'start_time' => $seg['start'],
+                'end_time' => $seg['end'],
+                'text' => $seg['text'],
+                'language' => $seg['language'],
+                'words' => array_map(fn ($w) => ['word' => $w['word'], 'start' => $w['start'], 'end' => $w['end']], $seg['words']),
+            ], $result['segments']),
+            'stats' => $result['stats'],
+            'english_applied' => $englishApplied,
+        ], 'Script aligned');
     }
 
     /**

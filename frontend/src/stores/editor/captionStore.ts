@@ -79,6 +79,7 @@ interface CaptionState extends CaptionDocument {
   redo: () => void;
 
   addCaption: (at: number, text?: string) => string;
+  importCaptions: (newCaptions: CaptionSegment[], mode?: 'replace' | 'append') => void;
   deleteCaption: (id: string) => void;
   updateText: (id: string, text: string) => void;
   setTiming: (id: string, start: number, end: number, label?: string) => void;
@@ -209,6 +210,16 @@ export const useCaptionStore = create<CaptionState>()((set, get) => ({
     const caption = createCaption(get().captions, at, getDuration(), text);
     get().commit('Add caption', (d) => ({ captions: sortCaptions([...d.captions, caption]) }), { select: caption.id });
     return caption.id;
+  },
+
+  importCaptions: (newCaptions, mode = 'replace') => {
+    get().commit(
+      mode === 'replace' ? 'Import captions' : 'Append captions',
+      (d) => ({
+        captions: sortCaptions(mode === 'replace' ? newCaptions : [...d.captions, ...newCaptions]),
+      }),
+      { select: newCaptions[0]?.id ?? null }
+    );
   },
 
   deleteCaption: (id) => {

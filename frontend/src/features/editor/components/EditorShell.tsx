@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useUIStore, type MobileTab } from '../../../stores/editor/uiStore';
 import { useBreakpoint } from '../hooks/layout';
+import { ImportCaptionsDialog } from './dialogs/ImportCaptionsDialog';
 import { ShortcutsDialog } from './EditorDialogs';
 import { ExportDialog } from './export/ExportDialog';
 import { IconButton } from './controls';
@@ -110,5 +111,10 @@ export function EditorShell() {
     useUIStore.getState().setToolPanelOpen(false);
     useUIStore.getState().setInspectorOpen(false);
   }, [bp]);
-  return bp === 'mobile' ? <MobileEditor /> : <DesktopEditor tablet={bp === 'tablet'} />;
+  return (
+    <>
+      {bp === 'mobile' ? <MobileEditor /> : <DesktopEditor tablet={bp === 'tablet'} />}
+      <ImportCaptionsDialog />
+    </>
+  );
 }

@@ -345,9 +345,18 @@ class GeminiAIProvider implements AIProviderInterface
     protected function prompt(string $language): string
     {
         $langInstruction = match ($language) {
-            'si' => 'The audio is primarily in Sinhala (සිංහල). Transcribe using correct, standard Sinhala Unicode (including ZWJ conjuncts such as ශ්‍රී). Keep English words that are spoken in English in Latin script.',
+            'si' => <<<'SINHALA'
+The audio is in Sinhala (සිංහල) or Sinhala mixed with English.
+Follow strict standard Sinhala spelling and grammar rules:
+1. SPELLING & ORTHOGRAPHY: Use correct standard Sinhala dictionary spelling. Pay meticulous attention to dental vs retroflex consonants (න vs ණ, ල vs ළ) and sibilants (ස, ශ, ෂ) — e.g. "ප්‍රශ්නය", "ලංකාව", "කිලෝමීටර්", "විකුණුම්කරු", "විශ්වාසවන්ත".
+2. UNICODE CONJUNCTS (ZWJ): You MUST use correct Unicode Zero-Width Joiner (ZWJ \u200D) for all conjuncts:
+   - Rakaranshaya: Consonant + Virama + ZWJ + RA (e.g. ප්‍ර, බ්‍ර, ත්‍ර, ක්‍ර, ග්‍ර, ද්‍ර, ශ්‍රී). NEVER write "ප්ර" or "බ්ර" without ZWJ!
+   - Yansaya: Consonant + Virama + ZWJ + YA (e.g. සත්‍ය, විද්‍යා, සත්‍යාපිත).
+   - Bandi akuru: e.g. ක්‍ෂ, ඥ, ඳ, ඟ, ඬ, ඹ.
+3. ENGLISH & LOANWORDS: When technical terms, vehicle names, brands, or common English words are spoken (e.g. "Toyota Aqua", "Hybrid", "Engine", "Traffic", "Push Start", "EV Mode", "Climate Control AC", "Options", "Second-hand", "ABS Unit", "Ground Clearance", "Verified Sellers", "Budget", "Advanced Filters", "WhatsApp", "Vehicle Reviews", "Video", "Car"), write them in standard English (Latin script) with appropriate Sinhala suffixes (e.g. "Car එක", "Traffic එකේදී", "WhatsApp message එකක්"). Do not spell them phonetically in broken Sinhala.
+SINHALA,
             'en' => 'The audio is in English. Transcribe with accurate grammar, capitalization and punctuation.',
-            default => 'Detect the spoken language (Sinhala or English, possibly mixed). Write Sinhala in Sinhala Unicode and English in Latin script.',
+            default => 'Detect the spoken language (Sinhala or English, possibly mixed). For Sinhala, use correct standard Sinhala Unicode with proper ZWJ conjuncts (ප්‍ර, ශ්‍රී). Keep English loanwords and brand names in Latin script.',
         };
 
         $wordsInstruction = $this->wantsWordTimings() ? ', plus per-word timings' : '. Do not include per-word timings';

@@ -1,8 +1,9 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Copy, Plus, Scissors, Search, Trash2, X } from 'lucide-react';
+import { AlertCircle, Copy, Plus, Scissors, Search, Trash2, Upload, X } from 'lucide-react';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useEditorStore } from '../../../../stores/editor/editorStore';
 import { useActiveCaptionId } from '../../../../stores/editor/selectors';
+import { useUIStore } from '../../../../stores/editor/uiStore';
 import { useVideoStore } from '../../../../stores/editor/videoStore';
 import type { CaptionSegment } from '../../model/types';
 import { selectAndSeek } from '../../services/commands';
@@ -128,15 +129,43 @@ export const CaptionsPanel = memo(function CaptionsPanel() {
         >
           <Plus size={14} /> Add
         </button>
+        <button
+          type="button"
+          className="ed-btn"
+          onClick={() => useUIStore.getState().setImportOpen(true)}
+          data-tip="Import captions from script text or subtitle files"
+        >
+          <Upload size={14} /> Import
+        </button>
       </div>
       <div className="ed-captions-meta">
         {query ? `${rows.length} of ${captions.length} captions` : `${captions.length} captions`}
       </div>
       {rows.length === 0 ? (
         <div className="ed-empty-hint">
-          {captions.length === 0
-            ? 'No captions yet. Press A or click Add to create one at the playhead.'
-            : 'No captions match your search.'}
+          {captions.length === 0 ? (
+            <div className="ed-empty-actions">
+              <p>No captions yet. Add a caption at the playhead or import from text.</p>
+              <div className="ed-empty-btns">
+                <button
+                  type="button"
+                  className="ed-btn is-primary"
+                  onClick={() => useCaptionStore.getState().addCaption(useVideoStore.getState().currentTime)}
+                >
+                  <Plus size={14} /> Add caption
+                </button>
+                <button
+                  type="button"
+                  className="ed-btn"
+                  onClick={() => useUIStore.getState().setImportOpen(true)}
+                >
+                  <Upload size={14} /> Import text
+                </button>
+              </div>
+            </div>
+          ) : (
+            'No captions match your search.'
+          )}
         </div>
       ) : (
         <VirtualList
