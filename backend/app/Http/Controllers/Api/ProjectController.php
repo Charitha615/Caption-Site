@@ -184,7 +184,7 @@ class ProjectController extends Controller
             Project::STATUS_TRANSCRIBING => [
                 'percentage' => 55,
                 'phase' => 'transcribing',
-                'phase_label' => 'Transcribing speech with AI...',
+                'phase_label' => 'Transcribing speech...',
                 'is_processing' => true,
             ],
             Project::STATUS_GENERATING_CAPTIONS => [

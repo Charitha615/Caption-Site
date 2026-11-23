@@ -139,7 +139,7 @@ class UsageService
     {
         $summary = $this->summary($user)['ai_requests_today'];
         if ($summary['limit'] !== null && $summary['used'] >= $summary['limit']) {
-            throw new UsageLimitExceededException('You have reached today\'s AI captioning limit. Please try again tomorrow.', 'ai_requests_per_day');
+            throw new UsageLimitExceededException('You have reached today\'s captioning limit. Please try again tomorrow.', 'ai_requests_per_day');
         }
     }
 

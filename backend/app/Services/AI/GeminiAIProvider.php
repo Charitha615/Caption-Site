@@ -52,7 +52,7 @@ class GeminiAIProvider implements AIProviderInterface
     public function transcribe(string $audioFilePath, string $language = 'auto', array $options = []): array
     {
         if (empty($this->apiKey)) {
-            throw new AIProviderException('AI captioning is not configured on this server. Please contact support.', ['reason' => 'missing_api_key']);
+            throw new AIProviderException('Captioning is not configured on this server. Please contact support.', ['reason' => 'missing_api_key']);
         }
         if (! is_file($audioFilePath) || filesize($audioFilePath) === 0) {
             throw new AIProviderException('We could not read the audio from this video.', ['reason' => 'missing_audio_file']);
@@ -73,7 +73,7 @@ class GeminiAIProvider implements AIProviderInterface
             return $this->generateWithFallback($mediaPart, $language, $options['duration'] ?? null, $size, (bool) $uploadedFile);
         } catch (ConnectionException $e) {
             AppLog::error('ai.connection_failed', ['provider' => 'gemini', 'model' => $this->model, 'stage' => 'upload'], $e);
-            throw new AIProviderException('The AI service could not be reached. Please try again in a few minutes.', [], $e);
+            throw new AIProviderException('The captioning service could not be reached. Please try again in a few minutes.', [], $e);
         } finally {
             if ($uploadedFile) {
                 $this->deleteFile($uploadedFile['name']);
@@ -104,7 +104,7 @@ class GeminiAIProvider implements AIProviderInterface
             } catch (ConnectionException $e) {
                 if (! self::isTimeout($e)) {
                     AppLog::error('ai.connection_failed', ['provider' => 'gemini', 'model' => $model], $e);
-                    throw new AIProviderException('The AI service could not be reached. Please try again in a few minutes.', [], $e);
+                    throw new AIProviderException('The captioning service could not be reached. Please try again in a few minutes.', [], $e);
                 }
                 AppLog::error('ai.timeout', ['provider' => 'gemini', 'model' => $model, 'timeout' => (int) config('ai.gemini.timeout')]);
                 $lastOverload = 'timeout';
@@ -132,8 +132,8 @@ class GeminiAIProvider implements AIProviderInterface
         }
 
         throw new AIProviderException($lastOverload === 'timeout'
-            ? 'Google’s AI took too long to answer. It is probably overloaded right now — please retry in a few minutes.'
-            : 'Google’s AI is overloaded right now (high demand). Please retry in a few minutes.', ['reason' => $lastOverload ?? 'overloaded']);
+            ? 'Google took too long to answer. It is probably overloaded right now — please retry in a few minutes.'
+            : 'Google is overloaded right now (high demand). Please retry in a few minutes.', ['reason' => $lastOverload ?? 'overloaded']);
     }
 
     protected function send(string $model, array $mediaPart, string $language, bool $withThinkingConfig): Response
@@ -220,7 +220,7 @@ class GeminiAIProvider implements AIProviderInterface
 
         $sessionUrl = $start->header('x-goog-upload-url');
         if (! $sessionUrl) {
-            throw new AIProviderException('The AI service rejected the audio upload. Please try again.', ['reason' => 'no_upload_url']);
+            throw new AIProviderException('The captioning service rejected the audio upload. Please try again.', ['reason' => 'no_upload_url']);
         }
 
         $stream = fopen($path, 'rb');
@@ -249,7 +249,7 @@ class GeminiAIProvider implements AIProviderInterface
         }
         if (($file['state'] ?? '') !== 'ACTIVE' || empty($file['uri'])) {
             AppLog::error('ai.upload_not_active', ['provider' => 'gemini', 'state' => $file['state'] ?? null]);
-            throw new AIProviderException('The AI service could not process this audio. Please try again.');
+            throw new AIProviderException('The captioning service could not process this audio. Please try again.');
         }
 
         return ['name' => $file['name'], 'uri' => $file['uri']];
@@ -287,19 +287,19 @@ class GeminiAIProvider implements AIProviderInterface
         if ($keyRejected) {
             throw new AIProviderException(
                 $this->isUserKey
-                    ? 'Google rejected your AI API key. Update or verify it in Account & usage, then retry.'
-                    : 'AI captioning is temporarily unavailable. Please contact support.',
+                    ? 'Google rejected your API key. Update or verify it in Account & usage, then retry.'
+                    : 'Captioning is temporarily unavailable. Please contact support.',
                 ['status' => $status, 'stage' => $stage, 'key_rejected' => true],
             );
         }
 
         $message = match (true) {
-            $status === 503 => 'Google’s AI is overloaded right now (high demand). Please retry in a few minutes.',
+            $status === 503 => 'Google is overloaded right now (high demand). Please retry in a few minutes.',
             $status === 429 => $this->isUserKey
-                ? 'Your Google AI key has run out of quota. Check your limits in Google AI Studio, then retry.'
-                : 'The AI service is busy right now. Please try again in a few minutes.',
-            $status === 400 => 'The AI service could not process this audio.',
-            default => 'The AI service failed to respond. Please try again.',
+                ? 'Your Google API key has run out of quota. Check your limits in Google AI Studio, then retry.'
+                : 'The captioning service is busy right now. Please try again in a few minutes.',
+            $status === 400 => 'The captioning service could not process this audio.',
+            default => 'The captioning service failed to respond. Please try again.',
         };
 
         throw new AIProviderException($message, ['status' => $status, 'stage' => $stage]);
@@ -312,7 +312,7 @@ class GeminiAIProvider implements AIProviderInterface
         $text = collect($candidate['content']['parts'] ?? [])->pluck('text')->filter()->implode('');
 
         if ($response->json('promptFeedback.blockReason') || $finish === 'SAFETY') {
-            throw new AIProviderException('The AI service declined to transcribe this audio.', ['finish' => $finish]);
+            throw new AIProviderException('The captioning service declined to transcribe this audio.', ['finish' => $finish]);
         }
         if ($finish === 'MAX_TOKENS') {
             throw new AIProviderException('This video has too much speech to caption in one pass. Try a shorter clip.', ['finish' => $finish]);
@@ -322,7 +322,7 @@ class GeminiAIProvider implements AIProviderInterface
         $raw = is_array($decoded) ? ($decoded['captions'] ?? $decoded['segments'] ?? (array_is_list($decoded) ? $decoded : null)) : null;
         if (! is_array($raw)) {
             AppLog::error('ai.invalid_response', ['provider' => 'gemini', 'model' => $this->model, 'finish' => $finish, 'sample' => mb_substr($text, 0, 300)]);
-            throw new AIProviderException('The AI service returned an unexpected response. Please try again.');
+            throw new AIProviderException('The captioning service returned an unexpected response. Please try again.');
         }
 
         $segments = SegmentNormalizer::normalize($raw, $language, $duration);

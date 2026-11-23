@@ -21,6 +21,7 @@ const CreateProjectPage = named(() => import('./pages/CreateProject/CreateProjec
 const ProjectDetailsPage = named(() => import('./pages/ProjectDetails/ProjectDetailsPage'), 'ProjectDetailsPage');
 const SettingsPage = named(() => import('./pages/Settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = named(() => import('./pages/Profile/ProfilePage'), 'ProfilePage');
+const AdminReviewsPage = named(() => import('./pages/Admin/AdminReviewsPage'), 'AdminReviewsPage');
 const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFoundPage');
 const StudioEditorPage = named(() => import('./pages/Editor/StudioEditorPage'), 'StudioEditorPage');
 
@@ -56,6 +57,7 @@ const RoutedApp: React.FC = () => {
               <Route path="/projects/:uuid" element={<ProjectDetailsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/admin/reviews" element={<AdminReviewsPage />} />
             </Route>
             {/* Full-screen studio editor */}
             <Route

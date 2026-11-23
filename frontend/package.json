@@ -13,9 +13,12 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@number-flow/react": "^0.6.2",
     "@splinetool/react-spline": "^4.2.0",
     "@splinetool/runtime": "^2.0.211",
     "axios": "^1.20.0",
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^14.14.0",
     "lucide-react": "^1.56.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -26,6 +29,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.10",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

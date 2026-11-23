@@ -361,7 +361,7 @@ export const ProjectDetailsPage: React.FC = () => {
                 polling
                   ? 'They will appear here as soon as processing finishes.'
                   : hasVideo
-                    ? 'Generate captions with AI, or add them by hand in the editor.'
+                    ? 'Generate captions automatically, or add them by hand in the editor.'
                     : 'Upload a video to generate captions automatically.'
               }
               action={
@@ -470,7 +470,7 @@ export const ProjectDetailsPage: React.FC = () => {
         isOpen={regenOpen}
         onClose={() => setRegenOpen(false)}
         dismissible={!regenerating}
-        title="Generate captions with AI"
+        title="Generate captions"
         footer={
           <>
             <Button variant="secondary" onClick={() => setRegenOpen(false)} disabled={regenerating}>Cancel</Button>
@@ -485,7 +485,7 @@ export const ProjectDetailsPage: React.FC = () => {
           <label className="regen-option regen-script-option">
             <input type="checkbox" checked={useScript} onChange={(e) => setUseScript(e.target.checked)} />
             <span>
-              <strong>Use my script</strong> — your own words become the captions, timed to the speech. Untick to let AI write them (your script will be removed).
+              <strong>Use my script</strong> — your own words become the captions, timed to the speech. Untick to have them written automatically (your script will be removed).
             </span>
           </label>
         )}

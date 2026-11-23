@@ -24,10 +24,10 @@ export const AiKeyNotice: React.FC<{ compact?: boolean }> = ({ compact = false }
       <KeyRound size={18} aria-hidden="true" />
       <p>
         {invalid
-          ? 'Google rejected your AI API key. Replace it to keep generating captions.'
+          ? 'Google rejected your Google API key. Replace it to keep generating captions.'
           : compact
-            ? 'Add your Google AI API key to generate captions.'
-            : 'Captions are generated with your own Google AI (Gemini) key. Add it once in Account & usage — it takes a minute and is free to create.'}
+            ? 'Add your Google API key to generate captions.'
+            : 'Captions are generated with your own Google Gemini API key. Add it once in Account & usage — it takes a minute and is free to create.'}
       </p>
       <Link to="/profile#ai-key" className="btn btn-primary btn-sm">
         {invalid ? 'Fix key' : 'Add API key'}

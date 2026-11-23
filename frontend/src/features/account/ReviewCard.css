@@ -1,0 +1,14 @@
+.review-form { display: flex; flex-direction: column; gap: 16px; max-width: 560px; }
+.review-field { display: flex; flex-direction: column; gap: 6px; }
+.review-label { font-size: 0.88rem; font-weight: 600; color: var(--text-main); }
+.review-optional { font-weight: 400; color: var(--text-muted); }
+.review-textarea { min-height: 90px; resize: vertical; line-height: 1.55; }
+.review-meta { display: flex; justify-content: space-between; gap: 8px; }
+.review-count { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.review-error { margin: 0; font-size: 0.82rem; color: var(--status-error-text); }
+.review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.review-status { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 0.88rem; border: 1px solid; }
+.review-status svg { flex: none; margin-top: 1px; }
+.review-status.is-pending { background: var(--status-warning-bg); color: var(--status-warning-text); border-color: var(--status-warning-border); }
+.review-status.is-approved { background: var(--status-success-bg); color: var(--status-success-text); border-color: var(--status-success-border); }
+.review-status.is-rejected { background: var(--bg-muted); color: var(--text-muted); border-color: var(--border-color); }

@@ -14,8 +14,10 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
 
-  login: (credentials: LoginCredentials) => Promise<void>;
+  /** `remember: false` keeps the session only until the browser is closed. */
+  login: (credentials: LoginCredentials, remember?: boolean) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
+  loginWithGoogle: (accessToken: string, remember?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   fetchMe: () => Promise<void>;
   initializeAuth: () => Promise<void>;
@@ -29,18 +31,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
 
-  login: async (credentials) => {
+  login: async (credentials, remember = true) => {
     set({ isLoading: true });
     try {
       const data = await authService.login(credentials);
-      safeStorage.set(STORAGE_KEYS.AUTH_TOKEN, data.token);
-      safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user));
+      safeStorage.set(STORAGE_KEYS.AUTH_TOKEN, data.token, { session: !remember });
+      safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user), { session: !remember });
       set({
         user: data.user,
         token: data.token,
         isAuthenticated: true,
         isLoading: false,
       });
+    } catch (error) {
+      set({ isLoading: false });
+      throw error;
+    }
+  },
+
+  loginWithGoogle: async (accessToken, remember = true) => {
+    set({ isLoading: true });
+    try {
+      const data = await authService.google(accessToken);
+      safeStorage.set(STORAGE_KEYS.AUTH_TOKEN, data.token, { session: !remember });
+      safeStorage.set(STORAGE_KEYS.USER_DATA, JSON.stringify(data.user), { session: !remember });
+      set({ user: data.user, token: data.token, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
       throw error;

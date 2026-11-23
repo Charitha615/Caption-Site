@@ -25,12 +25,12 @@ export const STAGES: Array<{ key: StageKey; short: string; title: string; icon: 
     short: 'Audio',
     title: 'Extracting the speech',
     icon: <AudioLines size={18} />,
-    lines: ['Pulling out the speech track…', 'Turning the voices up, the noise down…', 'Making it crystal clear for the AI…'],
+    lines: ['Pulling out the speech track…', 'Turning the voices up, the noise down…', 'Making every word crystal clear…'],
   },
   {
     key: 'transcribing',
     short: 'Transcribe',
-    title: 'AI is listening',
+    title: 'Listening to the speech',
     icon: <Ear size={18} />,
     lines: [
       'Listening carefully to every word…',

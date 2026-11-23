@@ -273,7 +273,7 @@ export const CreateProjectPage: React.FC = () => {
             value={vocabulary}
             maxLength={1000}
             onChange={(e) => setVocabulary(e.target.value)}
-            helperText="Brands, models, people or places in the video — the AI will spell them exactly like this."
+            helperText="Brands, models, people or places in the video — they will be spelled exactly like this."
           />
 
           <div className="input-group">
@@ -318,7 +318,7 @@ export const CreateProjectPage: React.FC = () => {
               {scriptFile && <span className="create-script-file"><FileText size={13} aria-hidden="true" /> {scriptFile}</span>}
               {script.trim()
                 ? 'Your words become the captions, timed to the speech. Dots and symbols are removed; your original lines are kept so you can review them in the editor.'
-                : 'Leave empty to let AI write the captions from the speech.'}
+                : 'Leave empty to have the captions written from the speech automatically.'}
             </p>
           </div>
 

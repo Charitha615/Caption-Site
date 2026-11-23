@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, LogIn, Sparkles } from 'lucide-react';
+import { Sparkles, UserRound } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { Button } from '../../components/Button/Button';
-import { Input } from '../../components/Input/Input';
 import { BRAND } from '../../config/brand';
 import { fieldError, toAppError, type AppError } from '../../services/errors';
 import { safeNextPath } from '../../utils/navigation';
+import { FancyButton } from '../../components/ui/FancyButton/FancyButton';
+import { AuthCheckbox, AuthDivider, AuthField, AuthHeader, GoogleIcon, PasswordField, SocialButton } from '../../components/ui/AuthForm/AuthForm';
+import { useGoogleSignIn } from '../../features/auth/useGoogleSignIn';
 import './LoginPage.css';
 
 // Shown in development unless turned off, and in production only when VITE_SHOW_DEMO_LOGIN=true.
@@ -16,78 +17,82 @@ const DEMO = { email: 'demo@samplecap.com', password: 'password123' };
 
 export const LoginPage: React.FC = () => {
   useDocumentTitle('Sign in');
+  const id = useId();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { login, isLoading } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
+
+  const goNext = () => navigate(safeNextPath(params.get('next')), { replace: true });
+  const google = useGoogleSignIn(goNext, remember);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      await login({ email: email.trim(), password });
-      navigate(safeNextPath(params.get('next')), { replace: true });
+      await login({ email: email.trim(), password }, remember);
+      goNext();
     } catch (err) {
       setError(toAppError(err, 'Sign in failed. Please try again.'));
     }
   };
 
-  const formMessage = error && !fieldError(error, 'password') ? error.message : null;
+  // A message that belongs to a field is shown under that field only.
+  const formMessage = (error && !fieldError(error, 'password') && !fieldError(error, 'email') ? error.message : null) ?? google.error;
 
   return (
     <div>
-      <h2 className="sr-only">Sign in to {BRAND.name}</h2>
-      <form onSubmit={handleSubmit} className="login-form" noValidate>
-        {formMessage && <div className="form-alert" role="alert">{formMessage}</div>}
+      <AuthHeader icon={<UserRound size={24} />} title="Sign in to your account" subtitle="Enter your details to sign in." />
 
-        <Input
-          label="Email address"
+      <form onSubmit={handleSubmit} className="auth-form" noValidate>
+        {formMessage && <div className="auth-alert" role="alert">{formMessage}</div>}
+
+        <AuthField
+          id={`${id}-email`}
+          label="Email"
           type="email"
           autoComplete="email"
           placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          startIcon={<Mail size={18} aria-hidden="true" />}
+          error={fieldError(error, 'email')}
           required
         />
 
-        <Input
+        <PasswordField
+          id={`${id}-password`}
           label="Password"
-          type="password"
           autoComplete="current-password"
-          placeholder="Enter your password"
+          placeholder="••••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          startIcon={<Lock size={18} aria-hidden="true" />}
           error={fieldError(error, 'password')}
+          labelAside={
+            <a className="auth-link" href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent('Password reset')}`}>Forgot password?</a>
+          }
           required
         />
 
-        <div className="login-options-row">
-          <a className="login-forgot-link" href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent('Password reset')}`}>
-            Forgot password?
-          </a>
-        </div>
+        <AuthCheckbox id={`${id}-remember`} label="Keep me logged in" checked={remember} onChange={setRemember} />
 
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          fullWidth
-          isLoading={isLoading}
-          disabled={!email || !password}
-          startIcon={<LogIn size={18} aria-hidden="true" />}
-        >
+        <FancyButton type="submit" size="lg" fullWidth isLoading={isLoading && !google.busy} disabled={!email || !password}>
           Sign in
-        </Button>
+        </FancyButton>
       </form>
+
+      <AuthDivider />
+
+      <SocialButton icon={<GoogleIcon />} onClick={() => void google.start()} disabled={google.busy} aria-busy={google.busy || undefined}>
+        {google.busy ? 'Connecting to Google…' : 'Continue with Google'}
+      </SocialButton>
 
       {SHOW_DEMO && (
         <div className="demo-account-box">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+          <div className="demo-account-title">
             <Sparkles size={15} aria-hidden="true" /> {import.meta.env.DEV ? 'Development demo account' : 'Demo account'}
           </div>
           <div>
@@ -106,11 +111,9 @@ export const LoginPage: React.FC = () => {
         </div>
       )}
 
-      <p className="auth-switch-text">
-        Don&apos;t have an account yet?{' '}
-        <Link to="/register" style={{ fontWeight: 600 }}>
-          Create one
-        </Link>
+      <p className="auth-switch">
+        <span>Not a member yet?</span>
+        <Link to="/register" className="auth-link">Join now</Link>
       </p>
     </div>
   );

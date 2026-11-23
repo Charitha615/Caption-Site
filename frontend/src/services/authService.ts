@@ -13,6 +13,12 @@ export const authService = {
     return res.data.data;
   },
 
+  /** "Continue with Google": exchanges a Google access token for our API token. */
+  async google(accessToken: string): Promise<AuthResponseData> {
+    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/google', { access_token: accessToken });
+    return res.data.data;
+  },
+
   async logout(): Promise<void> {
     await apiClient.post<ApiResponse<null>>('/auth/logout');
   },

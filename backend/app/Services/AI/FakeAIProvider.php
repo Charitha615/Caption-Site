@@ -19,12 +19,12 @@ class FakeAIProvider implements AIProviderInterface
         $lines = $lang === 'si'
             ? [
                 [0.5, 3.2, 'ආයුබෝවන්, අපගේ වීඩියෝවට සාදරයෙන් පිළිගනිමු.'],
-                [3.45, 6.8, 'මෙය නියැදි උපසිරැසියකි — AI යතුර සකසා නැත.'],
+                [3.45, 6.8, 'මෙය නියැදි උපසිරැසියකි — API යතුර සකසා නැත.'],
                 [7.0, 10.5, 'සැබෑ උපසිරැසි සඳහා GEMINI_API_KEY සකසන්න.'],
             ]
             : [
                 [0.5, 3.2, 'Welcome to the caption studio.'],
-                [3.45, 6.8, 'This is sample text — no AI key is configured.'],
+                [3.45, 6.8, 'This is sample text — no API key is configured.'],
                 [7.0, 10.5, 'Set GEMINI_API_KEY to generate real captions.'],
             ];
 

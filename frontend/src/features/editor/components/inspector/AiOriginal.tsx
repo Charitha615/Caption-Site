@@ -21,8 +21,8 @@ export const AiOriginal = memo(function AiOriginal({ caption }: { caption: Capti
   return (
     <div className="ed-ai-origin" role="note">
       <p className="ed-help">
-        <Sparkles size={12} aria-hidden="true" /> {imported ? 'Imported script' : 'AI transcription'}
-        {cleanedByAi ? ' · punctuation tidied by AI' : ''} — please check the words and timing.
+        <Sparkles size={12} aria-hidden="true" /> {imported ? 'Imported script' : 'Original transcription'}
+        {cleanedByAi ? ' · punctuation tidied' : ''} — please check the words and timing.
       </p>
       {differs && (
         <div className="ed-ai-original">

@@ -200,7 +200,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         $minutes = self::OVERLOAD_BACKOFF_MINUTES[$attempt - 1] ?? 5;
         $project->update([
             'status' => Project::STATUS_UPLOADED,
-            'processing_error' => "Google’s AI is busy right now — retrying automatically in about {$minutes} minute".($minutes > 1 ? 's' : '')." (attempt {$attempt} of ".($this->tries - 1).').',
+            'processing_error' => "Google is busy right now — retrying automatically in about {$minutes} minute".($minutes > 1 ? 's' : '')." (attempt {$attempt} of ".($this->tries - 1).').',
         ]);
         AppLog::warning('pipeline.retry_scheduled', ['project' => $project->uuid, 'attempt' => $attempt, 'minutes' => $minutes, 'reason' => $e->context['reason']]);
         $this->release($minutes * 60);

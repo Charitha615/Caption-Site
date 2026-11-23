@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // "Continue with Google" (Google Identity Services, OAuth web client).
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

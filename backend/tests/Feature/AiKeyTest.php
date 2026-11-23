@@ -191,4 +191,20 @@ class AiKeyTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.user.ai_key.configured', false);
     }
+
+    public function test_a_new_key_can_replace_or_remove_one_saved_under_another_app_key(): void
+    {
+        [$user, $headers] = $this->userWithToken();
+        $foreign = new Encrypter(random_bytes(32), 'aes-256-cbc');
+        DB::table('users')->where('id', $user->id)->update(['gemini_api_key' => $foreign->encryptString('AIzaSyOLD_machine_key_1234567890abcd')]);
+        Http::fake(['*' => Http::response(['name' => 'models/gemini-3.5-transcribe'])]);
+
+        $this->withHeaders($headers)->putJson('/api/me/ai-key', ['api_key' => self::KEY])->assertOk();
+        $this->assertSame(self::KEY, $user->fresh()->gemini_api_key);
+
+        DB::table('users')->where('id', $user->id)->update(['gemini_api_key' => $foreign->encryptString('AIzaSyOLD_machine_key_1234567890abcd')]);
+        $this->app['auth']->forgetGuards();
+        $this->withHeaders($headers)->deleteJson('/api/me/ai-key')->assertOk();
+        $this->assertNull($user->fresh()->gemini_api_key);
+    }
 }

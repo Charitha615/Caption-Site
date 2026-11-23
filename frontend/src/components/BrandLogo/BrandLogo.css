@@ -1,0 +1,19 @@
+.brand-logo {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-weight: 800;
+}
+.brand-logo-si {
+  font-family: 'Noto Sans Sinhala', 'Iskoola Pota', var(--font-family, sans-serif);
+  letter-spacing: 0;
+}
+.brand-logo-en {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--brand-accent, #F97316);
+  margin-left: 0.02em;
+}

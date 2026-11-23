@@ -231,7 +231,7 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
             {timingMode === 'speech' && !isSubtitleFile && (
               <label className="ed-imp-check">
                 <input type="checkbox" checked={aiEnglish} onChange={(e) => setAiEnglish(e.target.checked)} />
-                <span><strong>AI English words</strong> — any English word spelled in Sinhala letters is written in English. Uses your Google AI key.</span>
+                <span><strong>Detect English words</strong> — any English word spelled in Sinhala letters is written in English. Uses your Google API key.</span>
               </label>
             )}
           </div>
@@ -257,7 +257,7 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
               <p className="ed-help" role="status">
                 {aligned.stats.matched} of {aligned.stats.script_words} words matched the speech
                 {aligned.stats.placed > 0 && <>; {aligned.stats.placed} placed between them (check their timing)</>}.
-                {aiEnglish && !aligned.english_applied && ' AI English words were skipped (the AI was busy).'}
+                {aiEnglish && !aligned.english_applied && ' English word detection was skipped (the service was busy).'}
               </p>
             )}
             {alignError && <p className="ed-notice is-error" role="alert"><AlertTriangle size={14} aria-hidden="true" /> {alignError}</p>}

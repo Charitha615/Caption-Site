@@ -33,7 +33,7 @@ class AiKeyController extends Controller
 
     public function show(Request $request): JsonResponse
     {
-        return $this->successResponse(['ai_key' => $this->payload($request->user())], 'AI key status');
+        return $this->successResponse(['ai_key' => $this->payload($request->user())], 'API key status');
     }
 
     public function update(Request $request): JsonResponse
@@ -41,7 +41,7 @@ class AiKeyController extends Controller
         $validated = $request->validate([
             'api_key' => ['required', 'string', 'min:20', 'max:200', 'regex:/^[A-Za-z0-9_\-\.]+$/'],
         ], [
-            'api_key.regex' => 'That does not look like a Google AI key. Copy it again from Google AI Studio.',
+            'api_key.regex' => 'That does not look like a Google API key. Copy it again from Google AI Studio.',
             'api_key.min' => 'That key is too short. Copy the whole key from Google AI Studio.',
         ]);
         $key = trim($validated['api_key']);
@@ -53,6 +53,7 @@ class AiKeyController extends Controller
             throw ValidationException::withMessages(['api_key' => $check['message']]);
         }
 
+        $user->forgetUndecryptableAiKey();
         $user->forceFill([
             'gemini_api_key' => $key,
             'gemini_key_hint' => substr($key, -4),
@@ -84,6 +85,7 @@ class AiKeyController extends Controller
 
     public function destroy(Request $request): JsonResponse
     {
+        $request->user()->forgetUndecryptableAiKey();
         $request->user()->forceFill([
             'gemini_api_key' => null,
             'gemini_key_hint' => null,
@@ -92,7 +94,7 @@ class AiKeyController extends Controller
         ])->save();
         AppLog::info('ai.key_removed', ['user' => $request->user()->uuid]);
 
-        return $this->successResponse(['ai_key' => $this->payload($request->user())], 'AI key removed');
+        return $this->successResponse(['ai_key' => $this->payload($request->user())], 'API key removed');
     }
 
     /** @return array<string, mixed> */

@@ -61,7 +61,7 @@ class GeminiKeyVerifier
     {
         $model = (string) config('ai.gemini.transcribe_model');
         if ($model === '') {
-            return 'Captions will be generated with your Google AI key.';
+            return 'Captions will be generated with your Google API key.';
         }
         try {
             $ok = Http::acceptJson()->withHeaders(['x-goog-api-key' => $apiKey])->timeout(10)->get("{$base}/models/{$model}")->successful();

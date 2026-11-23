@@ -35,7 +35,7 @@ class GeminiTranscribeProvider extends GeminiAIProvider
     public function transcribe(string $audioFilePath, string $language = 'auto', array $options = []): array
     {
         if (empty($this->apiKey)) {
-            throw new AIProviderException('AI captioning is not configured on this server. Please contact support.', ['reason' => 'missing_api_key']);
+            throw new AIProviderException('Captioning is not configured on this server. Please contact support.', ['reason' => 'missing_api_key']);
         }
         if (! is_file($audioFilePath) || filesize($audioFilePath) === 0) {
             throw new AIProviderException('We could not read the audio from this video.', ['reason' => 'missing_audio_file']);

@@ -5,9 +5,9 @@ import { defineConfig, loadEnv } from 'vite'
 export default defineConfig(({ mode }) => {
   // index.html uses %VITE_BRAND_*% placeholders; give them defaults so the title is never blank.
   const env = loadEnv(mode, process.cwd(), 'VITE_')
-  process.env.VITE_BRAND_NAME ||= env.VITE_BRAND_NAME || 'SampleCap'
-  process.env.VITE_BRAND_TAGLINE ||= env.VITE_BRAND_TAGLINE || 'AI-powered video captions'
-  process.env.VITE_BRAND_DESCRIPTION ||= env.VITE_BRAND_DESCRIPTION || 'Create, edit and export captions with AI.'
+  process.env.VITE_BRAND_NAME ||= env.VITE_BRAND_NAME || 'Sinsub'
+  process.env.VITE_BRAND_TAGLINE ||= env.VITE_BRAND_TAGLINE || 'Sinhala & English video captions'
+  process.env.VITE_BRAND_DESCRIPTION ||= env.VITE_BRAND_DESCRIPTION || 'Create, edit and export Sinhala and English captions for your videos.'
 
   return {
     plugins: [react()],

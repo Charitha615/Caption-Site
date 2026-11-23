@@ -165,7 +165,7 @@ class CaptionController extends Controller
             ->values()
             ->all();
         if ($speech === []) {
-            return $this->errorResponse('This video has no speech timings yet. Generate captions with AI first, then import your script to match them.', 422, ['code' => ['no_transcript']]);
+            return $this->errorResponse('This video has no speech timings yet. Generate captions first, then import your script to match them.', 422, ['code' => ['no_transcript']]);
         }
 
         // Optional: English words written in Sinhala letters → English (best effort; never blocks).
@@ -231,7 +231,7 @@ class CaptionController extends Controller
         return $this->successResponse([
             'project' => new ProjectResource($project->fresh()),
             'status' => Project::STATUS_UPLOADED,
-        ], 'AI caption generation started', 202);
+        ], 'Caption generation started', 202);
     }
 
     /**

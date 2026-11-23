@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\MediaStreamController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UploadSessionController;
 use App\Http\Controllers\Api\UsageController;
@@ -38,9 +39,13 @@ Route::middleware('signed')->group(function () {
         ->name('projects.thumbnail');
 });
 
+// Approved creator reviews (login / sign-up screens). Public, read-only.
+Route::get('/reviews', [ReviewController::class, 'index'])->middleware('throttle:60,1');
+
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
+    Route::post('/google', [AuthController::class, 'google'])->middleware('throttle:login');
 });
 
 /*
@@ -54,6 +59,15 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::patch('/me', [AccountController::class, 'update']);
     Route::put('/me/password', [AccountController::class, 'updatePassword'])->middleware('throttle:login');
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/me/review', [ReviewController::class, 'mine']);
+    Route::put('/me/review', [ReviewController::class, 'save'])->middleware('throttle:20,60');
+    Route::delete('/me/review', [ReviewController::class, 'destroy']);
+
+    // Admin: approve reviews before they are shown publicly.
+    Route::middleware('can:moderate-reviews')->prefix('admin')->group(function () {
+        Route::get('/reviews', [ReviewController::class, 'adminIndex']);
+        Route::patch('/reviews/{review}', [ReviewController::class, 'moderate']);
+    });
     Route::get('/settings', [SettingsController::class, 'show']);
     Route::put('/settings', [SettingsController::class, 'update']);
     Route::get('/usage', [UsageController::class, 'show']);

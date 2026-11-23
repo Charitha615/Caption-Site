@@ -9,16 +9,18 @@ return [
     | Modify product naming, typography, colors, and locale defaults here.
     | Changing these values updates the entire backend branding, email
     | notifications, API brand endpoint, and metadata across the system.
-    | Fully Unicode / Sinhala compliant (e.g. "පේළිCap").
+    | Fully Unicode / Sinhala compliant (e.g. "සිංසබ්.lk").
     |
     */
 
-    'name' => env('BRAND_NAME', env('APP_NAME', 'SampleCap')),
-    'short_name' => env('BRAND_SHORT_NAME', env('BRAND_NAME', env('APP_NAME', 'SampleCap'))),
-    'logo_text' => env('BRAND_LOGO_TEXT', env('BRAND_NAME', env('APP_NAME', 'SampleCap'))),
-    'tagline' => env('BRAND_TAGLINE', 'AI-powered video captions'),
-    'description' => env('BRAND_DESCRIPTION', 'Create, edit and export captions with AI.'),
-    'support_email' => env('BRAND_SUPPORT_EMAIL', 'support@samplecap.com'),
+    'name' => env('BRAND_NAME', env('APP_NAME', 'Sinsub')),
+    'short_name' => env('BRAND_SHORT_NAME', env('BRAND_NAME', env('APP_NAME', 'Sinsub'))),
+    // Logo: Sinhala name + English domain ending.
+    'logo_text' => env('BRAND_LOGO_TEXT', 'සිංසබ්.lk'),
+    'domain' => env('BRAND_DOMAIN', 'sinsub.lk'),
+    'tagline' => env('BRAND_TAGLINE', 'Sinhala & English video captions'),
+    'description' => env('BRAND_DESCRIPTION', 'Create, edit and export Sinhala and English captions for your videos.'),
+    'support_email' => env('BRAND_SUPPORT_EMAIL', 'support@sinsub.lk'),
     'website' => env('FRONTEND_URL', env('APP_URL', 'http://localhost:8000')),
 
     'colors' => [

@@ -7,9 +7,11 @@ use Database\Factories\UserFactory;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -108,6 +110,27 @@ class User extends Authenticatable
         }
     }
 
+    /**
+     * Drops a stored key that was encrypted under a different APP_KEY, before the key is
+     * replaced or removed: Eloquent decrypts the old value to detect changes, which would
+     * otherwise fail ("The MAC is invalid") and block the user from ever saving a new key.
+     */
+    public function forgetUndecryptableAiKey(): void
+    {
+        $raw = $this->getAttributes()['gemini_api_key'] ?? null;
+        if ($raw === null) {
+            return;
+        }
+        try {
+            Crypt::decryptString($raw);
+        } catch (DecryptException) {
+            AppLog::warning('ai_key.undecryptable_cleared', ['user' => $this->id]);
+            // It can never be read again: clear it in the database too, then continue normally.
+            static::query()->whereKey($this->getKey())->update(['gemini_api_key' => null]);
+            $this->setRawAttributes(['gemini_api_key' => null] + $this->getAttributes(), true);
+        }
+    }
+
     /** Public, non-secret description of the user's AI key. */
     public function aiKeyStatus(): array
     {
@@ -117,6 +140,11 @@ class User extends Authenticatable
             'status' => $this->hasAiKey() ? ($this->gemini_key_status ?: self::AI_KEY_UNVERIFIED) : null,
             'checked_at' => $this->gemini_key_checked_at?->toISOString(),
         ];
+    }
+
+    public function review(): HasOne
+    {
+        return $this->hasOne(Review::class);
     }
 
     public function isAdmin(): bool

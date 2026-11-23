@@ -7,7 +7,7 @@ const STEPS: Array<{ key: ProjectStatus[]; title: string; desc: string }> = [
   { key: ['uploaded'], title: 'Video uploaded', desc: 'Stored privately and queued' },
   { key: ['processing'], title: 'Analyse video', desc: 'Duration, resolution and frame rate' },
   { key: ['extracting_audio'], title: 'Extract speech audio', desc: 'Speech-optimised audio track' },
-  { key: ['transcribing'], title: 'AI transcription', desc: 'Speech to timed text' },
+  { key: ['transcribing'], title: 'Transcription', desc: 'Speech to timed text' },
   { key: ['generating_captions'], title: 'Build captions', desc: 'Caption lines and word timings' },
 ];
 

@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'SampleCap'),
+    'name' => env('APP_NAME', 'Sinsub'),
 
     // Load balancer / reverse proxy addresses to trust for X-Forwarded-* (comma-separated, or *).
     'trusted_proxies' => env('TRUSTED_PROXIES'),

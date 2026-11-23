@@ -6,7 +6,7 @@ describe('GeneratingStage', () => {
   it('shows the current step, its title and progress', () => {
     render(<GeneratingStage status="transcribing" percent={62} phaseLabel="Transcribing speech" />);
     expect(screen.getByText('Step 4 of 5')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'AI is listening' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Listening to the speech' })).toBeInTheDocument();
     const bar = screen.getByRole('progressbar', { name: 'Caption generation progress' });
     expect(bar).toHaveAttribute('aria-valuenow', '62');
     expect(bar).toHaveAttribute('aria-valuetext', 'Transcribing speech · 62%');

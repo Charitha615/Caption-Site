@@ -84,7 +84,7 @@ export async function openProject(uuid: string): Promise<void> {
 
 const DEMO_LINES: Array<[number, number, string]> = [
   [0.5, 3.2, 'ආයුබෝවන්, අපගේ වීඩියෝවට සාදරයෙන් පිළිගනිමු.'],
-  [3.45, 6.8, 'මෙම වීඩියෝවෙන් අපි AI තාක්ෂණය මඟින් සිංහල උපසිරැසි නිර්මාණය කරමු.'],
+  [3.45, 6.8, 'මෙම වීඩියෝවෙන් අපි පහසුවෙන් සිංහල උපසිරැසි නිර්මාණය කරමු.'],
   [7.0, 10.5, 'නියම වේලාවට ගැළපෙන අලංකාර animation සහිත caption පේළි මෙහිදී ලැබෙනවා.'],
   [10.8, 14.2, 'Edit, style and export your captions in one place.'],
 ];

@@ -4,7 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-const auth = vi.hoisted(() => ({ login: vi.fn(), register: vi.fn(), logout: vi.fn(), getMe: vi.fn() }));
+const auth = vi.hoisted(() => ({ login: vi.fn(), register: vi.fn(), logout: vi.fn(), getMe: vi.fn(), google: vi.fn() }));
+const googleAuth = vi.hoisted(() => ({ requestGoogleAccessToken: vi.fn(), enabled: true }));
+vi.mock('../services/googleAuth', () => {
+  class GoogleSignInCancelled extends Error {}
+  return {
+    GoogleSignInCancelled,
+    get googleSignInEnabled() { return googleAuth.enabled; },
+    requestGoogleAccessToken: googleAuth.requestGoogleAccessToken,
+  };
+});
 vi.mock('../services/authService', () => ({ authService: auth }));
 
 import { LoginPage } from '../pages/Login/LoginPage';
@@ -30,13 +39,18 @@ const user = { id: 1, uuid: 'u', name: 'Kasun', email: 'k@example.com', role: 'u
 describe('authentication', () => {
   beforeEach(() => {
     useAuthStore.setState({ user: null, token: null, isAuthenticated: false, isLoading: false });
+    Object.values(auth).forEach((m) => m.mockReset());
+    googleAuth.requestGoogleAccessToken.mockReset();
+    googleAuth.enabled = true;
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
   it('signs in, stores the token and goes to the requested page', async () => {
     auth.login.mockResolvedValue({ user, token: 'tok-1' });
     renderAt('/login?next=/projects/abc', <LoginPage />);
 
-    await userEvent.type(screen.getByLabelText(/email address/i), 'k@example.com');
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'k@example.com');
     await userEvent.type(screen.getByLabelText(/^password/i), 'secret123');
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -54,7 +68,7 @@ describe('authentication', () => {
     );
     renderAt('/login', <LoginPage />);
 
-    await userEvent.type(screen.getByLabelText(/email address/i), 'k@example.com');
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'k@example.com');
     await userEvent.type(screen.getByLabelText(/^password/i), 'nope');
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -72,7 +86,7 @@ describe('authentication', () => {
     renderAt('/register', <RegisterPage />);
 
     await userEvent.type(screen.getByLabelText(/full name/i), 'කසුන්');
-    await userEvent.type(screen.getByLabelText(/email address/i), 'k@example.com');
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'k@example.com');
     await userEvent.type(screen.getByLabelText(/^password/i), 'abcdefgh');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'abcdefgh');
     await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -86,12 +100,64 @@ describe('authentication', () => {
     renderAt('/register', <RegisterPage />);
 
     await userEvent.type(screen.getByLabelText(/full name/i), 'කසුන්');
-    await userEvent.type(screen.getByLabelText(/email address/i), 'k@example.com');
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'k@example.com');
     await userEvent.type(screen.getByLabelText(/^password/i), 'secret123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'secret123');
     await userEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     expect(await screen.findByText('Dashboard page')).toBeInTheDocument();
     expect(auth.register).toHaveBeenCalledWith({ name: 'කසුන්', email: 'k@example.com', password: 'secret123' });
+  });
+
+  it('keeps the session only for this browser session when "Keep me logged in" is off', async () => {
+    auth.login.mockResolvedValue({ user, token: 'tok-session' });
+    renderAt('/login', <LoginPage />);
+
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'k@example.com');
+    await userEvent.type(screen.getByLabelText(/^password/i), 'secret123');
+    await userEvent.click(screen.getByRole('checkbox', { name: /keep me logged in/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    expect(await screen.findByText('Dashboard page')).toBeInTheDocument();
+    expect(sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('tok-session');
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
+  });
+
+  it('shows and hides the password', async () => {
+    renderAt('/login', <LoginPage />);
+    const input = screen.getByLabelText(/^password/i);
+    expect(input).toHaveAttribute('type', 'password');
+    await userEvent.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(input).toHaveAttribute('type', 'text');
+  });
+
+  it('signs in with Google', async () => {
+    googleAuth.requestGoogleAccessToken.mockResolvedValue('ya29.google-token');
+    auth.google.mockResolvedValue({ user, token: 'tok-google' });
+    renderAt('/login', <LoginPage />);
+
+    await userEvent.click(screen.getByRole('button', { name: /continue with google/i }));
+
+    expect(await screen.findByText('Dashboard page')).toBeInTheDocument();
+    expect(auth.google).toHaveBeenCalledWith('ya29.google-token');
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('tok-google');
+  });
+
+  it('closing the Google popup is not an error', async () => {
+    const { GoogleSignInCancelled } = await import('../services/googleAuth');
+    googleAuth.requestGoogleAccessToken.mockRejectedValue(new GoogleSignInCancelled());
+    renderAt('/register', <RegisterPage />);
+
+    await userEvent.click(screen.getByRole('button', { name: /sign up with google/i }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(auth.google).not.toHaveBeenCalled();
+  });
+
+  it('explains when Google sign-in is not set up', async () => {
+    googleAuth.enabled = false;
+    renderAt('/login', <LoginPage />);
+    await userEvent.click(screen.getByRole('button', { name: /continue with google/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not set up yet/);
   });
 });

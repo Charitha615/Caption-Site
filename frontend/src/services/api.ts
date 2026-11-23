@@ -63,7 +63,7 @@ apiClient.interceptors.response.use(
 
     const titles: Record<string, string> = {
       usage_limit_exceeded: 'Plan limit reached',
-      ai_key_required: 'Google AI key needed',
+      ai_key_required: 'Google API key needed',
       rate_limited: 'Slow down',
       network: 'Connection problem',
       timeout: 'Server is slow',

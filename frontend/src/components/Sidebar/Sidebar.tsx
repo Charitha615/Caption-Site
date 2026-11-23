@@ -13,6 +13,7 @@ import {
   ArrowUpRight,
   X,
   Gauge,
+  MessageSquareHeart,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import { useAuthStore } from '../../stores/authStore';
@@ -20,6 +21,7 @@ import { useUsageStore, meterPercent } from '../../stores/usageStore';
 import { useThemeStore } from '../../stores/themeStore';
 import { Button } from '../Button/Button';
 import './Sidebar.css';
+import { BrandLogo } from '../BrandLogo/BrandLogo';
 
 export interface SidebarProps {
   isOpen?: boolean;
@@ -51,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
             <Sparkles size={20} />
           </div>
           <div className="sidebar-brand-text">
-            <span className="sidebar-brand-title">{brand.name}</span>
+            <span className="sidebar-brand-title"><BrandLogo /></span>
             <span className="sidebar-brand-tagline">{brand.tagline}</span>
           </div>
         </NavLink>
@@ -84,6 +86,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <User size={18} aria-hidden="true" />
           <span>Account &amp; usage</span>
         </NavLink>
+        {user?.role === 'admin' && (
+          <>
+            <div className="sidebar-nav-section-label" aria-hidden="true">ADMIN</div>
+            <NavLink to="/admin/reviews" className={linkClass}>
+              <MessageSquareHeart size={18} aria-hidden="true" />
+              <span>Reviews</span>
+            </NavLink>
+          </>
+        )}
       </nav>
 
       <div className="sidebar-footer">

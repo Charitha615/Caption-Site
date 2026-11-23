@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, UserPlus } from 'lucide-react';
+import { UserRoundPlus } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { Button } from '../../components/Button/Button';
-import { Input } from '../../components/Input/Input';
 import { fieldError, toAppError, type AppError } from '../../services/errors';
 import { passwordProblem } from '../../utils/validation';
+import { FancyButton } from '../../components/ui/FancyButton/FancyButton';
+import { AuthDivider, AuthField, AuthHeader, GoogleIcon, PasswordField, SocialButton } from '../../components/ui/AuthForm/AuthForm';
+import { useGoogleSignIn } from '../../features/auth/useGoogleSignIn';
 
 export const RegisterPage: React.FC = () => {
   useDocumentTitle('Create account');
+  const id = useId();
   const navigate = useNavigate();
   const { register, isLoading } = useAuthStore();
 
@@ -20,6 +22,9 @@ export const RegisterPage: React.FC = () => {
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
+  const goToDashboard = () => navigate('/dashboard', { replace: true });
+  const google = useGoogleSignIn(goToDashboard);
+
   const pwProblem = password ? passwordProblem(password) : null;
   const mismatch = passwordConfirm.length > 0 && password !== passwordConfirm;
 
@@ -28,82 +33,81 @@ export const RegisterPage: React.FC = () => {
     setTouched(true);
     setError(null);
     if (!name.trim() || !email.trim() || pwProblem || mismatch || !password) return;
-
     try {
       await register({ name: name.trim(), email: email.trim(), password });
-      navigate('/dashboard', { replace: true });
+      goToDashboard();
     } catch (err) {
       setError(toAppError(err, 'Registration failed. Please check your details.'));
     }
   };
 
   const hasFieldErrors = error && Object.keys(error.fieldErrors).length > 0;
+  const formMessage = (error && !hasFieldErrors ? error.message : null) ?? google.error;
 
   return (
     <div>
-      <h2 className="sr-only">Create your account</h2>
-      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {error && !hasFieldErrors && <div className="form-alert" role="alert">{error.message}</div>}
+      <AuthHeader icon={<UserRoundPlus size={24} />} title="Create your account" subtitle="Start captioning your videos for free." />
 
-        <Input
+      <form onSubmit={handleSubmit} className="auth-form" noValidate>
+        {formMessage && <div className="auth-alert" role="alert">{formMessage}</div>}
+
+        <AuthField
+          id={`${id}-name`}
           label="Full name"
-          type="text"
           autoComplete="name"
           placeholder="e.g. Kasun Silva / කසුන් සිල්වා"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          startIcon={<User size={18} aria-hidden="true" />}
           error={fieldError(error, 'name') ?? (touched && !name.trim() ? 'Please enter your name.' : undefined)}
           required
         />
-
-        <Input
-          label="Email address"
+        <AuthField
+          id={`${id}-email`}
+          label="Email"
           type="email"
           autoComplete="email"
           placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          startIcon={<Mail size={18} aria-hidden="true" />}
           error={fieldError(error, 'email') ?? (touched && !email.trim() ? 'Please enter your email.' : undefined)}
           required
         />
-
-        <Input
+        <PasswordField
+          id={`${id}-password`}
           label="Password"
-          type="password"
           autoComplete="new-password"
-          placeholder="At least 8 characters, letters and numbers"
+          placeholder="At least 8 characters"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          startIcon={<Lock size={18} aria-hidden="true" />}
           error={fieldError(error, 'password') ?? (touched || password ? pwProblem ?? undefined : undefined)}
-          helperText="At least 8 characters with letters and numbers."
+          hint="At least 8 characters with letters and numbers."
           required
         />
-
-        <Input
+        <PasswordField
+          id={`${id}-confirm`}
           label="Confirm password"
-          type="password"
           autoComplete="new-password"
           placeholder="Re-enter password"
           value={passwordConfirm}
           onChange={(e) => setPasswordConfirm(e.target.value)}
-          startIcon={<Lock size={18} aria-hidden="true" />}
           error={mismatch ? 'Passwords do not match.' : undefined}
           required
         />
 
-        <Button type="submit" variant="primary" size="lg" fullWidth isLoading={isLoading} startIcon={<UserPlus size={18} aria-hidden="true" />}>
+        <FancyButton type="submit" size="lg" fullWidth isLoading={isLoading && !google.busy}>
           Create account
-        </Button>
+        </FancyButton>
       </form>
 
-      <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-        Already have an account?{' '}
-        <Link to="/login" style={{ fontWeight: 600 }}>
-          Sign in
-        </Link>
+      <AuthDivider />
+
+      <SocialButton icon={<GoogleIcon />} onClick={() => void google.start()} disabled={google.busy} aria-busy={google.busy || undefined}>
+        {google.busy ? 'Connecting to Google…' : 'Sign up with Google'}
+      </SocialButton>
+
+      <p className="auth-switch">
+        <span>Already a member?</span>
+        <Link to="/login" className="auth-link">Sign in</Link>
       </p>
     </div>
   );

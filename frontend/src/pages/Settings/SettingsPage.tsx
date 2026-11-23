@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Languages, Palette, Film, Info } from 'lucide-react';
+import { Palette, Film, Info } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -107,21 +107,6 @@ export const SettingsPage: React.FC = () => {
         <LoadingState label="Loading preferences…" />
       ) : (
         <>
-          <Section icon={<Languages size={20} />} title="Captioning" description="Used as the starting choice when you create a project.">
-            <Choice
-              name="default_language"
-              label="Default spoken language"
-              value={settings.default_language}
-              disabled={saving === 'default_language'}
-              options={[
-                { value: 'si', label: 'සිංහල (Sinhala)' },
-                { value: 'en', label: 'English' },
-                { value: 'auto', label: 'Auto / mixed', hint: 'Sinhala and English in one video' },
-              ]}
-              onChange={(v) => update('default_language', v)}
-            />
-          </Section>
-
           <Section icon={<Film size={20} />} title="Video export" description="Default options in the MP4 export dialog. You can still change them per export.">
             <Choice
               name="default_export_resolution"

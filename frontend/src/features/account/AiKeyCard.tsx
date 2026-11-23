@@ -60,7 +60,7 @@ export const AiKeyCard: React.FC = () => {
       setValue('');
       setEditing(false);
       setNotice({ tone: verification.result === 'valid' ? 'ok' : 'warn', text: verification.message });
-      addToast({ type: verification.result === 'valid' ? 'success' : 'warning', message: verification.result === 'valid' ? 'Google AI key saved and verified.' : 'Key saved, but not verified yet.' });
+      addToast({ type: verification.result === 'valid' ? 'success' : 'warning', message: verification.result === 'valid' ? 'Google API key saved and verified.' : 'Key saved, but not verified yet.' });
     } catch (err) {
       setError(toAppError(err, 'Could not save the key.'));
     } finally {
@@ -87,7 +87,7 @@ export const AiKeyCard: React.FC = () => {
     try {
       set(await accountService.removeAiKey());
       setNotice(null);
-      addToast({ type: 'info', message: 'Google AI key removed.' });
+      addToast({ type: 'info', message: 'Google API key removed.' });
     } finally {
       setBusy(null);
       setConfirmRemove(false);
@@ -100,7 +100,7 @@ export const AiKeyCard: React.FC = () => {
     <section id="ai-key" className="card profile-card" aria-labelledby="ai-key-heading">
       <div className="aikey-head">
         <h3 id="ai-key-heading" className="profile-card-title">
-          <KeyRound size={18} aria-hidden="true" /> Google AI API key
+          <KeyRound size={18} aria-hidden="true" /> Google API key
         </h3>
         {aiKey?.configured && status && (
           <span className={`aikey-badge aikey-badge-${status.tone}`}>
@@ -110,7 +110,7 @@ export const AiKeyCard: React.FC = () => {
       </div>
 
       <p className="profile-card-sub">
-        Captions are generated with <strong>your own</strong> Google Gemini key, so AI usage is billed to your Google account.
+        Captions are generated with <strong>your own</strong> Google Gemini key, so usage is billed to your Google account.
         {aiKey?.required && !aiKey.configured && ' You need to add one before uploading videos.'}
       </p>
 
@@ -197,7 +197,7 @@ export const AiKeyCard: React.FC = () => {
 
       <ConfirmDialog
         isOpen={confirmRemove}
-        title="Remove your Google AI key?"
+        title="Remove your Google API key?"
         message="You won’t be able to generate captions until you add a key again. Existing captions are not affected."
         confirmLabel="Remove key"
         tone="danger"

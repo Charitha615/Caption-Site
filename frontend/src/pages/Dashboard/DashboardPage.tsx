@@ -121,7 +121,7 @@ export const DashboardPage: React.FC = () => {
         <ol className="dash-steps">
           <li><KeyRound size={18} aria-hidden="true" /> <span><strong>Add</strong> your Google AI key in <Link to="/profile#ai-key">Account &amp; usage</Link></span></li>
           <li><UploadCloud size={18} aria-hidden="true" /> <span><strong>Upload</strong> a video (resumable, up to {maxUploadMb ?? 500} MB)</span></li>
-          <li><Wand2 size={18} aria-hidden="true" /> <span><strong>Review</strong> the AI captions in the studio editor</span></li>
+          <li><Wand2 size={18} aria-hidden="true" /> <span><strong>Review</strong> the captions in the studio editor</span></li>
           <li><Download size={18} aria-hidden="true" /> <span><strong>Export</strong> SRT, VTT, TXT or a captioned MP4</span></li>
         </ol>
       </section>

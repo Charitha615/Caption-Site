@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use App\Services\AI\AIProviderInterface;
 use App\Services\AI\FakeAIProvider;
 use App\Services\AI\GeminiAIProvider;
@@ -14,6 +15,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -33,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Gate::define('moderate-reviews', fn (User $user) => $user->isAdmin());
+
         // Signed media/download URLs must be generated with the public HTTPS scheme behind a proxy.
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');

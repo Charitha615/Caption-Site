@@ -14,6 +14,7 @@ import { passwordProblem } from '../../utils/validation';
 import { formatDate } from '../../utils/formatters';
 import type { UsageMeter } from '../../types/project';
 import { AiKeyCard } from '../../features/account/AiKeyCard';
+import { ReviewCard } from '../../features/account/ReviewCard';
 import './ProfilePage.css';
 
 const UsageRow: React.FC<{ label: string; meter: UsageMeter; unit?: string }> = ({ label, meter, unit = '' }) => {
@@ -94,6 +95,8 @@ export const ProfilePage: React.FC = () => {
 
       <AiKeyCard />
 
+      <ReviewCard />
+
       <section className="card profile-card" aria-labelledby="usage-heading">
         <h3 id="usage-heading" className="profile-card-title"><Gauge size={18} aria-hidden="true" /> Plan &amp; usage</h3>
         {usage ? (
@@ -103,7 +106,7 @@ export const ProfilePage: React.FC = () => {
             </p>
             <div className="profile-usage-grid">
               <UsageRow label="Caption minutes" meter={usage.caption_minutes} />
-              <UsageRow label="AI requests today" meter={usage.ai_requests_today} />
+              <UsageRow label="Caption requests today" meter={usage.ai_requests_today} />
               <UsageRow label="Subtitle exports" meter={usage.exports} />
               <UsageRow label="Video renders" meter={usage.renders} />
               <UsageRow label="Storage" meter={usage.storage_mb} unit=" MB" />
