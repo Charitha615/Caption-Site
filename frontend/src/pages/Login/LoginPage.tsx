@@ -10,7 +10,8 @@ import { fieldError, toAppError, type AppError } from '../../services/errors';
 import { safeNextPath } from '../../utils/navigation';
 import './LoginPage.css';
 
-const SHOW_DEMO = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false';
+// Shown in development unless turned off, and in production only when VITE_SHOW_DEMO_LOGIN=true.
+const SHOW_DEMO = import.meta.env.VITE_SHOW_DEMO_LOGIN === 'true' || (import.meta.env.DEV && import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false');
 const DEMO = { email: 'demo@samplecap.com', password: 'password123' };
 
 export const LoginPage: React.FC = () => {
@@ -87,7 +88,7 @@ export const LoginPage: React.FC = () => {
       {SHOW_DEMO && (
         <div className="demo-account-box">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-            <Sparkles size={15} aria-hidden="true" /> Development demo account
+            <Sparkles size={15} aria-hidden="true" /> {import.meta.env.DEV ? 'Development demo account' : 'Demo account'}
           </div>
           <div>
             Email: <strong>{DEMO.email}</strong> · Password: <strong>{DEMO.password}</strong>

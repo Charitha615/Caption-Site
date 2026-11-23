@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\AppLog;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -90,9 +92,20 @@ class User extends Authenticatable
         return array_key_exists($plan, config('plans.plans')) ? $plan : config('plans.default');
     }
 
+    /**
+     * A key saved under a different APP_KEY (e.g. a database copied from another machine)
+     * cannot be decrypted: treat it as "no key" so the user simply adds it again, instead
+     * of every request that touches the user failing.
+     */
     public function hasAiKey(): bool
     {
-        return ! empty($this->gemini_api_key);
+        try {
+            return ! empty($this->gemini_api_key);
+        } catch (DecryptException) {
+            AppLog::warning('ai_key.undecryptable', ['user' => $this->id]);
+
+            return false;
+        }
     }
 
     /** Public, non-secret description of the user's AI key. */

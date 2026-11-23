@@ -7,6 +7,7 @@ use App\Models\MediaFile;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\Video\Contracts\VideoServiceInterface;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -177,5 +178,17 @@ class AiKeyTest extends TestCase
         $this->assertSame(Project::STATUS_FAILED, $project->fresh()->status);
         $this->assertStringContainsString('Account & usage', $project->fresh()->processing_error);
         $this->assertSame(User::AI_KEY_INVALID, $owner->fresh()->gemini_key_status);
+    }
+
+    public function test_a_key_saved_under_another_app_key_does_not_break_login(): void
+    {
+        $user = User::factory()->create(['email' => 'moved@example.com', 'password' => bcrypt('password123')]);
+        // As in a database copied from another machine: encrypted with a different APP_KEY.
+        $foreign = new Encrypter(random_bytes(32), 'aes-256-cbc');
+        DB::table('users')->where('id', $user->id)->update(['gemini_api_key' => $foreign->encryptString('AIzaSyOLD_machine_key_1234567890abcd')]);
+
+        $this->postJson('/api/auth/login', ['email' => 'moved@example.com', 'password' => 'password123'])
+            ->assertOk()
+            ->assertJsonPath('data.user.ai_key.configured', false);
     }
 }
