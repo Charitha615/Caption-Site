@@ -19,11 +19,26 @@ command -v php >/dev/null || { echo "PHP >= 8.3 not found"; exit 1; }
 
 trap 'kill 0' EXIT INT TERM
 
+# Wait for the database (e.g. MAMP's MySQL still starting). The queue worker exits on its
+# first failed DB call, so starting it before MySQL is up leaves uploads stuck at "queued".
+waited=0
+until (cd "$ROOT/backend" && php artisan migrate:status >/dev/null 2>&1); do
+  [ "$waited" -eq 0 ] && echo "Waiting for the database (is MAMP's MySQL running?)..."
+  waited=$((waited + 2))
+  sleep 2
+done
+[ "$waited" -gt 0 ] && echo "Database is up."
+
 # Several PHP workers: the editor's video stream holds a connection open, and a single
 # worker would make every other API call wait (and time out). --no-reload is required for
 # workers, so restart dev.sh after editing backend/.env.
 (cd "$ROOT/backend"  && PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-6}" php artisan serve --port=8000 --no-reload 2>&1 | sed 's/^/[api]   /') &
-(cd "$ROOT/backend"  && php artisan queue:work --queue=default,renders --tries=1 --timeout=3700 2>&1 | sed 's/^/[queue] /') &
+# Restart the worker if it ever exits (DB dropped, job timeout kill, crash), so jobs never sit unprocessed.
+(cd "$ROOT/backend" && while true; do
+  php artisan queue:work --queue=default,renders --tries=1 --timeout=3700 2>&1
+  echo "Worker exited (code $?); restarting in 3s..."
+  sleep 3
+done | sed 's/^/[queue] /') &
 (cd "$ROOT/backend"  && php artisan schedule:work 2>&1 | sed 's/^/[cron]  /') &
 (cd "$ROOT/frontend" && npm run dev 2>&1 | sed 's/^/[web]   /') &
 
