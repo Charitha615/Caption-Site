@@ -114,6 +114,8 @@ export interface VideoEditorState extends Snapshot {
   clearKeyframes: (id: string, prop?: AnimProp) => void;
   /** A slow zoom across the whole clip (the "Ken Burns" look). */
   addZoomMotion: (id: string, direction: 'in' | 'out') => void;
+  /** Mutes or unmutes one clip's sound. */
+  toggleClipMute: (id: string) => void;
   /** Copies a video clip's sound to its own audio clip and silences the video clip. */
   detachAudio: (id: string) => void;
   /**
@@ -135,7 +137,18 @@ export interface VideoEditorState extends Snapshot {
   duplicateSelected: () => void;
   /** Packs the clips of a track (the selected clip's, or the main video track) one after another from 0. */
   closeGaps: () => void;
-  addTrack: (kind: TrackKind) => string;
+  /**
+   * Adds a track (no history entry; call `commit` first). By default visual tracks go above the others
+   * of their kind and audio at the bottom; 'top' / 'bottom' put it above or below every track of its kind
+   * ('top' of a visual kind means above everything, so it is drawn in front).
+   */
+  addTrack: (kind: TrackKind, place?: 'top' | 'bottom') => string;
+  /** Removes an empty track (keeping at least one track of each kind). */
+  removeTrack: (id: string) => void;
+  /** Live move of a dragged clip onto a new track above or below the others (no history entry; call `commit` first). */
+  moveClipToNewTrack: (id: string, place: 'top' | 'bottom') => void;
+  /** Closes the empty gap [from, to) on a track: later clips on that track slide left. */
+  closeGap: (trackId: string, from: number, to: number) => void;
   toggleTrack: (id: string, key: 'muted' | 'hidden') => void;
   reset: () => void;
 }
@@ -317,8 +330,9 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => {
       const kind = trackKindFor(item.kind);
       const duration = item.kind === 'image' ? IMAGE_DEFAULT_DURATION : item.duration;
       let trackId = at?.freeTrack ? undefined : (tracks.find((t) => t.id === at?.trackId && t.kind === kind) ?? tracks.find((t) => t.kind === kind))?.id;
-      if (!at?.freeTrack && !trackId) return;
       record();
+      // No track of this kind left (all removed): make one.
+      if (!at?.freeTrack && !trackId) trackId = get().addTrack(kind);
       // A free track may be a new one, so it is picked after the history entry.
       trackId ??= freeTrack(kind, Math.max(0, at?.start ?? 0), duration);
       const start = at?.start ?? totalDuration(clips.filter((c) => c.trackId === trackId));
@@ -481,6 +495,13 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => {
       const base = clip.transform.scale;
       const [from, to] = direction === 'in' ? [base, base * 1.25] : [base * 1.25, base];
       mapClip(id, (c) => applyPatch(c, { keyframes: { scale: [{ t: 0, v: from }, { t: c.duration, v: to }] } }, get().media));
+    },
+
+    toggleClipMute: (id) => {
+      if (!get().clips.some((c) => c.id === id && (c.kind === 'video' || c.kind === 'audio'))) return;
+      record();
+      lastEdit = { id: '', at: 0 };
+      mapClip(id, (c) => ({ ...c, muted: !c.muted }));
     },
 
     detachAudio: (id) => {
@@ -649,18 +670,51 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => {
       set({ clips: clips.map((c) => (moved.has(c.id) ? { ...c, start: moved.get(c.id)! } : c)) });
     },
 
-    addTrack: (kind) => {
-      const n = get().tracks.filter((t) => t.kind === kind).length + 1;
-      const track: Track = { id: uid('track'), kind, name: `${kind[0]!.toUpperCase()}${kind.slice(1)} ${n}`, muted: false, hidden: false };
+    addTrack: (kind, place) => {
+      const label = `${kind[0]!.toUpperCase()}${kind.slice(1)}`;
+      const names = new Set(get().tracks.map((t) => t.name));
+      let n = get().tracks.filter((t) => t.kind === kind).length + 1;
+      while (names.has(`${label} ${n}`)) n++;
+      const track: Track = { id: uid('track'), kind, name: `${label} ${n}`, muted: false, hidden: false };
       set((s) => {
-        // Visual tracks go above existing ones of their kind (higher = drawn on top); audio goes to the bottom.
-        if (kind === 'audio') return { tracks: [...s.tracks, track] };
-        const at = s.tracks.findIndex((t) => t.kind === kind);
         const tracks = [...s.tracks];
-        tracks.splice(at < 0 ? 0 : at, 0, track);
+        const first = tracks.findIndex((t) => t.kind === kind);
+        const last = tracks.map((t) => t.kind).lastIndexOf(kind);
+        let at: number;
+        if (place === 'top') at = kind === 'audio' ? (first < 0 ? tracks.length : first) : 0;
+        else if (place === 'bottom' || kind === 'audio') at = last < 0 ? tracks.length : last + 1;
+        // Visual tracks go above existing ones of their kind (higher = drawn on top).
+        else at = first < 0 ? 0 : first;
+        tracks.splice(at, 0, track);
         return { tracks };
       });
       return track.id;
+    },
+
+    removeTrack: (id) => {
+      const { tracks, clips } = get();
+      const track = tracks.find((t) => t.id === id);
+      if (!track || clips.some((c) => c.trackId === id) || tracks.filter((t) => t.kind === track.kind).length <= 1) return;
+      record();
+      lastEdit = { id: '', at: 0 };
+      set((s) => ({ tracks: s.tracks.filter((t) => t.id !== id) }));
+    },
+
+    moveClipToNewTrack: (id, place) => {
+      const clip = get().clips.find((c) => c.id === id);
+      if (!clip) return;
+      const trackId = get().addTrack(trackKindFor(clip.kind), place);
+      mapClip(id, (c) => ({ ...c, trackId }));
+    },
+
+    closeGap: (trackId, from, to) => {
+      const gap = to - from;
+      const { clips } = get();
+      // Only a real gap: nothing on the track may overlap it.
+      if (gap <= 0 || clips.some((c) => c.trackId === trackId && c.start < to - 1e-6 && clipEnd(c) > from + 1e-6)) return;
+      record();
+      lastEdit = { id: '', at: 0 };
+      set({ clips: clips.map((c) => (c.trackId === trackId && c.start >= to - 1e-6 ? { ...c, start: Math.max(0, c.start - gap) } : c)) });
     },
 
     toggleTrack: (id, key) => set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, [key]: !t[key] } : t)) })),

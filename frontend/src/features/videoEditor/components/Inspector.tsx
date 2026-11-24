@@ -3,7 +3,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { analyzeShake } from '../ai/stabilize';
 import {
   AlignCenter, AlignLeft, AlignRight, ChevronDown, Copy, Diamond, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Trash2,
-  Loader2, Unlink2, Vibrate, ZoomIn, ZoomOut,
+  Loader2, Unlink2, Vibrate, Volume2, VolumeX, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { FILTER_PRESETS } from '../filters';
 import {
@@ -181,7 +181,7 @@ export function Inspector() {
   const clip = useVideoEditorStore((s) => s.clips.find((c) => c.id === s.selectedId));
   const media = useVideoEditorStore((s) => s.media);
   const fonts = useVideoEditorStore((s) => s.fonts);
-  const { updateClip, deleteSelected, duplicateSelected, addZoomMotion, clearKeyframes, detachAudio } = useVideoEditorStore.getState();
+  const { updateClip, deleteSelected, duplicateSelected, addZoomMotion, clearKeyframes, detachAudio, toggleClipMute } = useVideoEditorStore.getState();
   if (!clip) return null;
   const item = media.find((m) => m.id === clip.mediaId);
   const { style, filter, transform } = clip;
@@ -448,6 +448,9 @@ export function Inspector() {
           </div>
           <Slider label="Custom speed" value={clip.speed} min={MIN_SPEED} max={MAX_SPEED} step={0.05} format={(v) => `${Math.round(v * 100) / 100}×`} onChange={(v) => set({ speed: v })} />
           {clip.speed > 4 && <p className="ve-panel-hint">Above 4× most browsers play the picture without sound.</p>}
+          <button type="button" className={`ve-secondary-btn ${clip.muted ? 'is-on' : ''}`} aria-pressed={!!clip.muted} onClick={() => toggleClipMute(clip.id)}>
+            {clip.muted ? <VolumeX size={14} aria-hidden="true" /> : <Volume2 size={14} aria-hidden="true" />} {clip.muted ? 'Muted · click to unmute' : 'Mute this clip'}
+          </button>
           <Slider label="Volume" value={clip.volume} min={0} max={1} step={0.01} format={pct} onChange={(v) => set({ volume: v })} />
           <label className="ve-field is-inline" title="Cuts rumble, hum and hiss and evens out loudness">
             <input type="checkbox" checked={clip.denoise} onChange={(e) => set({ denoise: e.target.checked })} />

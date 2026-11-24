@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { useVideoEditorStore } from '../features/videoEditor/store';
-import { spokenWordIndex, type MediaItem } from '../features/videoEditor/model';
+import { spokenWordIndex, trackGaps, type MediaItem } from '../features/videoEditor/model';
 import { findSilences, partWav, splitAtPauses } from '../features/videoEditor/ai/timelineAudio';
 import { denoiseChannel } from '../features/videoEditor/ai/denoise';
 import { toSrt } from '../features/videoEditor/ai/subtitles';
@@ -182,5 +182,94 @@ describe('Stabilization maths', () => {
     const [sx, sy] = shakeAt({ from: 2, rate: 10, dx: [0, 0.1], dy: [0, -0.1] }, 2.05);
     expect(sx).toBeCloseTo(0.05);
     expect(sy).toBeCloseTo(-0.05);
+  });
+});
+
+describe('Per-clip mute and dropping files', () => {
+  beforeEach(() => {
+    store().reset();
+    store().addMedia(video);
+    store().addMedia({ ...video, id: 'm-song', kind: 'audio', name: 'song.mp3' });
+    store().addMediaClip('m-video');
+    store().addMediaClip('m-song');
+  });
+
+  it('mutes one clip at a time, as one undo step, and leaves it out of the sound mix', async () => {
+    const { soundingClips } = await import('../features/videoEditor/ai/timelineAudio');
+    const [v, a] = store().clips;
+    store().toggleClipMute(a!.id);
+    expect(store().clips.map((c) => !!c.muted)).toEqual([false, true]);
+    expect(soundingClips(store().clips, store().tracks).map((c) => c.id)).toEqual([v!.id]);
+    store().undo();
+    expect(store().clips[1]!.muted).toBeFalsy();
+  });
+
+  it('has a mute button on each sound clip in the timeline', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Mute audio clip song.mp3' }));
+    expect(store().clips.find((c) => c.kind === 'audio')!.muted).toBe(true);
+    expect(store().clips.find((c) => c.kind === 'video')!.muted).toBeFalsy();
+    expect(screen.getByRole('button', { name: 'Unmute audio clip song.mp3' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('Layers and gaps', () => {
+  beforeEach(() => {
+    store().reset();
+    store().addMedia(video);
+  });
+
+  it('adds tracks above or below the others of their kind, and removes empty ones', () => {
+    const top = store().addTrack('video', 'top');
+    const bottom = store().addTrack('video', 'bottom');
+    const audio = store().addTrack('audio', 'top');
+    const order = store().tracks.map((t) => t.id);
+    expect(order[0]).toBe(top);
+    expect(order.indexOf(bottom)).toBe(order.indexOf('track-video') + 1);
+    expect(order.indexOf(audio)).toBe(order.indexOf('track-audio') - 1);
+    expect(new Set(store().tracks.map((t) => t.name)).size).toBe(store().tracks.length);
+
+    store().removeTrack(bottom);
+    expect(store().tracks.some((t) => t.id === bottom)).toBe(false);
+    // The last text track stays.
+    store().removeTrack('track-text');
+    expect(store().tracks.some((t) => t.id === 'track-text')).toBe(true);
+  });
+
+  it('moves a dragged clip onto a new track in the same undo step as the drag', () => {
+    store().addMediaClip('m-video');
+    const id = store().clips[0]!.id;
+    store().commit();
+    store().moveClip(id, 3);
+    store().moveClipToNewTrack(id, 'bottom');
+    const track = store().tracks.find((t) => t.id === store().clips[0]!.trackId)!;
+    expect(track).toMatchObject({ kind: 'video' });
+    expect(track.id).not.toBe('track-video');
+    store().undo();
+    expect(store().clips[0]).toMatchObject({ trackId: 'track-video', start: 0 });
+    expect(store().tracks.some((t) => t.id === track.id)).toBe(false);
+  });
+
+  it('finds gaps on a track and closes one, pulling only later clips left', () => {
+    store().addMediaClip('m-video', { start: 2 });
+    store().addMediaClip('m-video', { start: 15 });
+    store().addMediaClip('m-video', { start: 30 });
+    expect(trackGaps(store().clips, 'track-video')).toEqual([[0, 2], [12, 15], [25, 30]]);
+    store().closeGap('track-video', 12, 15);
+    expect(store().clips.map((c) => c.start)).toEqual([2, 12, 27]);
+    // Not a gap (a clip is in it): nothing happens.
+    store().closeGap('track-video', 5, 8);
+    expect(store().clips.map((c) => c.start)).toEqual([2, 12, 27]);
+  });
+
+  it('shows a bin for each gap and removes the gap when clicked', async () => {
+    const user = userEvent.setup();
+    store().addMediaClip('m-video', { start: 0 });
+    store().addMediaClip('m-video', { start: 14 });
+    render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: /Remove the 4\.0 second gap on Video/ }));
+    expect(store().clips.map((c) => c.start)).toEqual([0, 10]);
+    expect(screen.queryByRole('button', { name: /second gap on Video/ })).not.toBeInTheDocument();
   });
 });

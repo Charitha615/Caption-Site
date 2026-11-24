@@ -146,7 +146,7 @@ export function Preview() {
         {sources.map((clip) => {
           const item = clip.mediaId ? byId.get(clip.mediaId) : undefined;
           if (!item) return null;
-          const muted = mutedTrack.get(clip.trackId) ?? false;
+          const muted = (mutedTrack.get(clip.trackId) ?? false) || !!clip.muted;
           return clip.kind === 'video'
             ? <VideoSource key={`${clip.id}-${clip.denoise}`} clip={clip} media={item} muted={muted} />
             : <AudioSource key={`${clip.id}-${clip.denoise}`} clip={clip} media={item} muted={muted} />;

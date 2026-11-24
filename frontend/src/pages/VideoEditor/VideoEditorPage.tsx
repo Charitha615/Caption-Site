@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   AlignHorizontalJustifyStart, ArrowLeft, AudioLines, Bot, Captions, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
-  Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, ZoomIn, ZoomOut,
+  Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, UploadCloud, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { Badge } from '../../components/Badge/Badge';
@@ -149,6 +149,10 @@ function Editor() {
   // Zoom so the whole video fits the visible timeline.
   const zoomToFit = () => setZoom(((window.innerWidth - 190) / Math.max(total, 5)) * 0.92);
   const { importFiles } = useImportFiles();
+  // Files dragged from the computer can be dropped anywhere in the editor.
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
 
   // Each visit starts a fresh project and frees the local files on the way out.
   useEffect(() => () => reset(), [reset]);
@@ -156,15 +160,37 @@ function Editor() {
   return (
     <div
       className="ve editor-theme"
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current++;
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+        if (hasFiles(e)) e.preventDefault();
       }}
       onDrop={(e) => {
-        if (e.dataTransfer.files.length === 0) return;
+        dragDepth.current = 0;
+        setDragging(false);
+        // A drop on a timeline track has already been placed there.
+        if (e.defaultPrevented || e.dataTransfer.files.length === 0) return;
         e.preventDefault();
         void importFiles(e.dataTransfer.files);
       }}
     >
+      {dragging && (
+        <div className="ve-drop-overlay" aria-hidden="true">
+          <div>
+            <UploadCloud size={40} />
+            <strong>Drop to import</strong>
+            <span>Drop on a timeline track to place it there too</span>
+          </div>
+        </div>
+      )}
       <header className="ve-topbar">
         <Link to="/dashboard" className="ve-back" aria-label="Back to dashboard"><ArrowLeft size={18} /></Link>
         <input className="ve-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Video name" />

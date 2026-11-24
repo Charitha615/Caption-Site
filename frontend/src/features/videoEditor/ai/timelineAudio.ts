@@ -35,10 +35,10 @@ export function forgetDecodedAudio() {
   decoded.clear();
 }
 
-/** Clips whose sound is heard: video and audio clips on unmuted tracks with some volume. */
+/** Clips whose sound is heard: unmuted video and audio clips on unmuted tracks with some volume. */
 export function soundingClips(clips: Clip[], tracks: Track[]): Clip[] {
   const muted = new Set(tracks.filter((t) => t.muted).map((t) => t.id));
-  return clips.filter((c) => (c.kind === 'video' || c.kind === 'audio') && c.mediaId && c.volume > 0 && !muted.has(c.trackId));
+  return clips.filter((c) => (c.kind === 'video' || c.kind === 'audio') && c.mediaId && c.volume > 0 && !c.muted && !muted.has(c.trackId));
 }
 
 /**

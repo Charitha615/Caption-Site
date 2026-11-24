@@ -16,7 +16,6 @@ export function MediaPanel() {
   const { addMediaClip, removeMedia } = useVideoEditorStore.getState();
   const inputRef = useRef<HTMLInputElement>(null);
   const { importFiles, busy } = useImportFiles();
-  const [over, setOver] = useState(false);
   const [extracting, setExtracting] = useState<string | null>(null);
   const addToast = useToastStore((s) => s.addToast);
 
@@ -45,26 +44,11 @@ export function MediaPanel() {
           e.target.value = '';
         }}
       />
-      <button
-        type="button"
-        className={`ve-dropzone ${over ? 'is-over' : ''}`}
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes('Files')) return;
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          void importFiles(e.dataTransfer.files);
-        }}
-        disabled={busy}
-      >
+      {/* Drops anywhere in the editor are handled by the page, so this box only opens the file picker. */}
+      <button type="button" className="ve-dropzone" onClick={() => inputRef.current?.click()} disabled={busy}>
         <UploadCloud size={22} aria-hidden="true" />
         <strong>{busy ? 'Importing…' : 'Import media'}</strong>
-        <span>Drop video, audio or images here, or click to browse</span>
+        <span>Drop files anywhere in the editor, or click to browse</span>
       </button>
 
       {media.length === 0 ? (

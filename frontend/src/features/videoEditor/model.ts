@@ -156,6 +156,8 @@ export interface Clip {
   speed: number;
   /** 0 … 1; video and audio clips. */
   volume: number;
+  /** Silences this one clip (video and audio clips), keeping its volume for when it is unmuted. */
+  muted?: boolean;
   fadeIn: number;
   fadeOut: number;
   filter: FilterSettings;
@@ -351,6 +353,20 @@ export function spokenWordIndex(clip: Clip, tokens: string[], rel: number): numb
     if ((at / total) * clip.duration > rel) return i;
   }
   return tokens.length - 1;
+}
+
+/** Gaps shorter than this aren't worth a button. */
+export const MIN_GAP = 0.05;
+
+/** Empty stretches on a track before and between its clips, as [from, to). */
+export function trackGaps(clips: Clip[], trackId: string): [number, number][] {
+  const gaps: [number, number][] = [];
+  let cursor = 0;
+  for (const c of clips.filter((x) => x.trackId === trackId).sort((a, b) => a.start - b.start)) {
+    if (c.start - cursor > MIN_GAP) gaps.push([cursor, c.start]);
+    cursor = Math.max(cursor, clipEnd(c));
+  }
+  return gaps;
 }
 
 export function formatTime(seconds: number, withFraction = true): string {

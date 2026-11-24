@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { Eye, EyeOff, Film, Image as ImageIcon, Music, Palette, Plus, Sparkles, Type, Volume2, VolumeX } from 'lucide-react';
-import { ANIM_PROPS, clipEnd, formatTime, type Clip, type MediaItem, type Track } from '../model';
+import { useEffect, useRef, useState } from 'react';
+import { Eye, EyeOff, Film, Image as ImageIcon, Music, Palette, Sparkles, Trash2, Type, Volume2, VolumeX, X } from 'lucide-react';
+import { ANIM_PROPS, clipEnd, formatTime, trackGaps, type Clip, type MediaItem, type Track, type TrackKind } from '../model';
 import { totalDuration, useVideoEditorStore } from '../store';
+import { useImportFiles } from '../useImportFiles';
 
 export const MEDIA_DRAG_TYPE = 'application/x-video-editor-media';
 const SNAP_PX = 8;
@@ -111,7 +112,13 @@ export function Timeline() {
   const playing = useVideoEditorStore((s) => s.playing);
   const selectedId = useVideoEditorStore((s) => s.selectedId);
   const snap = useVideoEditorStore((s) => s.snap);
-  const { setPlayhead, select, commit, moveClip, trimClip, addMediaClip, addTrack, toggleTrack } = useVideoEditorStore.getState();
+  const {
+    setPlayhead, select, commit, moveClip, trimClip, addMediaClip, addTrack, toggleTrack, toggleClipMute, removeTrack, moveClipToNewTrack, closeGap,
+  } = useVideoEditorStore.getState();
+  /** While a clip is dragged: whether it is over one of the "new track" areas. */
+  const [newTrackHint, setNewTrackHint] = useState<'top' | 'bottom' | null>(null);
+  const [draggingClip, setDraggingClip] = useState(false);
+  const { importFiles } = useImportFiles();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const headsRef = useRef<HTMLDivElement>(null);
@@ -136,12 +143,13 @@ export function Timeline() {
     if (x < el.scrollLeft || x > el.scrollLeft + el.clientWidth - 140) el.scrollLeft = Math.max(0, x - 140);
   }, [playhead, playing, zoom]);
 
-  /** Runs `onMove` for every pointer move until the button is released. */
-  const drag = (onMove: (event: PointerEvent) => void) => {
-    const up = () => {
+  /** Runs `onMove` for every pointer move until the button is released, then `onUp`. */
+  const drag = (onMove: (event: PointerEvent) => void, onUp?: (event: PointerEvent) => void) => {
+    const up = (event: PointerEvent) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      onUp?.(event);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', up);
@@ -164,6 +172,8 @@ export function Timeline() {
     commit();
     const grabOffset = timeAt(event.clientX) - clip.start;
     const edges = edgesExcept(clip.id);
+    let hint: 'top' | 'bottom' | null = null;
+    setDraggingClip(true);
     drag((e) => {
       const raw = timeAt(e.clientX) - grabOffset;
       // Snap whichever edge (start or end) is closer to something.
@@ -172,8 +182,16 @@ export function Timeline() {
       const gapStart = byStart === raw ? Infinity : Math.abs(byStart - raw);
       const gapEnd = byEnd === raw ? Infinity : Math.abs(byEnd - raw);
       const start = gapStart === Infinity && gapEnd === Infinity ? raw : gapStart <= gapEnd ? byStart : byEnd;
-      const row = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-track-id]');
-      moveClip(clip.id, start, row?.dataset.trackId);
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      // Over the ruler or the empty area below the tracks: it will get a new track of its own.
+      const zone = under?.closest<HTMLElement>('[data-new-track]')?.dataset.newTrack as 'top' | 'bottom' | undefined;
+      hint = zone ?? null;
+      setNewTrackHint(hint);
+      moveClip(clip.id, start, zone ? undefined : under?.closest<HTMLElement>('[data-track-id]')?.dataset.trackId);
+    }, (e) => {
+      setDraggingClip(false);
+      setNewTrackHint(null);
+      if (hint && e.type === 'pointerup') moveClipToNewTrack(clip.id, hint);
     });
   };
 
@@ -187,17 +205,48 @@ export function Timeline() {
   };
 
   const onDrop = (event: React.DragEvent, track: Track) => {
+    const start = timeAt(event.clientX);
     const mediaId = event.dataTransfer.getData(MEDIA_DRAG_TYPE);
-    if (!mediaId) return;
+    if (mediaId) {
+      event.preventDefault();
+      addMediaClip(mediaId, { trackId: track.id, start });
+      return;
+    }
+    if (event.dataTransfer.files.length === 0) return;
+    // Files from the computer: import them and place them here, one after another. (The page sees
+    // the drop is handled and only hides its overlay.)
     event.preventDefault();
-    addMediaClip(mediaId, { trackId: track.id, start: timeAt(event.clientX) });
+    const files = Array.from(event.dataTransfer.files);
+    void importFiles(files).then((ids) => {
+      let at = start;
+      for (const id of ids) {
+        useVideoEditorStore.getState().addMediaClip(id, { trackId: track.id, start: at });
+        const added = useVideoEditorStore.getState().clips.at(-1);
+        if (added?.mediaId === id) at = clipEnd(added);
+      }
+    });
   };
 
   return (
     <div className="ve-timeline">
       <div ref={headsRef} className="ve-track-heads">
         <div className="ve-ruler-spacer">
-          <button type="button" className="ve-icon-btn" onClick={() => { commit(); addTrack('video'); }} title="Add a video track" aria-label="Add a video track"><Plus size={14} /></button>
+          <select
+            className="ve-add-track"
+            value=""
+            aria-label="Add a track"
+            title="Add a track (layer)"
+            onChange={(e) => {
+              if (!e.target.value) return;
+              commit();
+              addTrack(e.target.value as TrackKind, 'top');
+            }}
+          >
+            <option value="">+ Track</option>
+            <option value="video">Video track</option>
+            <option value="audio">Audio track</option>
+            <option value="text">Text track</option>
+          </select>
         </div>
         {tracks.map((track) => {
           const Icon = TRACK_ICON[track.kind];
@@ -215,9 +264,15 @@ export function Timeline() {
                   {track.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               )}
+              {!clips.some((c) => c.trackId === track.id) && tracks.filter((t) => t.kind === track.kind).length > 1 && (
+                <button type="button" className="ve-icon-btn" aria-label={`Remove empty track ${track.name}`} title="Remove this empty track" onClick={() => removeTrack(track.id)}>
+                  <X size={14} />
+                </button>
+              )}
             </div>
           );
         })}
+        <div className="ve-track-head is-new" aria-hidden="true" />
       </div>
 
       <div
@@ -228,7 +283,8 @@ export function Timeline() {
         }}
       >
         <div ref={lanesRef} className="ve-lanes" style={{ width }}>
-          <div className="ve-ruler" onPointerDown={startScrub}>
+          <div className={`ve-ruler ${newTrackHint === 'top' ? 'is-new-target' : ''}`} onPointerDown={startScrub} data-new-track={draggingClip ? 'top' : undefined}>
+            {newTrackHint === 'top' && <span className="ve-new-track-label">Drop for a new track on top</span>}
             {ticks.map((t) => (
               <span key={t} className="ve-tick" style={{ left: t * zoom }}>{formatTime(t, step < 1)}</span>
             ))}
@@ -241,14 +297,33 @@ export function Timeline() {
               className={`ve-lane is-${track.kind}`}
               onPointerDown={startScrub}
               onDragOver={(e) => {
-                if (e.dataTransfer.types.includes(MEDIA_DRAG_TYPE)) e.preventDefault();
+                if (e.dataTransfer.types.includes(MEDIA_DRAG_TYPE) || e.dataTransfer.types.includes('Files')) e.preventDefault();
               }}
               onDrop={(e) => onDrop(e, track)}
             >
+              {trackGaps(clips, track.id).map(([from, to]) => (
+                <div key={`gap-${from}`} className="ve-gap" style={{ left: from * zoom, width: (to - from) * zoom }}>
+                  {(to - from) * zoom >= 26 && (
+                    <button
+                      type="button"
+                      className="ve-gap-btn"
+                      aria-label={`Remove the ${(to - from).toFixed(1)} second gap on ${track.name}`}
+                      title="Remove this gap"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeGap(track.id, from, to);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
               {clips.filter((c) => c.trackId === track.id).map((clip) => (
                 <div
                   key={clip.id}
-                  className={`ve-clip is-${clip.kind} ${clip.id === selectedId ? 'is-selected' : ''}`}
+                  className={`ve-clip is-${clip.kind} ${clip.id === selectedId ? 'is-selected' : ''} ${clip.muted ? 'is-muted' : ''}`}
                   style={{ left: clip.start * zoom, width: Math.max(4, clip.duration * zoom) }}
                   onPointerDown={(e) => startMove(e, clip)}
                   role="button"
@@ -264,12 +339,36 @@ export function Timeline() {
                   }}
                 >
                   <ClipBody clip={clip} media={clip.mediaId ? byId.get(clip.mediaId) : undefined} zoom={zoom} />
+                  {(clip.kind === 'video' || clip.kind === 'audio') && clip.duration * zoom >= 48 && (
+                    <button
+                      type="button"
+                      className={`ve-clip-mute ${clip.muted ? 'is-muted' : ''}`}
+                      aria-pressed={!!clip.muted}
+                      aria-label={`${clip.muted ? 'Unmute' : 'Mute'} ${clip.kind === 'video' ? 'video' : 'audio'} clip ${byId.get(clip.mediaId ?? '')?.name ?? ''}`}
+                      title={clip.muted ? 'Unmute this clip' : 'Mute this clip'}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleClipMute(clip.id);
+                      }}
+                    >
+                      {clip.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                    </button>
+                  )}
                   <span className="ve-trim is-start" onPointerDown={(e) => startTrim(e, clip, 'start')} aria-hidden="true" />
                   <span className="ve-trim is-end" onPointerDown={(e) => startTrim(e, clip, 'end')} aria-hidden="true" />
                 </div>
               ))}
             </div>
           ))}
+
+          <div
+            className={`ve-lane-new ${draggingClip ? 'is-dragging' : ''} ${newTrackHint === 'bottom' ? 'is-new-target' : ''}`}
+            data-new-track="bottom"
+            onPointerDown={startScrub}
+          >
+            {draggingClip && <span className="ve-new-track-label">Drop here for a new track</span>}
+          </div>
 
           <div className="ve-playhead" style={{ left: playhead * zoom }} aria-hidden="true">
             <span className="ve-playhead-knob" />

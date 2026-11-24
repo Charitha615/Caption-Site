@@ -129,7 +129,7 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
         input.connect(gain);
       }
       gain.connect(mix);
-      voices.push({ clip, el, gain, muted: trackMuted.get(clip.trackId) ?? false });
+      voices.push({ clip, el, gain, muted: (trackMuted.get(clip.trackId) ?? false) || !!clip.muted });
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
     }
     // Images: make sure every one is decoded before recording starts.

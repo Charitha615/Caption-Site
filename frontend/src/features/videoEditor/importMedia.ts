@@ -83,7 +83,8 @@ function loadTimed(url: string, kind: 'video' | 'audio'): Promise<{ duration: nu
         }
         resolve({ duration, width, height, thumb });
       };
-      el.currentTime = Math.min(0.5, duration / 3);
+      // A little way in: many videos open on a black frame.
+      el.currentTime = Math.min(Math.max(0.5, duration * 0.1), 3, duration / 2);
     };
     el.src = url;
   });
