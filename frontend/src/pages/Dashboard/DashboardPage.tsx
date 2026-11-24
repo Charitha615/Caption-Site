@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Plus, UploadCloud, Wand2, Download } from 'lucide-react';
+import { ArrowRight, Captions, CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Plus, UploadCloud, Wand2, Download, Film } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUsageStore } from '../../stores/usageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { Button } from '../../components/Button/Button';
+import { Badge } from '../../components/Badge/Badge';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { RetryState } from '../../components/RetryState/RetryState';
@@ -16,6 +17,7 @@ import { Spotlight } from '../../components/Spotlight/Spotlight';
 import { ProjectCard } from '../../features/projects/ProjectCard';
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { toAppError } from '../../services/errors';
+import { VIDEO_EDITOR_ENABLED, VIDEO_EDITOR_PATH } from '../../features/videoEditor/featureFlag';
 import type { Project } from '../../types/project';
 import './DashboardPage.css';
 
@@ -28,6 +30,32 @@ const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: React.Re
     </div>
   </div>
 );
+
+interface ToolCardProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  /** Where the card goes; without it the card is shown but can't be opened. */
+  to?: string;
+  badge?: React.ReactNode;
+  tone: 'purple' | 'amber';
+}
+
+const ToolCard: React.FC<ToolCardProps> = ({ icon, title, description, to, badge, tone }) => {
+  const body = (
+    <>
+      <span className={`dash-tool-icon is-${tone}`} aria-hidden="true">{icon}</span>
+      <span className="dash-tool-text">
+        <span className="dash-tool-title">{title} {badge}</span>
+        <span className="dash-tool-desc">{description}</span>
+      </span>
+      {to && <ArrowRight size={18} className="dash-tool-arrow" aria-hidden="true" />}
+    </>
+  );
+  return to
+    ? <Link to={to} className="dash-tool">{body}</Link>
+    : <div className="dash-tool is-disabled" aria-disabled="true">{body}</div>;
+};
 
 const HERO_SCENE = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode';
 
@@ -102,6 +130,29 @@ export const DashboardPage: React.FC = () => {
       </section>
 
       <AiKeyNotice />
+
+      <section aria-labelledby="tools-title">
+        <div className="dash-section-head">
+          <h3 id="tools-title">Tools</h3>
+        </div>
+        <div className="dash-tools">
+          <ToolCard
+            tone="purple"
+            icon={<Captions size={22} />}
+            title="Caption studio"
+            description="Upload a video and get timed Sinhala or English captions."
+            to="/projects/create"
+          />
+          <ToolCard
+            tone="amber"
+            icon={<Film size={22} />}
+            title="Video editor"
+            description="Cut, arrange and add text to clips on a multi-track timeline."
+            badge={<Badge variant="amber">Coming soon</Badge>}
+            to={VIDEO_EDITOR_ENABLED ? VIDEO_EDITOR_PATH : undefined}
+          />
+        </div>
+      </section>
 
       <section className="dash-stats" aria-label="Project summary">
         {summary ? (

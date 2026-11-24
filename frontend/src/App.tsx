@@ -23,6 +23,7 @@ const SettingsPage = named(() => import('./pages/Settings/SettingsPage'), 'Setti
 const ProfilePage = named(() => import('./pages/Profile/ProfilePage'), 'ProfilePage');
 const AdminReviewsPage = named(() => import('./pages/Admin/AdminReviewsPage'), 'AdminReviewsPage');
 const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFoundPage');
+const VideoEditorPage = named(() => import('./pages/VideoEditor/VideoEditorPage'), 'VideoEditorPage');
 const StudioEditorPage = named(() => import('./pages/Editor/StudioEditorPage'), 'StudioEditorPage');
 
 const PageFallback = () => <LoadingState label="Loading…" />;
@@ -59,6 +60,15 @@ const RoutedApp: React.FC = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/admin/reviews" element={<AdminReviewsPage />} />
             </Route>
+            {/* Full-screen multi-track video editor (in development; see features/videoEditor/featureFlag.ts) */}
+            <Route
+              path="/video-editor"
+              element={
+                <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: 'var(--editor-bg)' }} />}>
+                  <VideoEditorPage />
+                </Suspense>
+              }
+            />
             {/* Full-screen studio editor */}
             <Route
               path="/projects/:uuid/editor"

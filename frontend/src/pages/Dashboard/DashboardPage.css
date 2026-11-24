@@ -59,6 +59,26 @@
 .dash-section-head a { font-size: 0.85rem; font-weight: 600; color: var(--brand-primary); }
 .dash-projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 
+/* Tool cards */
+.dash-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.dash-tool {
+  display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 16px;
+  border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); text-decoration: none;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+a.dash-tool:hover { border-color: var(--brand-primary-border); transform: translateY(-2px); box-shadow: var(--card-glow); }
+a.dash-tool:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.dash-tool.is-disabled { opacity: 0.7; cursor: not-allowed; }
+.dash-tool-icon { width: 46px; height: 46px; flex: none; display: inline-grid; place-items: center; border-radius: 14px; }
+.dash-tool-icon.is-purple { background: var(--brand-primary-light); color: var(--brand-primary); }
+.dash-tool-icon.is-amber { background: var(--brand-accent-light); color: var(--brand-accent); }
+.dash-tool-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dash-tool-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; }
+.dash-tool-desc { color: var(--text-muted); font-size: 0.85rem; line-height: 1.45; }
+.dash-tool-arrow { flex: none; color: var(--text-muted); transition: transform 0.15s, color 0.15s; }
+a.dash-tool:hover .dash-tool-arrow { color: var(--brand-primary); transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) { .dash-tool, .dash-tool-arrow { transition: none; } }
+
 @media (max-width: 1024px) {
   .dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
