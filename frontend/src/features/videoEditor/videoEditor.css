@@ -13,14 +13,25 @@
   /* One column the width of the window: a long timeline scrolls inside itself instead of widening the page. */
   grid-template-columns: minmax(0, 1fr);
   font-size: 0.875rem; user-select: none; -webkit-user-select: none;
+  /* Native parts (dropdown lists, scrollbars, pickers) drawn dark too, so their text shows. */
+  color-scheme: dark;
 }
+/* Dropdown options: light text on the dark surface (macOS otherwise shows white text on a white list). */
+.ve option, .ve optgroup { background-color: var(--editor-surface); color: var(--editor-text); }
+/* Every text box uses the editor's colours, whatever the page or system theme. */
+.ve select, .ve textarea,
+.ve input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='color']):not([type='file']) {
+  color: var(--editor-text); caret-color: var(--editor-text);
+}
+.ve ::placeholder { color: var(--ve-muted); opacity: 0.75; }
+.ve input[type='checkbox'], .ve input[type='radio'] { accent-color: var(--ve-accent); }
 .ve > * { min-width: 0; }
 .ve input, .ve textarea, .ve select { user-select: text; -webkit-user-select: text; }
 
 /* Shared buttons */
 .ve-icon-btn {
   display: inline-grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0;
-  border: 0; border-radius: 8px; background: none; color: var(--ve-muted); cursor: pointer;
+  border: 0; border-radius: 8px; background: none; color: #c3c8d1; cursor: pointer;
 }
 .ve-icon-btn:hover:not(:disabled) { background: var(--ve-hover); color: var(--editor-text); }
 .ve-icon-btn:disabled { opacity: 0.35; cursor: default; }
@@ -165,7 +176,9 @@
 .ve-clip-label {
   position: relative; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 8px;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 0.7rem; font-weight: 600; color: #fff;
-  font-family: 'Inter', 'Noto Sans Sinhala', sans-serif; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  font-family: 'Inter', 'Noto Sans Sinhala', sans-serif; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  /* A dark backing keeps the name readable over thumbnails and bright waveforms. */
+  margin: 0 0 3px 4px; padding: 2px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.5);
 }
 .ve-trim { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 1; }
 .ve-trim.is-start { left: 0; }
@@ -275,7 +288,7 @@
 .ve-keyed-count { margin-left: 6px; font-style: normal; font-size: 0.7rem; color: var(--ve-accent); }
 .ve-key-btn {
   display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; margin-bottom: -4px;
-  border: 1px solid var(--ve-line); border-radius: 7px; background: none; color: var(--ve-muted); cursor: pointer;
+  border: 1px solid var(--ve-line); border-radius: 7px; background: none; color: #c3c8d1; cursor: pointer;
 }
 .ve-key-btn:hover:not(:disabled) { border-color: var(--ve-accent); color: var(--editor-text); }
 .ve-key-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -288,7 +301,7 @@
 }
 
 /* Waveform drawn from the decoded sound */
-.ve-clip-waveform { position: absolute; inset: 4px 0; width: 100%; height: calc(100% - 8px); color: rgba(253, 224, 171, 0.75); pointer-events: none; }
+.ve-clip-waveform { position: absolute; inset: 4px 0; width: 100%; height: calc(100% - 8px); color: rgba(251, 191, 36, 0.5); pointer-events: none; }
 
 /* Transitions, green screen, small buttons */
 .ve-transition { display: flex; flex-direction: column; gap: 8px; }
@@ -384,3 +397,7 @@
   background: #dc2626; color: #fff; cursor: pointer; opacity: 0; transition: opacity 0.12s;
 }
 .ve-gap:hover .ve-gap-btn, .ve-gap-btn:focus-visible { opacity: 1; }
+
+/* Box selection on the timeline */
+.ve-marquee { position: absolute; z-index: 6; border: 1px solid var(--ve-accent); background: rgba(139, 92, 246, 0.15); border-radius: 3px; pointer-events: none; }
+.ve-multi { display: flex; flex-direction: column; gap: 10px; }

@@ -12,6 +12,11 @@ class FakeSpeechSynthesizer implements SpeechSynthesizerInterface
         return 'fake';
     }
 
+    public function voices(): array
+    {
+        return GeminiSpeechSynthesizer::builtInVoices();
+    }
+
     public function speak(string $text, string $voice, string $style = ''): string
     {
         $rate = 16000;

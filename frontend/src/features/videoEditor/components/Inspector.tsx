@@ -181,7 +181,23 @@ export function Inspector() {
   const clip = useVideoEditorStore((s) => s.clips.find((c) => c.id === s.selectedId));
   const media = useVideoEditorStore((s) => s.media);
   const fonts = useVideoEditorStore((s) => s.fonts);
-  const { updateClip, deleteSelected, duplicateSelected, addZoomMotion, clearKeyframes, detachAudio, toggleClipMute } = useVideoEditorStore.getState();
+  const selectedCount = useVideoEditorStore((s) => s.selectedIds.filter((id) => s.clips.some((c) => c.id === id)).length);
+  const { updateClip, deleteSelected, duplicateSelected, addZoomMotion, clearKeyframes, detachAudio, toggleClipMute, rippleDeleteSelected, select } = useVideoEditorStore.getState();
+  if (selectedCount > 1) {
+    return (
+      <aside className="ve-inspector" aria-label="Clip properties">
+        <div className="ve-inspector-head">
+          <h2 className="ve-panel-title">{selectedCount} clips selected</h2>
+        </div>
+        <div className="ve-multi">
+          <button type="button" className="ve-secondary-btn" onClick={deleteSelected}><Trash2 size={14} aria-hidden="true" /> Delete all (Del)</button>
+          <button type="button" className="ve-secondary-btn" onClick={rippleDeleteSelected}>Delete and close the gaps (Shift+Del)</button>
+          <button type="button" className="ve-secondary-btn" onClick={() => select(null)}>Clear selection (Esc)</button>
+          <p className="ve-panel-hint">Drag any selected clip to move them all together. Shift, Ctrl or ⌘-click a clip to add or remove it; drag across empty track space to select with a box; Ctrl/⌘+A selects everything.</p>
+        </div>
+      </aside>
+    );
+  }
   if (!clip) return null;
   const item = media.find((m) => m.id === clip.mediaId);
   const { style, filter, transform } = clip;

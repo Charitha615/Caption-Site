@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UploadSessionController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\VideoEditorAiController;
+use App\Http\Controllers\Api\VideoEditorImportController;
 use App\Http\Controllers\Api\VideoUploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -121,7 +122,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::post('/transcribe', [VideoEditorAiController::class, 'transcribe']);
         Route::post('/text', [VideoEditorAiController::class, 'text']);
         Route::post('/speech', [VideoEditorAiController::class, 'speech']);
+        Route::get('/voices', [VideoEditorAiController::class, 'voices']);
     });
+
+    // Video editor: download media from a TikTok or direct link (returned as a file, not stored).
+    Route::post('/video-editor/import-link', [VideoEditorImportController::class, 'link'])->middleware('throttle:uploads');
 
     Route::get('/caption-templates', [CaptionTemplateController::class, 'index']);
     Route::post('/caption-templates', [CaptionTemplateController::class, 'store'])->middleware('throttle:30,1');

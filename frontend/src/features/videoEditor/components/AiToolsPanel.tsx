@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { AudioWaveform, Loader2, Mic2, Scissors, Sparkles, Star, Type, Wand2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AudioWaveform, Link2, Loader2, Mic2, Scissors, Sparkles, Star, Type, Wand2, X } from 'lucide-react';
 import { useToastStore } from '../../../stores/toastStore';
-import { aiErrorMessage, aiService, VOICES, type Moment, type TextLanguage, type Voice } from '../ai/aiService';
+import {
+  BUILT_IN_VOICES, VOICE_STYLES, VOICE_TAGS, aiErrorMessage, aiService, type Moment, type TextLanguage, type VoiceOption,
+} from '../ai/aiService';
 import { cleanClipAudio } from '../ai/cleanAudio';
 import { DEFAULT_SILENCE, SPEECH_RATE, findSilences, mixTimeline } from '../ai/timelineAudio';
 import { clipEnd, formatTime } from '../model';
@@ -43,39 +45,86 @@ function useTranscript() {
     : [];
 }
 
+/** The voice list from the server (AI Studio's catalogue), loaded once. */
+let voiceList: Promise<VoiceOption[]> | null = null;
+function useVoices(): VoiceOption[] {
+  const [voices, setVoices] = useState<VoiceOption[]>(BUILT_IN_VOICES);
+  useEffect(() => {
+    let alive = true;
+    voiceList ??= aiService.voices().catch(() => {
+      voiceList = null;
+      return BUILT_IN_VOICES;
+    });
+    void voiceList.then((v) => alive && setVoices(v));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return voices;
+}
+
 function VoiceOver({ text, setText }: { text: string; setText: (t: string) => void }) {
-  const [voice, setVoice] = useState<Voice>('Kore');
+  const voices = useVoices();
+  const [voice, setVoice] = useState('Kore');
   const [style, setStyle] = useState('');
   const { busy, run } = useTask();
   const { importFiles } = useImportFiles();
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const current = voices.find((v) => v.id === voice);
+
   const generate = () => run('voice', async () => {
     const blob = await aiService.speech(text.trim(), voice, style.trim());
-    const s = useVideoEditorStore.getState();
-    const at = s.playhead;
-    const [id] = await importFiles([new File([blob], `AI voice ${voice} ${new Date().toTimeString().slice(0, 5)}.wav`, { type: 'audio/wav' })]);
+    const at = useVideoEditorStore.getState().playhead;
+    const [id] = await importFiles([new File([blob], `AI voice ${current?.name ?? voice} ${new Date().toTimeString().slice(0, 5)}.wav`, { type: 'audio/wav' })]);
     if (id) useVideoEditorStore.getState().addMediaClip(id, { start: at, freeTrack: true });
   });
+
+  /** Puts a sound tag where the cursor is. */
+  const insertTag = (tag: string) => {
+    const el = textRef.current;
+    const at = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? at;
+    setText(`${text.slice(0, at)}${tag} ${text.slice(end)}`);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(at + tag.length + 1, at + tag.length + 1);
+    });
+  };
+
   return (
     <div className="ve-recorder">
       <label className="ve-field">
         <span>What should the voice say?</span>
-        <textarea rows={3} maxLength={3000} value={text} onChange={(e) => setText(e.target.value)} placeholder="ආයුබෝවන්! අද අපි බලමු…" />
+        <textarea ref={textRef} rows={4} maxLength={3000} value={text} onChange={(e) => setText(e.target.value)} placeholder="ආයුබෝවන්! අද අපි බලමු…" />
       </label>
-      <div className="ve-field-row">
-        <label className="ve-field">
-          <span>Voice</span>
-          <select className="ve-select" value={voice} onChange={(e) => setVoice(e.target.value as Voice)}>
-            {VOICES.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </label>
-        <label className="ve-field" style={{ flex: 1 }}>
-          <span>Style (optional)</span>
-          <input className="ve-input" value={style} maxLength={120} placeholder="cheerfully, slowly…" onChange={(e) => setStyle(e.target.value)} />
-        </label>
+      <div className="ve-field">
+        <span>Sound effects (added at the cursor)</span>
+        <div className="ve-chips">
+          {VOICE_TAGS.map((tag) => <button key={tag} type="button" onClick={() => insertTag(tag)}>{tag.slice(1, -1)}</button>)}
+        </div>
+      </div>
+      <label className="ve-field">
+        <span>Voice</span>
+        <select className="ve-select" value={voice} onChange={(e) => setVoice(e.target.value)}>
+          {voices.map((v) => (
+            <option key={v.id} value={v.id}>{v.name}{v.description ? ` · ${v.description}` : ''}{v.gender ? ` (${v.gender})` : ''}</option>
+          ))}
+        </select>
+      </label>
+      <div className="ve-field">
+        <span>Style</span>
+        <div className="ve-chips">
+          <button type="button" className={style === '' ? 'is-on' : ''} aria-pressed={style === ''} onClick={() => setStyle('')}>Natural</button>
+          {VOICE_STYLES.map((st) => (
+            <button key={st} type="button" className={style === st ? 'is-on' : ''} aria-pressed={style === st} onClick={() => setStyle(st)}>{st}</button>
+          ))}
+        </div>
+        <input className="ve-input" value={style} maxLength={120} placeholder="Or describe it: e.g. like a friendly radio host" onChange={(e) => setStyle(e.target.value)} aria-label="Speaking style" />
       </div>
       <button type="button" className="ve-secondary-btn" disabled={!text.trim() || busy !== null} onClick={() => void generate()}>
         <Spin on={busy === 'voice'} icon={<Mic2 size={14} aria-hidden="true" />} /> {busy ? 'Making the voice…' : 'Make voice-over at the playhead'}
       </button>
+      <p className="ve-panel-hint">Speaks Sinhala, English, Tamil and 100+ more languages, including mixed Sinhala and English. Emoji are skipped.</p>
     </div>
   );
 }
@@ -312,10 +361,89 @@ function Highlights() {
   );
 }
 
+const sizeText = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
+
+/** Paste a TikTok (or direct media) link: the server downloads it and it lands in Media. */
+function ImportFromLink() {
+  const [url, setUrl] = useState('');
+  const [allowed, setAllowed] = useState(false);
+  const [progress, setProgress] = useState<{ loaded: number; total: number | null } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const addToast = useToastStore((s) => s.addToast);
+  const { importFiles } = useImportFiles();
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const isTikTok = /(^|\.)tiktok\.com/i.test((() => {
+    try {
+      return new URL(url.trim()).hostname;
+    } catch {
+      return '';
+    }
+  })());
+
+  const start = async () => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setProgress({ loaded: 0, total: null });
+    try {
+      const file = await aiService.importLink(url.trim(), (loaded, total) => setProgress({ loaded, total }), controller.signal);
+      const [id] = await importFiles([file]);
+      if (id) {
+        addToast({ type: 'success', message: `“${file.name}” is in your media.` });
+        setUrl('');
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) addToast({ type: 'error', message: await aiErrorMessage(err) });
+    } finally {
+      abortRef.current = null;
+      setProgress(null);
+    }
+  };
+
+  const busy = progress !== null;
+  return (
+    <div className="ve-recorder">
+      <label className="ve-field">
+        <span>Video link</span>
+        <input
+          className="ve-input"
+          type="url"
+          inputMode="url"
+          value={url}
+          disabled={busy}
+          placeholder="https://www.tiktok.com/@name/video/…"
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && allowed && url.trim() && !busy && void start()}
+        />
+      </label>
+      <label className="ve-field is-inline">
+        <input type="checkbox" checked={allowed} disabled={busy} onChange={(e) => setAllowed(e.target.checked)} />
+        <span>I own this video or have permission to use it</span>
+      </label>
+      {busy ? (
+        <>
+          <div className="ve-progress" role="progressbar" aria-label="Download progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.total ? Math.round((progress.loaded / progress.total) * 100) : undefined}>
+            <span style={{ width: progress.total ? `${(progress.loaded / progress.total) * 100}%` : '6%' }} />
+          </div>
+          <p className="ve-panel-hint" aria-live="polite">{progress.loaded > 0 ? `Downloading… ${sizeText(progress.loaded)}${progress.total ? ` of ${sizeText(progress.total)}` : ''}` : 'Getting the video…'}</p>
+          <button type="button" className="ve-secondary-btn" onClick={() => abortRef.current?.abort()}><X size={14} aria-hidden="true" /> Cancel</button>
+        </>
+      ) : (
+        <button type="button" className="ve-export" disabled={!url.trim() || !allowed} onClick={() => void start()}>
+          <Link2 size={16} aria-hidden="true" /> {isTikTok ? 'Download TikTok (no watermark)' : 'Download and import'}
+        </button>
+      )}
+      <p className="ve-panel-hint">TikTok videos come without the TikTok watermark. Direct links to video, audio or image files work too. The file goes into Media.</p>
+    </div>
+  );
+}
+
 export function AiToolsPanel() {
   const [voiceText, setVoiceText] = useState('');
   return (
     <div className="ve-panel">
+      <h2 className="ve-panel-title">Import from a link</h2>
+      <ImportFromLink />
       <h2 className="ve-panel-title">AI voice-over</h2>
       <VoiceOver text={voiceText} setText={setVoiceText} />
       <h2 className="ve-panel-title">Remove silences</h2>

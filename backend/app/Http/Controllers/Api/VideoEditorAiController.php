@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\AI\AIProviderFactory;
-use App\Services\AI\GeminiSpeechSynthesizer;
 use App\Services\AI\SpeechPartTranscriber;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
@@ -161,7 +160,8 @@ class VideoEditorAiController extends Controller
     {
         $validated = $request->validate([
             'text' => ['required', 'string', 'max:3000'],
-            'voice' => ['required', Rule::in(GeminiSpeechSynthesizer::VOICES)],
+            // A prebuilt voice name from the voice list (the live catalogue can hold more than the built-in 30).
+            'voice' => ['required', 'string', 'regex:/^[A-Za-z0-9_\-]{1,80}$/'],
             'style' => ['nullable', 'string', 'max:120'],
         ]);
         /** @var User $user */
@@ -172,6 +172,15 @@ class VideoEditorAiController extends Controller
         $this->usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', null, ['provider' => 'editor-speech', 'model' => $synth->model(), 'characters' => mb_strlen($validated['text'])]);
 
         return response($wav, 200, ['Content-Type' => 'audio/wav', 'Cache-Control' => 'no-store']);
+    }
+
+    /** The voices for AI voice-overs (AI Studio's catalogue, or the built-in list). */
+    public function voices(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return $this->successResponse(['voices' => $this->providers->speechForUser($user)->voices()], 'Voices');
     }
 
     /**

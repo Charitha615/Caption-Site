@@ -56,8 +56,10 @@ return [
         // pauses. Short parts are more accurate (fewer skipped/misheard words) and each one is
         // reviewed against its own audio before moving on. Max 1800 (30 min per request).
         'transcribe_chunk_seconds' => (int) env('GEMINI_TRANSCRIBE_CHUNK_SECONDS', 30),
-        // Text to speech for AI voice-overs in the video editor.
-        'tts_model' => env('GEMINI_TTS_MODEL', 'gemini-2.5-flash-preview-tts'),
+        // Text to speech for AI voice-overs in the video editor (Interactions API, AI Studio's voices).
+        // 3.8 Flash TTS speaks Sinhala, Tamil and English; Flash-Lite TTS is tried when it fails.
+        'tts_model' => env('GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts'),
+        'tts_fallback_model' => env('GEMINI_TTS_FALLBACK_MODEL', 'gemini-3.8-flash-lite-tts'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'upload_url' => env('GEMINI_UPLOAD_URL', 'https://generativelanguage.googleapis.com/upload/v1beta'),
         // Seconds to wait for one model's answer. A 2–3 minute video normally takes well under a minute; overloads are retried by the job.

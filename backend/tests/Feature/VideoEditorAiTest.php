@@ -107,16 +107,53 @@ class VideoEditorAiTest extends TestCase
         $assistant->translate(['one'], 'en');
     }
 
-    public function test_gemini_speech_wraps_the_returned_pcm_in_a_wav_header(): void
+    public function test_gemini_speech_uses_the_interactions_api_with_voice_and_style_and_returns_its_wav(): void
     {
-        Http::fake(['*' => Http::response(['candidates' => [['content' => ['parts' => [['inlineData' => ['mimeType' => 'audio/L16', 'data' => base64_encode(str_repeat("\1\0", 24000))]]]]]]])]);
+        $wav = Wav::fromPcm16(str_repeat("\1\0", 24000), 24000);
+        Http::fake(['*/interactions' => Http::response(['status' => 'completed', 'steps' => [
+            ['type' => 'user_input', 'content' => [['type' => 'text', 'text' => 'x']]],
+            ['type' => 'model_output', 'content' => [['type' => 'audio', 'data' => base64_encode($wav)]]],
+        ]])]);
 
-        $wav = (new GeminiSpeechSynthesizer('test-key', 'tts-test'))->speak('Hello', 'Puck');
+        $synth = new GeminiSpeechSynthesizer('test-key', 'tts-main');
+        $out = $synth->speak('ආයුබෝවන්! 🔥 Hello', 'Charon', 'warm and enthusiastic');
 
-        $this->assertSame('RIFF', substr($wav, 0, 4));
-        $path = tempnam(sys_get_temp_dir(), 'wav');
-        file_put_contents($path, $wav);
-        $this->assertEqualsWithDelta(1.0, Wav::duration($path), 0.001);
-        Http::assertSent(fn ($request) => $request['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'] === 'Puck');
+        $this->assertSame($wav, $out);
+        $this->assertSame('tts-main', $synth->model());
+        Http::assertSent(fn ($request) => $request['model'] === 'models/tts-main'
+            && $request['generation_config']['speech_config'][0]['voice'] === 'Charon'
+            && $request['input'][0]['content'][0]['text'] === 'ආයුබෝවන්! Hello'
+            && $request['input'][0]['content'][0]['annotations'][0] === ['type' => 'speech_metadata', 'style' => 'warm and enthusiastic']
+            && $request['response_format']['type'] === 'audio');
+    }
+
+    public function test_gemini_speech_tries_the_lite_model_when_the_main_one_returns_no_audio(): void
+    {
+        config(['ai.gemini.tts_fallback_model' => 'tts-lite']);
+        Http::fake(['*/interactions' => Http::sequence()
+            ->push(['status' => 'completed', 'steps' => [['type' => 'model_output', 'content' => []]]])
+            ->push(['output_audio' => ['data' => base64_encode(str_repeat("\1\0", 2400))]])]);
+
+        $synth = new GeminiSpeechSynthesizer('test-key', 'tts-main');
+        $out = $synth->speak('Hello', 'Kore');
+
+        // Raw PCM gets a WAV header.
+        $this->assertSame('RIFF', substr($out, 0, 4));
+        $this->assertSame('tts-lite', $synth->model());
+    }
+
+    public function test_voices_come_from_google_with_the_built_in_list_as_fallback(): void
+    {
+        Http::fake(['*/voices*' => Http::sequence()
+            ->push([], 404)
+            ->push(['voices' => [['id' => 'voices/Sulafat', 'display_name' => 'Sulafat', 'description' => 'Warm', 'gender' => 'FEMALE'], ['id' => 'bad id!']]])]);
+        $synth = new GeminiSpeechSynthesizer('test-key');
+
+        $this->assertCount(30, $synth->voices());
+        $this->assertSame([['id' => 'Sulafat', 'name' => 'Sulafat', 'description' => 'Warm', 'gender' => 'female']], $synth->voices());
+
+        [, $headers] = $this->userWithToken();
+        $this->withHeaders($headers)->getJson('/api/video-editor/ai/voices')
+            ->assertOk()->assertJsonCount(30, 'data.voices')->assertJsonPath('data.voices.2', ['id' => 'Charon', 'name' => 'Charon', 'description' => 'Informative', 'gender' => null]);
     }
 }

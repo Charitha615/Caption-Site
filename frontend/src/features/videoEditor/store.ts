@@ -69,7 +69,10 @@ export interface VideoEditorState extends Snapshot {
   /** Timeline zoom in pixels per second. */
   zoom: number;
   snap: boolean;
+  /** The clip the panels show (the last one picked). */
   selectedId: string | null;
+  /** Every selected clip (Shift / Ctrl / ⌘-click or a box drag); includes `selectedId`. */
+  selectedIds: string[];
   past: Snapshot[];
   future: Snapshot[];
 
@@ -85,6 +88,12 @@ export interface VideoEditorState extends Snapshot {
   setZoom: (zoom: number) => void;
   toggleSnap: () => void;
   select: (id: string | null) => void;
+  /** Adds the clip to the selection, or takes it out if it is already in. */
+  toggleSelect: (id: string) => void;
+  /** Selects exactly these clips (the last becomes the one the panels show). */
+  selectMany: (ids: string[]) => void;
+  /** Live move of several clips during a drag, to these start times (no history entry; call `commit` first). */
+  setClipStarts: (starts: Record<string, number>) => void;
 
   /** Saves the current tracks and clips for undo. Call once before a change (or a drag). */
   commit: () => void;
@@ -184,6 +193,7 @@ const initial = () => ({
   zoom: 60,
   snap: true,
   selectedId: null as string | null,
+  selectedIds: [] as string[],
   past: [] as Snapshot[],
   future: [] as Snapshot[],
 });
@@ -256,10 +266,26 @@ function withoutEmpty(keyframes: Keyframes): Keyframes {
   return out;
 }
 
-export const useVideoEditorStore = create<VideoEditorState>()((set, get) => {
+export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
+  /**
+   * Every update that picks a clip (`selectedId`) without saying what else is selected makes that the
+   * only selected clip, so the many actions that select one clip keep the selection consistent.
+   */
+  const set: typeof rawSet = ((partial: Parameters<typeof rawSet>[0], replace?: boolean) =>
+    rawSet((s) => {
+      const p = (typeof partial === 'function' ? partial(s) : partial) as Partial<VideoEditorState>;
+      if ('selectedId' in p && !('selectedIds' in p)) return { ...p, selectedIds: p.selectedId ? [p.selectedId] : [] };
+      return p;
+    }, replace as false)) as typeof rawSet;
   const snapshot = (): Snapshot => ({ tracks: get().tracks, clips: get().clips });
   const record = () => set((s) => ({ past: [...s.past, snapshot()].slice(-HISTORY_LIMIT), future: [] }));
   let lastEdit = { id: '', at: 0 };
+  /** The selected clips that still exist. */
+  const selectedClipIds = () => {
+    const { selectedIds, selectedId, clips } = get();
+    const wanted = selectedIds.length ? selectedIds : selectedId ? [selectedId] : [];
+    return wanted.filter((id) => clips.some((c) => c.id === id));
+  };
   const mapClip = (id: string, fn: (clip: Clip) => Clip) => set((s) => ({ clips: s.clips.map((c) => (c.id === id ? fn(c) : c)) }));
 
   /** A track of this kind with nothing in [start, start + duration), created on top of its kind when none is free. */
@@ -310,6 +336,18 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => {
     setZoom: (zoom) => set({ zoom: Math.min(400, Math.max(4, zoom)) }),
     toggleSnap: () => set((s) => ({ snap: !s.snap })),
     select: (selectedId) => set({ selectedId }),
+    toggleSelect: (id) => {
+      const { selectedIds, selectedId } = get();
+      const current = selectedIds.length ? selectedIds : selectedId ? [selectedId] : [];
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+      set({ selectedIds: next, selectedId: next.at(-1) ?? null });
+    },
+    selectMany: (ids) => {
+      const existing = new Set(get().clips.map((c) => c.id));
+      const next = [...new Set(ids)].filter((id) => existing.has(id));
+      set({ selectedIds: next, selectedId: next.at(-1) ?? null });
+    },
+    setClipStarts: (starts) => set((s) => ({ clips: s.clips.map((c) => (c.id in starts ? { ...c, start: Math.max(0, starts[c.id]!) } : c)) })),
 
     commit: record,
     undo: () => {
@@ -619,23 +657,23 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => {
     },
 
     deleteSelected: () => {
-      const { selectedId, clips } = get();
-      if (!selectedId || !clips.some((c) => c.id === selectedId)) return;
+      const ids = new Set(selectedClipIds());
+      if (ids.size === 0) return;
       record();
-      set((s) => ({ clips: s.clips.filter((c) => c.id !== selectedId), selectedId: null }));
+      set((s) => ({ clips: s.clips.filter((c) => !ids.has(c.id)), selectedId: null }));
     },
 
     rippleDeleteSelected: () => {
-      const { selectedId, clips } = get();
-      const gone = clips.find((c) => c.id === selectedId);
-      if (!gone) return;
+      const ids = new Set(selectedClipIds());
+      if (ids.size === 0) return;
       record();
-      set({
-        selectedId: null,
-        clips: clips
-          .filter((c) => c.id !== gone.id)
-          .map((c) => (c.trackId === gone.trackId && c.start >= clipEnd(gone) - 1e-6 ? { ...c, start: Math.max(0, c.start - gone.duration) } : c)),
-      });
+      // Latest first, so each removal's shift only touches clips after it on its own track.
+      const gone = get().clips.filter((c) => ids.has(c.id)).sort((a, b) => b.start - a.start);
+      let clips = get().clips.filter((c) => !ids.has(c.id));
+      for (const g of gone) {
+        clips = clips.map((c) => (c.trackId === g.trackId && c.start >= clipEnd(g) - 1e-6 ? { ...c, start: Math.max(0, c.start - g.duration) } : c));
+      }
+      set({ selectedId: null, clips });
     },
 
     duplicateSelected: () => {

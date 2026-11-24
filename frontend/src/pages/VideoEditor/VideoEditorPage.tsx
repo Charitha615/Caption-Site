@@ -89,6 +89,9 @@ function useShortcuts() {
       } else if (mod && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         s.redo();
+      } else if (mod && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        s.selectMany(s.clips.map((c) => c.id));
       } else if (mod && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         s.duplicateSelected();

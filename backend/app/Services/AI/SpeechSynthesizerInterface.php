@@ -15,4 +15,11 @@ interface SpeechSynthesizerInterface
      * @throws AIProviderException
      */
     public function speak(string $text, string $voice, string $style = ''): string;
+
+    /**
+     * Voices that can be chosen.
+     *
+     * @return list<array{id: string, name: string, description: string, gender: string|null}>
+     */
+    public function voices(): array;
 }

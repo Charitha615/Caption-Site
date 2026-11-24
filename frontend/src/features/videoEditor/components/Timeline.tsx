@@ -111,9 +111,14 @@ export function Timeline() {
   const playhead = useVideoEditorStore((s) => s.playhead);
   const playing = useVideoEditorStore((s) => s.playing);
   const selectedId = useVideoEditorStore((s) => s.selectedId);
+  const selectedIds = useVideoEditorStore((s) => s.selectedIds);
+  const isSelected = (id: string) => id === selectedId || selectedIds.includes(id);
+  /** The box being dragged to select clips, in lane coordinates. */
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const snap = useVideoEditorStore((s) => s.snap);
   const {
     setPlayhead, select, commit, moveClip, trimClip, addMediaClip, addTrack, toggleTrack, toggleClipMute, removeTrack, moveClipToNewTrack, closeGap,
+    toggleSelect, selectMany, setClipStarts,
   } = useVideoEditorStore.getState();
   /** While a clip is dragged: whether it is over one of the "new track" areas. */
   const [newTrackHint, setNewTrackHint] = useState<'top' | 'bottom' | null>(null);
@@ -165,9 +170,57 @@ export function Timeline() {
 
   const edgesExcept = (id: string) => (!snap ? [] : [0, playhead, ...clips.filter((c) => c.id !== id).flatMap((c) => [c.start, clipEnd(c)])]);
 
+  /**
+   * A press on empty track space: a click moves the playhead; a drag draws a box that selects the clips
+   * it touches (added to the selection with Shift / Ctrl / ⌘).
+   */
+  const startLanePointer = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+    const st = useVideoEditorStore.getState();
+    const base = additive ? (st.selectedIds.length ? st.selectedIds : st.selectedId ? [st.selectedId] : []) : [];
+    const x0 = event.clientX;
+    const y0 = event.clientY;
+    let boxing = false;
+    drag((e) => {
+      if (!boxing && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return;
+      boxing = true;
+      const lanes = lanesRef.current?.getBoundingClientRect();
+      if (!lanes) return;
+      const left = Math.min(x0, e.clientX);
+      const top = Math.min(y0, e.clientY);
+      const right = Math.max(x0, e.clientX);
+      const bottom = Math.max(y0, e.clientY);
+      setMarquee({ x: left - lanes.left, y: top - lanes.top, w: right - left, h: bottom - top });
+      const hits = [...(lanesRef.current?.querySelectorAll<HTMLElement>('[data-clip-id]') ?? [])]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.right > left && r.left < right && r.bottom > top && r.top < bottom;
+        })
+        .map((el) => el.dataset.clipId!);
+      selectMany([...base, ...hits]);
+    }, () => {
+      setMarquee(null);
+      if (boxing) return;
+      if (!additive) select(null);
+      setPlayhead(timeAt(x0));
+    });
+  };
+
   const startMove = (event: React.PointerEvent, clip: Clip) => {
     if (event.button !== 0) return;
     event.stopPropagation();
+    // Shift / Ctrl / ⌘-click adds the clip to the selection (or takes it out).
+    if (event.shiftKey || event.metaKey || event.ctrlKey) {
+      toggleSelect(clip.id);
+      return;
+    }
+    const st = useVideoEditorStore.getState();
+    const group = st.selectedIds.length > 1 && st.selectedIds.includes(clip.id) ? st.selectedIds.filter((id) => st.clips.some((c) => c.id === id)) : null;
+    if (group && group.length > 1) {
+      startGroupMove(event, clip, group);
+      return;
+    }
     select(clip.id);
     commit();
     const grabOffset = timeAt(event.clientX) - clip.start;
@@ -192,6 +245,28 @@ export function Timeline() {
       setDraggingClip(false);
       setNewTrackHint(null);
       if (hint && e.type === 'pointerup') moveClipToNewTrack(clip.id, hint);
+    });
+  };
+
+  /** Drags every selected clip together, keeping their spacing; the grabbed clip snaps. */
+  const startGroupMove = (event: React.PointerEvent, clip: Clip, group: string[]) => {
+    commit();
+    const origin = Object.fromEntries(clips.filter((c) => group.includes(c.id)).map((c) => [c.id, c.start]));
+    const earliest = Math.min(...Object.values(origin));
+    const grabOffset = timeAt(event.clientX) - clip.start;
+    const others = new Set(group);
+    const edges = !snap ? [] : [0, playhead, ...clips.filter((c) => !others.has(c.id)).flatMap((c) => [c.start, clipEnd(c)])];
+    let moved = false;
+    drag((e) => {
+      const raw = timeAt(e.clientX) - grabOffset;
+      const start = snapTime(raw, edges, zoom);
+      // Nothing in the group may go before 0.
+      const delta = Math.max(start - clip.start, -earliest);
+      if (Math.abs(delta) > 1e-4) moved = true;
+      setClipStarts(Object.fromEntries(Object.entries(origin).map(([id, s]) => [id, s + delta])));
+    }, () => {
+      // A plain click on one of several selected clips selects just that one.
+      if (!moved) select(clip.id);
     });
   };
 
@@ -295,7 +370,7 @@ export function Timeline() {
               key={track.id}
               data-track-id={track.id}
               className={`ve-lane is-${track.kind}`}
-              onPointerDown={startScrub}
+              onPointerDown={startLanePointer}
               onDragOver={(e) => {
                 if (e.dataTransfer.types.includes(MEDIA_DRAG_TYPE) || e.dataTransfer.types.includes('Files')) e.preventDefault();
               }}
@@ -323,12 +398,13 @@ export function Timeline() {
               {clips.filter((c) => c.trackId === track.id).map((clip) => (
                 <div
                   key={clip.id}
-                  className={`ve-clip is-${clip.kind} ${clip.id === selectedId ? 'is-selected' : ''} ${clip.muted ? 'is-muted' : ''}`}
+                  data-clip-id={clip.id}
+                  className={`ve-clip is-${clip.kind} ${isSelected(clip.id) ? 'is-selected' : ''} ${clip.muted ? 'is-muted' : ''}`}
                   style={{ left: clip.start * zoom, width: Math.max(4, clip.duration * zoom) }}
                   onPointerDown={(e) => startMove(e, clip)}
                   role="button"
                   tabIndex={0}
-                  aria-pressed={clip.id === selectedId}
+                  aria-pressed={isSelected(clip.id)}
                   aria-label={`${clip.kind} clip ${clip.kind === 'text' ? clip.text : byId.get(clip.mediaId ?? '')?.name ?? ''}, ${formatTime(clip.start)} to ${formatTime(clipEnd(clip))}`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -365,10 +441,12 @@ export function Timeline() {
           <div
             className={`ve-lane-new ${draggingClip ? 'is-dragging' : ''} ${newTrackHint === 'bottom' ? 'is-new-target' : ''}`}
             data-new-track="bottom"
-            onPointerDown={startScrub}
+            onPointerDown={startLanePointer}
           >
             {draggingClip && <span className="ve-new-track-label">Drop here for a new track</span>}
           </div>
+
+          {marquee && <div className="ve-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} aria-hidden="true" />}
 
           <div className="ve-playhead" style={{ left: playhead * zoom }} aria-hidden="true">
             <span className="ve-playhead-knob" />

@@ -273,3 +273,76 @@ describe('Layers and gaps', () => {
     expect(screen.queryByRole('button', { name: /second gap on Video/ })).not.toBeInTheDocument();
   });
 });
+
+describe('Selecting several clips', () => {
+  beforeEach(() => {
+    store().reset();
+    store().addMedia(video);
+    store().addMediaClip('m-video');
+    store().addMediaClip('m-video');
+    store().addMediaClip('m-video');
+  });
+
+  it('toggles clips in and out, and picking one clip again resets the selection', () => {
+    const [a, b, c] = store().clips.map((x) => x.id);
+    store().select(a!);
+    store().toggleSelect(b!);
+    store().toggleSelect(c!);
+    expect(store().selectedIds).toEqual([a, b, c]);
+    expect(store().selectedId).toBe(c);
+    store().toggleSelect(c!);
+    expect(store().selectedIds).toEqual([a, b]);
+    expect(store().selectedId).toBe(b);
+    store().select(c!);
+    expect(store().selectedIds).toEqual([c]);
+  });
+
+  it('deletes all selected clips in one undo step, or closes their gaps', () => {
+    const [a, , c] = store().clips.map((x) => x.id);
+    store().selectMany([a!, c!]);
+    store().deleteSelected();
+    expect(store().clips).toHaveLength(1);
+    expect(store().selectedIds).toEqual([]);
+    store().undo();
+    expect(store().clips).toHaveLength(3);
+
+    store().selectMany([a!, c!]);
+    store().rippleDeleteSelected();
+    expect(store().clips.map((x) => x.start)).toEqual([0]);
+  });
+
+  it('moves selected clips together', () => {
+    const [a, b] = store().clips.map((x) => x.id);
+    store().setClipStarts({ [a!]: 2, [b!]: 12 });
+    expect(store().clips.map((x) => x.start)).toEqual([2, 12, 20]);
+  });
+
+  it('Ctrl-click picks several clips in the timeline, and Delete removes them all', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    const [first, second] = screen.getAllByRole('button', { name: /^video clip vlog\.mp4/ });
+    await user.click(first!);
+    await user.keyboard('{Control>}');
+    await user.click(second!);
+    await user.keyboard('{/Control}');
+    expect(screen.getByRole('heading', { name: '2 clips selected' })).toBeInTheDocument();
+    await user.keyboard('{Delete}');
+    expect(store().clips).toHaveLength(1);
+  });
+});
+
+describe('Import from a link', () => {
+  beforeEach(() => store().reset());
+
+  it('needs a link and the permission box, and names TikTok downloads', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'AI tools' }));
+    const button = screen.getByRole('button', { name: /Download and import/ });
+    expect(button).toBeDisabled();
+    await user.type(screen.getByLabelText('Video link'), 'https://www.tiktok.com/@kandy/video/123');
+    expect(screen.getByRole('button', { name: /Download TikTok \(no watermark\)/ })).toBeDisabled();
+    await user.click(screen.getByLabelText('I own this video or have permission to use it'));
+    expect(screen.getByRole('button', { name: /Download TikTok \(no watermark\)/ })).toBeEnabled();
+  });
+});
