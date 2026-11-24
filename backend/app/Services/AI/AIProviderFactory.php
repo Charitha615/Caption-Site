@@ -64,6 +64,17 @@ class AIProviderFactory
         return new GeminiCaptionRefiner($this->keyFor($user)[0]);
     }
 
+    /** OpenAI final caption correction (platform key), or null when off, keyless, or using the fake provider. */
+    public function captionCorrector(): ?CaptionRefinerInterface
+    {
+        $key = (string) config('ai.openai.api_key');
+        if (! $this->usesUserKeys() || $key === '' || ! config('ai.openai.caption_correction', true)) {
+            return null;
+        }
+
+        return new OpenAICaptionCorrector($key);
+    }
+
     /** Prompted Flash transcription that keeps English words in English letters, or null when off / not Gemini. */
     public function mixedTranscriberForUser(User $user): ?GeminiMixedTranscriber
     {

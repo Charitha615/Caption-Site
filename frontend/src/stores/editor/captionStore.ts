@@ -82,6 +82,8 @@ interface CaptionState extends CaptionDocument {
   importCaptions: (newCaptions: CaptionSegment[], mode?: 'replace' | 'append') => void;
   deleteCaption: (id: string) => void;
   updateText: (id: string, text: string) => void;
+  /** Replaces the text of many captions in one undo step; timing, word timings and style are kept. */
+  updateTexts: (texts: Array<{ id: string; text: string }>) => void;
   setTiming: (id: string, start: number, end: number, label?: string) => void;
   nudge: (id: string, delta: number) => void;
   splitAt: (id: string, time: number) => boolean;
@@ -242,6 +244,20 @@ export const useCaptionStore = create<CaptionState>()((set, get) => ({
       },
       { coalesceKey: `text:${id}` }
     );
+  },
+
+  updateTexts: (texts) => {
+    const byId = new Map(texts.map((t) => [t.id, t.text]));
+    get().commit('Update caption text', (d) => {
+      let changed = false;
+      const captions = d.captions.map((c) => {
+        const text = byId.get(c.id);
+        if (text === undefined || text === c.text) return c;
+        changed = true;
+        return withText(c, text);
+      });
+      return changed ? { captions } : null;
+    });
   },
 
   setTiming: (id, start, end, label = 'Change timing') => {

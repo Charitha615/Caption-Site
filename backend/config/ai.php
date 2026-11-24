@@ -71,4 +71,16 @@ return [
         // for karaoke/highlight effects are estimated from each caption line.
         'word_timings' => (bool) env('GEMINI_WORD_TIMINGS', false),
     ],
+
+    // Final correction pass over generated captions (the platform's key, for every user):
+    // Sinhala spelling and English words written in English letters. Off when the key is empty.
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'caption_correction' => (bool) env('OPENAI_CAPTION_CORRECTION', true),
+        'model' => env('OPENAI_MODEL', 'gpt-5.5'),
+        // Reasoning models only (gpt-5 family); leave empty for models without reasoning.
+        'reasoning_effort' => env('OPENAI_REASONING_EFFORT', 'low'),
+        'timeout' => (int) env('OPENAI_TIMEOUT', 60),
+        'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+    ],
 ];

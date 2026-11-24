@@ -18,8 +18,8 @@
 
 /* Reviews panel on a designed wallpaper (always dark, in light and dark theme). */
 .auth-reviews {
-  position: relative; display: none; flex-direction: column; justify-content: flex-end;
-  min-height: 0; padding: 40px; border-radius: 28px; overflow: hidden; isolation: isolate;
+  position: relative; display: none; flex-direction: column; justify-content: center;
+  min-height: 0; padding: 32px 24px; border-radius: 28px; overflow: hidden; isolation: isolate;
   background: #120c24; color: #fff;
 }
 @media (min-width: 1024px) { .auth-reviews { display: flex; } }
@@ -53,63 +53,10 @@
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 
-/* Floating glass pieces of the product */
-.auth-float {
-  position: absolute; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6); color: #fff;
-  animation: auth-bob 7s ease-in-out infinite alternate;
-}
-@keyframes auth-bob { from { translate: 0 0; } to { translate: 0 -10px; } }
-.auth-float.is-caption { top: 9%; left: 9%; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 18px; rotate: -4deg; max-width: 62%; }
-.auth-float-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.6); }
-.auth-float.is-caption p { margin: 0; font-family: 'Noto Sans Sinhala', 'Inter', sans-serif; font-size: 1.15rem; font-weight: 800; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
-.auth-float.is-caption b { color: #ffd400; }
-.auth-float-progress { width: 100%; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); }
-.auth-float-progress span { display: block; width: 42%; height: 100%; border-radius: 3px; background: #fff; }
-.auth-float.is-wave { top: 30%; right: 8%; align-items: flex-end; gap: 3px; height: 46px; padding: 10px 12px; rotate: 3deg; animation-delay: -2s; }
-.auth-float.is-wave span { width: 4px; border-radius: 2px; background: linear-gradient(180deg, #fdba74, #f97316); }
-.auth-float.is-styles { top: 44%; left: 12%; gap: 6px; padding: 8px; rotate: 2deg; animation-delay: -4s; }
-.auth-float.is-styles span { padding: 5px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; background: rgba(255, 255, 255, 0.08); }
-.auth-float.is-styles span.is-on { background: #ffd400; color: #111; }
-.auth-float.is-english { top: 19%; right: 12%; font-size: 0.85rem; font-weight: 700; rotate: -2deg; animation-delay: -3s; }
-.auth-float.is-english .is-old { font-family: 'Noto Sans Sinhala', sans-serif; text-decoration: line-through; color: rgba(255, 255, 255, 0.55); }
-.auth-float.is-english .is-new { color: #c4b5fd; }
-.auth-float.is-english svg { color: #4ade80; }
-
-/* The review itself, in a frosted card */
-.auth-review-card {
-  position: relative; display: flex; flex-direction: column; gap: 22px; padding: 28px; border-radius: 22px;
-  background: rgba(14, 9, 30, 0.55); border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
-}
-.auth-review { display: flex; flex-direction: column; gap: 18px; margin: 0; animation: auth-review-in 0.5s ease-out both; }
-@keyframes auth-review-in { from { opacity: 0; transform: translateY(10px); } }
-.auth-review-stars { display: flex; gap: 2px; color: rgba(255, 255, 255, 0.3); }
-.auth-review-stars .is-on { color: #fbbf24; }
-.auth-review blockquote { margin: 0; }
-/* English font first: Sinhala letters fall back to Noto Sans Sinhala, English keeps normal spacing. */
-.auth-review blockquote p { margin: 0; font-family: 'Inter', 'Noto Sans Sinhala', system-ui, sans-serif; font-size: 1.15rem; line-height: 1.7; color: #fff; }
-.auth-review-hl { color: #fdba74; font-weight: 600; }
-.auth-review-person { display: flex; align-items: center; gap: 12px; }
-.auth-review-avatar {
-  display: grid; place-items: center; width: 42px; height: 42px; flex: none; border-radius: 50%; object-fit: cover;
-  background: linear-gradient(135deg, #7c3aed, #f97316); color: #fff; font-weight: 700; font-size: 0.9rem;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
-}
-.auth-review-name { display: block; font-size: 0.92rem; font-weight: 700; color: #fff; }
-.auth-review-role { display: block; font-size: 0.8rem; color: rgba(255, 255, 255, 0.65); }
-.auth-review-dots { display: flex; gap: 6px; }
-.auth-review-dots button {
-  width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
-  background: rgba(255, 255, 255, 0.3); transition: width 0.25s, background 0.25s;
-}
-.auth-review-dots button.is-on { width: 22px; background: #fff; }
-.auth-review-dots button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+/* The globe fades in once the reviews are known. */
+.auth-globe { animation: auth-globe-in 0.5s ease-out both; }
+@keyframes auth-globe-in { from { opacity: 0; transform: translateY(8px); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-blob, .auth-float, .auth-review { animation: none; }
-  .auth-review-dots button { transition: none; }
+  .auth-blob, .auth-globe { animation: none; }
 }

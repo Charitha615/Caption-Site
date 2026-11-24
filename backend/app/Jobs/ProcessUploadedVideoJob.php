@@ -90,6 +90,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             $ai = $providers->forUser($user);
             $refiner = $providers->refinerForUser($user);
             $mixed = $providers->mixedTranscriberForUser($user);
+            $corrector = $providers->captionCorrector();
         } catch (UserFacingException $e) {
             $this->markFailed($project, $e->getMessage());
 
@@ -102,7 +103,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
             $project->update(['processing_error' => null]);
             $this->phase($project, Project::STATUS_PROCESSING);
 
-            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $refiner, $mixed, $storage, $usage) {
+            $storage->withMediaCopy($media, function (string $videoPath) use ($project, $media, $user, $video, $ai, $refiner, $mixed, $corrector, $storage, $usage) {
                 // 1. Probe
                 $meta = $video->getMetadata($videoPath);
                 $media->update([
@@ -157,6 +158,9 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
                 $scriptLines = $script !== ''
                     ? $this->scriptCaptions($script, $result, (float) $meta['duration'], $refiner, $usage, $user, $project)
                     : ($result['lines'] ?? null); // mixed-script (Flash) captions, when used
+                if ($corrector && $script === '') {
+                    [$result, $cleaned, $scriptLines] = $this->correctCaptions($corrector, $result, $cleaned, $scriptLines, $usage, $user, $project);
+                }
                 $count = $this->storeCaptions($project, $media, $result, $cleaned, $ai->name(), $refiner->model(), $scriptLines);
                 if ($this->targetLanguage === 'auto' && in_array($result['language'], ['si', 'en'], true)) {
                     $project->update(['language' => $result['language']]); // detected language
@@ -496,6 +500,49 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
      *
      * @param  list<string>  $cleaned  text-model clean-up, 1:1 with segments
      */
+    /**
+     * Final OpenAI pass over the finished caption lines (not over the user's own script):
+     * corrected lines get their word timings re-aligned; every other line is left as it was.
+     *
+     * @return array{0: array, 1: list<string>, 2: array|null}
+     */
+    private function correctCaptions(CaptionRefinerInterface $corrector, array $result, array $cleaned, ?array $lines, UsageService $usage, User $user, Project $project): array
+    {
+        $aligner = app(ScriptAligner::class);
+        $texts = $lines !== null ? array_column($lines, 'text') : $cleaned;
+        if ($texts === []) {
+            return [$result, $cleaned, $lines];
+        }
+        $corrected = $corrector->refine(array_map(fn ($t) => ['text' => (string) $t, 'language' => $result['language']], $texts), $result['language']);
+        if (! $corrector->model()) {
+            return [$result, $cleaned, $lines]; // nothing was called successfully (no credits, busy …)
+        }
+        $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => 'openai-correction', 'model' => $corrector->model()]);
+
+        $changed = 0;
+        foreach ($texts as $i => $before) {
+            $after = trim((string) ($corrected[$i] ?? ''));
+            if ($after === '' || $after === $before) {
+                continue;
+            }
+            $changed++;
+            if ($lines !== null) {
+                $line = $lines[$i];
+                $lines[$i] = ['text' => $after, 'words' => $aligner->alignWords($after, $line['words'] ?? [], (float) $line['start'], (float) $line['end'])]
+                    + ['meta' => ($line['meta'] ?? []) + ['corrected_by' => $corrector->model()]] + $line;
+            } else {
+                $seg = &$result['segments'][$i];
+                $seg['reviewed_words'] = $aligner->alignWords($after, $seg['reviewed_words'] ?? $seg['words'] ?? [], (float) $seg['start'], (float) $seg['end']);
+                $seg['reviewed_text'] = $after;
+                unset($seg);
+                $cleaned[$i] = $after;
+            }
+        }
+        AppLog::info('pipeline.openai_corrected', ['project' => $project->uuid, 'lines' => count($texts), 'changed' => $changed, 'model' => $corrector->model()]);
+
+        return [$result, $cleaned, $lines];
+    }
+
     private function storeCaptions(Project $project, MediaFile $media, array $result, array $cleaned, string $transcriber, ?string $cleanupModel, ?array $scriptLines = null): int
     {
         return DB::transaction(function () use ($project, $media, $result, $cleaned, $transcriber, $cleanupModel, $scriptLines) {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
@@ -16,7 +16,7 @@ const own = (over = {}) => ({ uuid: 'r1', rating: 5, body: 'Best Sinhala caption
 describe('Reviews', () => {
   beforeEach(() => Object.values(api).forEach((m) => m.mockReset()));
 
-  it('the sign-in panel shows real approved reviews instead of the samples', async () => {
+  it('the sign-in panel shows real approved reviews first, then the samples', async () => {
     api.listPublic.mockResolvedValue([{ uuid: 'a', rating: 5, body: 'සිංහල captions ගොඩක් ලේසියි now.', role: 'Car reviewer', name: 'Nimal Perera', avatar_url: null, created_at: null }]);
     render(
       <MemoryRouter initialEntries={['/login']}>
@@ -24,18 +24,23 @@ describe('Reviews', () => {
       </MemoryRouter>,
     );
     const panel = screen.getByRole('complementary', { name: 'What creators say' });
-    expect(await within(panel).findByText('Nimal Perera')).toBeInTheDocument();
-    expect(within(panel).getByText(/ගොඩක් ලේසියි/)).toBeInTheDocument();
+    // The visible review card (hidden sizing copies are left out of the accessibility tree).
+    await waitFor(() => expect(within(panel).getByRole('figure')).toHaveTextContent('Nimal Perera'));
+    expect(within(panel).getByRole('figure')).toHaveTextContent(/ගොඩක් ලේසියි/);
+    expect(within(panel).getByRole('button', { name: /Show the review from Nimal Perera/ })).toBeInTheDocument();
+    // The samples stay on the globe after the real reviews.
+    expect(within(panel).getByRole('button', { name: 'Show the review from Chamod Senanayake, Auckland' })).toBeInTheDocument();
   });
 
-  it('keeps the samples when there are no approved reviews yet', async () => {
+  it('shows the samples when there are no approved reviews yet', async () => {
     api.listPublic.mockResolvedValue([]);
     render(
       <MemoryRouter initialEntries={['/login']}>
         <Routes><Route element={<AuthLayout />}><Route path="/login" element={<p>form</p>} /></Route></Routes>
       </MemoryRouter>,
     );
-    expect(await screen.findByText('Kasun Perera')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('figure')).toHaveTextContent('Chamod Senanayake'));
+    expect(screen.getByRole('button', { name: 'Show the review from Nadeesha Fernando, Colombo' })).toBeInTheDocument();
   });
 
   it('a user rates the product and sees it is waiting for approval', async () => {
@@ -44,7 +49,12 @@ describe('Reviews', () => {
     render(<ReviewCard />);
 
     const submit = await screen.findByRole('button', { name: 'Submit review' });
-    expect(submit).toBeDisabled();
+    // Clicking early explains what is missing instead of a silently disabled button.
+    await userEvent.click(submit);
+    expect(api.save).not.toHaveBeenCalled();
+    expect(screen.getByText('Pick a star rating.')).toBeInTheDocument();
+    expect(screen.getByText('Write at least 10 characters.')).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole('radio', { name: /5 stars/ }));
     await userEvent.type(screen.getByLabelText('Your review'), 'Best Sinhala caption tool ever.');
     await userEvent.type(screen.getByLabelText(/What you do/), 'Vlogger');

@@ -9,10 +9,22 @@ import type { CaptionSegment } from '../../model/types';
 import { selectAndSeek } from '../../services/commands';
 import { tip } from '../../shortcuts';
 import { formatTimecode } from '../../utils/time';
+import { captionsToSrt } from '../../utils/importCaptions';
+import { useToastStore } from '../../../../stores/toastStore';
 import { countGraphemes, LANGUAGE_LABELS } from '../../utils/unicode';
 import { VirtualList, type VirtualListHandle } from './VirtualList';
 
 const ROW_HEIGHT = 108;
+
+async function copyAll(captions: CaptionSegment[]) {
+  const { addToast } = useToastStore.getState();
+  try {
+    await navigator.clipboard.writeText(captionsToSrt(captions));
+    addToast({ type: 'success', message: `Copied ${captions.length} captions. Correct them, then paste back with Import → "Update text only".` });
+  } catch {
+    addToast({ type: 'error', message: 'Could not copy to the clipboard. Check the browser permission and try again.' });
+  }
+}
 
 const CaptionRow = memo(function CaptionRow({
   caption,
@@ -137,6 +149,15 @@ export const CaptionsPanel = memo(function CaptionsPanel() {
             data-tip="Import captions from script text or subtitle files"
           >
             <Upload size={14} aria-hidden="true" /> Import
+          </button>
+          <button
+            type="button"
+            className="ed-btn"
+            disabled={captions.length === 0}
+            onClick={() => void copyAll(captions)}
+            data-tip="Copy all captions with timings (SRT). Correct them anywhere, then paste back with Import."
+          >
+            <Copy size={14} aria-hidden="true" /> Copy all
           </button>
         </div>
       </div>

@@ -67,6 +67,9 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [timingMode, setTimingMode] = useState<TimingMode>(canMatchSpeech ? 'speech' : 'fit-video');
   const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
+  // Pasting back copied captions: same count → only their text changes (timing, word timing, style kept).
+  const [textOnly, setTextOnly] = useState(true);
+  const existing = useCaptionStore((s) => s.captions);
   const [removePunctuation, setRemovePunctuation] = useState(true);
   const [smartEnglish, setSmartEnglish] = useState(true);
   const [aiEnglish, setAiEnglish] = useState(true);
@@ -143,10 +146,20 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
       .filter((c) => c.text !== '');
   }, [cues, removePunctuation]);
 
+  const canUpdateText = isSubtitleFile && existing.length > 0 && finalCues.length === existing.length;
+  const updatingText = canUpdateText && textOnly;
+
   const needsAlignment = timingMode === 'speech' && !isSubtitleFile && rawText.trim() !== '' && !aligned;
 
   const handleImport = () => {
     if (finalCues.length === 0) return;
+    if (updatingText) {
+      useCaptionStore.getState().updateTexts(existing.map((c, i) => ({ id: c.id, text: finalCues[i].text })));
+      onClose();
+      setRawText('');
+      setFileName(null);
+      return;
+    }
     const source = isSubtitleFile ? 'subtitles' : timingMode === 'speech' ? 'script-matched' : 'script';
     const segments: CaptionSegment[] = finalCues.map((c) => ({
       id: c.id,
@@ -235,7 +248,13 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
               </label>
             )}
           </div>
-          <div className="ed-imp-inline">
+          {canUpdateText && (
+            <label className="ed-imp-check">
+              <input type="checkbox" checked={textOnly} onChange={(e) => setTextOnly(e.target.checked)} />
+              <span><strong>Update text only</strong> — same number of captions as the editor ({existing.length}), so only their text is replaced. Timing, word timing and styles stay as they are.</span>
+            </label>
+          )}
+          {!updatingText && <div className="ed-imp-inline">
             <span className="ed-field-label">Existing captions</span>
             <Choice
               label="Existing captions"
@@ -243,7 +262,7 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
               options={[{ value: 'replace', label: 'Replace' }, { value: 'append', label: 'Keep and add' }]}
               onChange={setImportMode}
             />
-          </div>
+          </div>}
         </section>
 
         {/* Speech matching */}
@@ -287,7 +306,7 @@ export const ImportCaptionsDialog = memo(function ImportCaptionsDialog() {
         <div className="ed-imp-footer">
           <button type="button" className="ed-btn is-ghost" onClick={onClose}>Cancel</button>
           <button type="button" className="ed-btn is-primary" disabled={finalCues.length === 0 || needsAlignment} onClick={handleImport}>
-            <Check size={14} aria-hidden="true" /> Import {finalCues.length > 0 ? `${finalCues.length} captions` : 'captions'}
+            <Check size={14} aria-hidden="true" /> {updatingText ? `Update ${finalCues.length} captions` : `Import ${finalCues.length > 0 ? `${finalCues.length} captions` : 'captions'}`}
           </button>
         </div>
       </div>

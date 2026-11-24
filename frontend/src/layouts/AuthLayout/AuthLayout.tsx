@@ -1,48 +1,73 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
-import { Check, Star } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { BrandLogo } from '../../components/BrandLogo/BrandLogo';
 import { SAMPLE_REVIEWS, type Review } from '../../config/reviews';
 import { reviewService } from '../../services/reviewService';
+import { TestimonialGlobe, type GlobeTestimonial } from '../../components/ui/TestimonialGlobe/TestimonialGlobe';
 import './AuthLayout.css';
 
 const YEAR = new Date().getFullYear();
-const ROTATE_MS = 7000;
 /** Optional photo behind the panel (e.g. "/images/auth-wallpaper.jpg"); the CSS artwork is used without it. */
 const WALLPAPER = (import.meta.env.VITE_AUTH_WALLPAPER ?? '').trim();
 
-const initials = (name: string) => name.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
+/** Longest wait for real reviews before the globe shows the samples alone. */
+const REVIEWS_WAIT_MS = 2500;
 
-function Quote({ review }: { review: Review }) {
-  const { quote, highlight } = review;
-  const at = highlight ? quote.indexOf(highlight) : -1;
-  if (at < 0 || !highlight) return <>&ldquo;{quote}&rdquo;</>;
-  return (
-    <>
-      &ldquo;{quote.slice(0, at)}<span className="auth-review-hl">{highlight}</span>{quote.slice(at + highlight.length)}&rdquo;
-    </>
-  );
-}
-
-/** Approved reviews from real users; the samples are shown until there are some. */
-function useReviews(): Review[] {
-  const [reviews, setReviews] = useState<Review[]>(SAMPLE_REVIEWS);
+/**
+ * Approved reviews from real users first, then the samples.
+ * Nothing is shown until the list arrives (or the wait runs out), so the globe never swaps its reviews mid-view.
+ */
+function useReviews(): Review[] | null {
+  const [reviews, setReviews] = useState<Review[] | null>(null);
   useEffect(() => {
-    let active = true;
+    let done = false;
+    const finish = (real: Review[]) => {
+      if (done) return;
+      done = true;
+      setReviews([...real, ...SAMPLE_REVIEWS]);
+    };
+    const timer = window.setTimeout(() => finish([]), REVIEWS_WAIT_MS);
     reviewService.listPublic()
-      .then((list) => {
-        if (!active || list.length === 0) return;
-        setReviews(list.map((r) => ({ quote: r.body, name: r.name ?? 'A creator', role: r.role ?? 'Creator', rating: r.rating, avatarUrl: r.avatar_url })));
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+      .then((list) => finish(list.map((r) => ({ quote: r.body, name: r.name ?? 'A creator', role: r.role ?? 'Creator', rating: r.rating, avatarUrl: r.avatar_url }))))
+      .catch(() => finish([]));
+    return () => {
+      done = true;
+      window.clearTimeout(timer);
+    };
   }, []);
   return reviews;
 }
 
-/** Decorative wallpaper: drifting colour, grain and floating pieces of the product. */
+// Reviews without a known place get pins on open parts of the globe, away from the sample cities.
+// No city is shown for them, so the pin is decoration only.
+const FREE_SPOTS: [number, number][] = [
+  [-33.9, 18.4], [-23.5, -46.6], [-1.3, 36.8], [49.3, -123.1], [43.2, 76.9],
+  [19.4, -99.1], [21.3, -157.8], [-12, -77], [-34.6, -58.4], [64.1, -21.9],
+];
+
+function toGlobeItems(reviews: Review[]): GlobeTestimonial[] {
+  let free = 0;
+  return reviews.map((r, i) => {
+    const placed = r.lat !== undefined && r.lng !== undefined;
+    const spot = placed ? null : FREE_SPOTS[free++ % FREE_SPOTS.length]!;
+    return {
+      id: `${i}-${r.name}`,
+      quote: r.quote,
+      highlight: r.highlight,
+      name: r.name,
+      role: r.role,
+      rating: r.rating,
+      image: r.avatarUrl,
+      city: placed ? r.city : undefined,
+      country: placed ? r.country : undefined,
+      lat: spot ? spot[0] : r.lat!,
+      lng: spot ? spot[1] : r.lng!,
+    };
+  });
+}
+
+/** Decorative wallpaper: drifting colour, grid and grain behind the globe. */
 function Wallpaper() {
   return (
     <div className="auth-wall" aria-hidden="true" style={WALLPAPER ? ({ '--auth-wallpaper': `url("${WALLPAPER}")` } as React.CSSProperties) : undefined}>
@@ -52,84 +77,29 @@ function Wallpaper() {
       <span className="auth-blob is-c" />
       <div className="auth-wall-grid" />
       <div className="auth-wall-grain" />
-
-      <div className="auth-float is-caption">
-        <span className="auth-float-label">PREVIEW · Spotlight</span>
-        <p lang="si">අද අපි <b>Toyota</b> Aqua එක review කරමු</p>
-        <span className="auth-float-progress"><span /></span>
-      </div>
-      <div className="auth-float is-wave">
-        {Array.from({ length: 22 }, (_, i) => <span key={i} style={{ height: `${25 + Math.abs(Math.sin(i * 1.3)) * 75}%` }} />)}
-      </div>
-      <div className="auth-float is-styles">
-        <span className="is-on">Spotlight</span><span>Hormozi</span><span>Word Box</span>
-      </div>
-      <div className="auth-float is-english">
-        <span lang="si" className="is-old">ටොයොටා</span> → <span className="is-new">Toyota</span> <Check size={14} />
-      </div>
     </div>
   );
 }
 
-/** Rotating creator reviews on the wallpaper, beside the auth forms. */
+/** Creator reviews pinned on a spinning globe, beside the auth forms. */
 function ReviewsPanel() {
-  const reduce = useReducedMotion();
   const reviews = useReviews();
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const review = reviews[index % reviews.length];
-
-  useEffect(() => {
-    if (reduce || paused || reviews.length < 2) return;
-    const id = window.setTimeout(() => setIndex((i) => (i + 1) % reviews.length), ROTATE_MS);
-    return () => window.clearTimeout(id);
-  }, [index, paused, reduce, reviews.length]);
+  const items = useMemo(() => (reviews ? toGlobeItems(reviews) : null), [reviews]);
 
   return (
-    <aside
-      className="auth-reviews"
-      aria-label="What creators say"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
-    >
+    <aside className="auth-reviews" aria-label="What creators say">
       <Wallpaper />
-
-      <div className="auth-review-card">
-        <figure key={`${index}-${review.name}`} className="auth-review">
-          <div className="auth-review-stars" role="img" aria-label={`${review.rating} out of 5 stars`}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Star key={n} size={16} aria-hidden="true" className={n <= review.rating ? 'is-on' : ''} fill={n <= review.rating ? 'currentColor' : 'none'} />
-            ))}
-          </div>
-          <blockquote><p><Quote review={review} /></p></blockquote>
-          <figcaption className="auth-review-person">
-            {review.avatarUrl
-              ? <img className="auth-review-avatar" src={review.avatarUrl} alt="" referrerPolicy="no-referrer" />
-              : <span className="auth-review-avatar" aria-hidden="true">{initials(review.name)}</span>}
-            <span>
-              <span className="auth-review-name">{review.name}</span>
-              <span className="auth-review-role">{review.role}</span>
-            </span>
-          </figcaption>
-        </figure>
-
-        {reviews.length > 1 && (
-          <div className="auth-review-dots" role="group" aria-label="Choose a review">
-            {reviews.map((r, i) => (
-              <button
-                key={`${r.name}-${i}`}
-                type="button"
-                className={i === index % reviews.length ? 'is-on' : ''}
-                aria-label={`Review ${i + 1} of ${reviews.length}: ${r.name}`}
-                aria-current={i === index % reviews.length || undefined}
-                onClick={() => setIndex(i)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {items && (
+        <TestimonialGlobe
+          className="auth-globe"
+          items={items}
+          eyebrow="Loved by Sinhala creators"
+          heading="Captions that sound like you, wherever you film."
+          autoplay
+          interval={6000}
+          size={420}
+        />
+      )}
     </aside>
   );
 }

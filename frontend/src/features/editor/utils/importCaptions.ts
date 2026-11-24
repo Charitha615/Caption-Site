@@ -292,6 +292,19 @@ export function assignTimingsToCues(cues: string[], options: TimingOptions): Par
   return parsed;
 }
 
+function srtTime(seconds: number): string {
+  const ms = Math.max(0, Math.round(seconds * 1000));
+  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms / 60000) % 60)}:${pad(Math.floor(ms / 1000) % 60)},${pad(ms % 1000, 3)}`;
+}
+
+/** All captions as SRT text — for "Copy all", so they can be corrected elsewhere and pasted back into Import. */
+export function captionsToSrt(captions: Array<{ start: number; end: number; text: string }>): string {
+  return captions
+    .map((c, i) => `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text.trim()}`)
+    .join('\n\n') + '\n';
+}
+
 /** A pasted/uploaded .srt or .vtt becomes plain lines (timings then come from the speech). */
 export function scriptFromInput(raw: string): string {
   const cues = parseSubtitles(raw.trim());

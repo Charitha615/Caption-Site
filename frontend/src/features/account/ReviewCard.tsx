@@ -9,6 +9,7 @@ import { useBrand } from '../../hooks/useBrand';
 import './ReviewCard.css';
 
 const MAX = 300;
+const MIN = 10;
 
 const STATUS = {
   pending: { icon: Clock, text: 'Waiting for approval — it appears on the sign-in page once approved.', tone: 'is-pending' },
@@ -50,6 +51,14 @@ export function ReviewCard() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate here instead of disabling the button, so the user sees what is missing.
+    const fieldErrors: Record<string, string[]> = {};
+    if (rating === 0) fieldErrors.rating = ['Pick a star rating.'];
+    if (body.trim().length < MIN) fieldErrors.body = [`Write at least ${MIN} characters.`];
+    if (Object.keys(fieldErrors).length) {
+      setError({ status: null, code: 'validation', message: 'Please complete your review.', fieldErrors });
+      return;
+    }
     setError(null);
     setSaving(true);
     try {
@@ -79,6 +88,13 @@ export function ReviewCard() {
     }
   };
 
+  const clearField = (field: string) =>
+    setError((prev) => {
+      if (!prev?.fieldErrors[field]) return prev;
+      const { [field]: _removed, ...rest } = prev.fieldErrors;
+      return Object.keys(rest).length ? { ...prev, fieldErrors: rest } : null;
+    });
+
   const status = review ? STATUS[review.status] : null;
 
   return (
@@ -99,7 +115,7 @@ export function ReviewCard() {
           <div className="review-field">
             <span className="review-label" id={`${id}-rating`}>Your rating</span>
             <div aria-labelledby={`${id}-rating`}>
-              <StarRating value={rating} onChange={setRating} label="Your rating" />
+              <StarRating value={rating} onChange={(v) => { setRating(v); clearField('rating'); }} label="Your rating" />
             </div>
             {fieldError(error, 'rating') && <p className="review-error" role="alert">{fieldError(error, 'rating')}</p>}
           </div>
@@ -114,12 +130,14 @@ export function ReviewCard() {
               lang="si"
               placeholder="e.g. Captioning my vlogs is so much faster now — and English words come out right!"
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={(e) => { setBody(e.target.value); if (e.target.value.trim().length >= MIN) clearField('body'); }}
               aria-describedby={`${id}-count`}
             />
             <div className="review-meta">
               {fieldError(error, 'body') ? <span className="review-error" role="alert">{fieldError(error, 'body')}</span> : <span />}
-              <span id={`${id}-count`} className="review-count">{body.length}/{MAX}</span>
+              <span id={`${id}-count`} className="review-count">
+                {body.trim().length < MIN ? `At least ${MIN} characters · ` : ''}{body.length}/{MAX}
+              </span>
             </div>
           </div>
 
@@ -136,7 +154,7 @@ export function ReviewCard() {
           </div>
 
           <div className="review-actions">
-            <Button type="submit" variant="primary" isLoading={saving} disabled={rating === 0 || body.trim().length < 10 || unchanged}>
+            <Button type="submit" variant="primary" isLoading={saving} disabled={unchanged}>
               {review ? 'Update review' : 'Submit review'}
             </Button>
             {review && (
