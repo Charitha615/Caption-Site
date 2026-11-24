@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
-import { Film, Image as ImageIcon, Music, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { AudioLines, Film, Image as ImageIcon, Loader2, Music, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { useToastStore } from '../../../stores/toastStore';
+import { extractAudioWav } from '../audio';
 import { ACCEPTED_MEDIA } from '../importMedia';
+import { downloadBlob } from '../sources';
 import { useImportFiles } from '../useImportFiles';
 import { formatTime } from '../model';
 import { useVideoEditorStore } from '../store';
@@ -14,6 +17,19 @@ export function MediaPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { importFiles, busy } = useImportFiles();
   const [over, setOver] = useState(false);
+  const [extracting, setExtracting] = useState<string | null>(null);
+  const addToast = useToastStore((s) => s.addToast);
+
+  const saveAudio = async (id: string, url: string, name: string) => {
+    setExtracting(id);
+    try {
+      downloadBlob(await extractAudioWav(url), `${name.replace(/\.[^.]+$/, '')}.wav`);
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Could not extract the sound.' });
+    } finally {
+      setExtracting(null);
+    }
+  };
 
   return (
     <div className="ve-panel">
@@ -76,6 +92,18 @@ export function MediaPanel() {
                   <button type="button" className="ve-icon-btn is-solid" aria-label={`Add ${item.name} to the timeline`} title="Add to timeline" onClick={() => addMediaClip(item.id)}>
                     <Plus size={14} />
                   </button>
+                  {item.kind === 'video' && (
+                    <button
+                      type="button"
+                      className="ve-icon-btn is-solid"
+                      aria-label={`Save the sound of ${item.name} as WAV`}
+                      title="Save audio as WAV"
+                      disabled={extracting !== null}
+                      onClick={() => void saveAudio(item.id, item.url, item.name)}
+                    >
+                      {extracting === item.id ? <Loader2 size={14} className="ve-spin" /> : <AudioLines size={14} />}
+                    </button>
+                  )}
                   <button type="button" className="ve-icon-btn is-solid" aria-label={`Remove ${item.name}`} title="Remove from project" onClick={() => removeMedia(item.id)}>
                     <Trash2 size={14} />
                   </button>

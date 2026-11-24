@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use App\Support\AppLog;
+use App\Support\AudioMime;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -76,7 +77,7 @@ class GeminiCaptionRefiner implements CaptionRefinerInterface
             return null;
         }
 
-        return ['inline_data' => ['mime_type' => 'audio/mpeg', 'data' => base64_encode((string) file_get_contents($audioPath))]];
+        return ['inline_data' => ['mime_type' => AudioMime::of($audioPath), 'data' => base64_encode((string) file_get_contents($audioPath))]];
     }
 
     /**

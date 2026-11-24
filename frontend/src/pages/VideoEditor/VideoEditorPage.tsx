@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
-  AlignHorizontalJustifyStart, ArrowLeft, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
+  AlignHorizontalJustifyStart, ArrowLeft, AudioLines, Bot, Captions, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
   Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -14,17 +14,23 @@ import { Timeline } from '../../features/videoEditor/components/Timeline';
 import { MediaPanel } from '../../features/videoEditor/components/MediaPanel';
 import { ElementsPanel, FiltersPanel, TextPanel } from '../../features/videoEditor/components/LibraryPanels';
 import { Inspector } from '../../features/videoEditor/components/Inspector';
+import { AudioPanel } from '../../features/videoEditor/components/AudioPanel';
+import { SubtitlesPanel } from '../../features/videoEditor/components/SubtitlesPanel';
+import { AiToolsPanel } from '../../features/videoEditor/components/AiToolsPanel';
 import { ExportDialog } from '../../features/videoEditor/components/ExportDialog';
 import { drawFrame, frameSize } from '../../features/videoEditor/render';
 import { downloadBlob, fileBase, previewLookup } from '../../features/videoEditor/sources';
 import { useImportFiles } from '../../features/videoEditor/useImportFiles';
 import '../../features/videoEditor/videoEditor.css';
 
-type Tab = 'media' | 'text' | 'elements' | 'filters';
+type Tab = 'media' | 'subtitles' | 'text' | 'audio' | 'ai' | 'elements' | 'filters';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'media', label: 'Media', icon: <FolderOpen size={18} aria-hidden="true" /> },
+  { id: 'subtitles', label: 'Subtitles', icon: <Captions size={18} aria-hidden="true" /> },
   { id: 'text', label: 'Text', icon: <Type size={18} aria-hidden="true" /> },
+  { id: 'audio', label: 'Audio', icon: <AudioLines size={18} aria-hidden="true" /> },
+  { id: 'ai', label: 'AI tools', icon: <Bot size={18} aria-hidden="true" /> },
   { id: 'elements', label: 'Elements', icon: <Shapes size={18} aria-hidden="true" /> },
   { id: 'filters', label: 'Filters', icon: <Sparkles size={18} aria-hidden="true" /> },
 ];
@@ -186,6 +192,9 @@ function Editor() {
         <section className="ve-side">
           {tab === 'media' && <MediaPanel />}
           {tab === 'text' && <TextPanel />}
+          {tab === 'audio' && <AudioPanel />}
+          {tab === 'subtitles' && <SubtitlesPanel />}
+          {tab === 'ai' && <AiToolsPanel />}
           {tab === 'elements' && <ElementsPanel />}
           {tab === 'filters' && <FiltersPanel />}
         </section>

@@ -1,3 +1,4 @@
+import { voiceChain } from './audio';
 import { clipEnd, fadeLevel, sourceTime, type AspectRatio, type Clip, type MediaItem, type Track } from './model';
 import { drawFrame, frameSize, type Scene } from './render';
 import { imageFor } from './sources';
@@ -63,6 +64,16 @@ const once = (el: HTMLMediaElement, event: string, timeoutMs: number) =>
     el.addEventListener(event, done);
   });
 
+/** Browsers support different speed ranges; out-of-range speeds play as fast (or slow) as allowed. */
+export function setRate(el: HTMLMediaElement, rate: number) {
+  if (el.playbackRate === rate) return;
+  try {
+    el.playbackRate = rate;
+  } catch {
+    el.playbackRate = Math.min(4, Math.max(0.25, rate));
+  }
+}
+
 async function prepareElement(clip: Clip, url: string): Promise<HTMLMediaElement> {
   const el = document.createElement(clip.kind === 'video' ? 'video' : 'audio');
   el.preload = 'auto';
@@ -109,7 +120,15 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
       const el = await prepareElement(clip, item.url);
       const gain = audio.createGain();
       gain.gain.value = 0;
-      audio.createMediaElementSource(el).connect(gain).connect(mix);
+      const input = audio.createMediaElementSource(el);
+      if (clip.denoise) {
+        const chain = voiceChain(audio);
+        input.connect(chain.input);
+        chain.output.connect(gain);
+      } else {
+        input.connect(gain);
+      }
+      gain.connect(mix);
       voices.push({ clip, el, gain, muted: trackMuted.get(clip.trackId) ?? false });
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
     }
@@ -162,8 +181,8 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
           const active = t >= clip.start && t < clipEnd(clip);
           if (active) {
             const target = sourceTime(clip, t);
-            el.playbackRate = clip.speed;
-            if (Math.abs(el.currentTime - target) > 0.25) el.currentTime = target;
+            setRate(el, clip.speed);
+            if (Math.abs(el.currentTime - target) > 0.25 * Math.max(1, clip.speed)) el.currentTime = target;
             if (el.paused) void el.play().catch(() => undefined);
             gain.gain.value = v.muted ? 0 : clip.volume * fadeLevel(clip, t);
           } else {

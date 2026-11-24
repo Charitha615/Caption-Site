@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { previewAudioContext, voiceChain } from '../audio';
+import { setRate } from '../exporter';
 import { ASPECTS, clipEnd, fadeLevel, sourceTime, type Clip, type MediaItem } from '../model';
 import { drawFrame } from '../render';
 import { previewLookup, previewVideos } from '../sources';
@@ -16,12 +18,13 @@ function useSyncedMedia(ref: React.RefObject<HTMLMediaElement | null>, clip: Cli
     if (!el) return;
     const active = playhead >= clip.start && playhead < clipEnd(clip);
     const target = active ? sourceTime(clip, playhead) : clip.offset;
-    el.playbackRate = clip.speed;
+    setRate(el, clip.speed);
     el.volume = Math.min(1, clip.volume * fadeLevel(clip, playhead));
     el.muted = muted || !active;
     if (playing && active) {
       // Let the element play on its own; only correct it when it drifts.
-      if (Math.abs(el.currentTime - target) > 0.3) el.currentTime = target;
+      if (Math.abs(el.currentTime - target) > 0.3 * Math.max(1, clip.speed)) el.currentTime = target;
+      if (clip.denoise) void previewAudioContext()?.resume().catch(() => undefined);
       if (el.paused) void el.play().catch(() => undefined);
     } else {
       if (!el.paused) el.pause();
@@ -30,9 +33,35 @@ function useSyncedMedia(ref: React.RefObject<HTMLMediaElement | null>, clip: Cli
   }, [ref, clip, playhead, playing, muted]);
 }
 
+/**
+ * Sends the element's sound through the voice clean-up chain. An element can be routed only once,
+ * so the elements are keyed by the clean-up setting and re-created when it changes.
+ */
+function useVoiceCleanup(ref: React.RefObject<HTMLMediaElement | null>, enabled: boolean) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const ctx = enabled ? previewAudioContext() : null;
+    if (!el || !ctx) return;
+    let source: MediaElementAudioSourceNode;
+    try {
+      source = ctx.createMediaElementSource(el);
+    } catch {
+      return;
+    }
+    const chain = voiceChain(ctx);
+    source.connect(chain.input);
+    chain.output.connect(ctx.destination);
+    return () => {
+      source.disconnect();
+      chain.output.disconnect();
+    };
+  }, [ref, enabled]);
+}
+
 function VideoSource({ clip, media, muted }: { clip: Clip; media: MediaItem; muted: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   useSyncedMedia(ref, clip, muted);
+  useVoiceCleanup(ref, clip.denoise);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -47,6 +76,7 @@ function VideoSource({ clip, media, muted }: { clip: Clip; media: MediaItem; mut
 function AudioSource({ clip, media, muted }: { clip: Clip; media: MediaItem; muted: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
   useSyncedMedia(ref, clip, muted);
+  useVoiceCleanup(ref, clip.denoise);
   return <audio ref={ref} src={media.url} preload="auto" />;
 }
 
@@ -118,8 +148,8 @@ export function Preview() {
           if (!item) return null;
           const muted = mutedTrack.get(clip.trackId) ?? false;
           return clip.kind === 'video'
-            ? <VideoSource key={clip.id} clip={clip} media={item} muted={muted} />
-            : <AudioSource key={clip.id} clip={clip} media={item} muted={muted} />;
+            ? <VideoSource key={`${clip.id}-${clip.denoise}`} clip={clip} media={item} muted={muted} />
+            : <AudioSource key={`${clip.id}-${clip.denoise}`} clip={clip} media={item} muted={muted} />;
         })}
       </div>
     </div>

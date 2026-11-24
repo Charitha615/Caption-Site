@@ -1,12 +1,45 @@
 import { uid, type MediaItem, type MediaKind } from './model';
 
-export const ACCEPTED_MEDIA = 'video/*,audio/*,image/*';
+export const ACCEPTED_MEDIA = 'video/*,audio/*,image/*,.mp4,.mov,.m4v,.webm,.mkv,.mp3,.wav,.m4a,.aac,.ogg,.flac';
 
+const EXTENSION_KIND: Record<string, MediaKind> = {
+  mp4: 'video', mov: 'video', m4v: 'video', webm: 'video', mkv: 'video',
+  mp3: 'audio', wav: 'audio', m4a: 'audio', aac: 'audio', ogg: 'audio', oga: 'audio', flac: 'audio', opus: 'audio',
+  png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', avif: 'image', bmp: 'image',
+};
+
+/** Kind from the MIME type, or from the extension when the browser gives none (common for .mov and .mkv). */
 export function mediaKindOf(file: File): MediaKind | null {
   if (file.type.startsWith('video/')) return 'video';
   if (file.type.startsWith('audio/')) return 'audio';
   if (file.type.startsWith('image/')) return 'image';
-  return null;
+  const ext = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase();
+  return ext ? EXTENSION_KIND[ext] ?? null : null;
+}
+
+/**
+ * Some files (notably browser recordings) report an endless duration until the end has been found.
+ * Seeking far past the end makes the browser work it out.
+ */
+function findDuration(el: HTMLMediaElement): Promise<number> {
+  if (Number.isFinite(el.duration)) return Promise.resolve(el.duration);
+  return new Promise((resolve) => {
+    const done = () => {
+      if (!Number.isFinite(el.duration)) return;
+      el.removeEventListener('durationchange', done);
+      el.removeEventListener('timeupdate', done);
+      window.clearTimeout(timer);
+      resolve(el.duration);
+    };
+    const timer = window.setTimeout(() => {
+      el.removeEventListener('durationchange', done);
+      el.removeEventListener('timeupdate', done);
+      resolve(0);
+    }, 5000);
+    el.addEventListener('durationchange', done);
+    el.addEventListener('timeupdate', done);
+    el.currentTime = 1e9;
+  });
 }
 
 const THUMB_WIDTH = 160;
@@ -29,8 +62,9 @@ function loadTimed(url: string, kind: 'video' | 'audio'): Promise<{ duration: nu
     if (el instanceof HTMLVideoElement) el.playsInline = true;
     const fail = () => reject(new Error(`Could not read this ${kind} file. Try MP4, WebM, MP3 or WAV.`));
     el.onerror = fail;
-    el.onloadedmetadata = () => {
-      const duration = Number.isFinite(el.duration) ? el.duration : 0;
+    el.onloadedmetadata = async () => {
+      el.onloadedmetadata = null;
+      const duration = await findDuration(el);
       if (!(el instanceof HTMLVideoElement)) {
         resolve({ duration });
         return;

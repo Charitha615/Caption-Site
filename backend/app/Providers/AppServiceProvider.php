@@ -78,6 +78,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('upload-chunks', fn (Request $request) => Limit::perMinute(600)->by($byUser($request)));
         RateLimiter::for('ai-key', fn (Request $request) => Limit::perMinute(10)->by($byUser($request)));
         RateLimiter::for('ai', fn (Request $request) => Limit::perHour(20)->by($byUser($request)));
+        // Video editor AI: captions arrive as many short parts, so the ceiling is per minute; daily AI limits still apply.
+        RateLimiter::for('editor-ai', fn (Request $request) => [
+            Limit::perMinute(40)->by($byUser($request)),
+            Limit::perHour(600)->by('editor-ai-hour|'.$byUser($request)),
+        ]);
         RateLimiter::for('exports', fn (Request $request) => Limit::perMinute(20)->by($byUser($request)));
         RateLimiter::for('media', fn (Request $request) => Limit::perMinute(600)->by($request->ip()));
     }

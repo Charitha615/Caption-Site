@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use App\Support\AppLog;
+use App\Support\AudioMime;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
@@ -70,7 +71,7 @@ class GeminiMixedTranscriber
             return null;
         }
         $parts = [
-            ['inline_data' => ['mime_type' => 'audio/mpeg', 'data' => base64_encode((string) file_get_contents($audioPath))]],
+            ['inline_data' => ['mime_type' => AudioMime::of($audioPath), 'data' => base64_encode((string) file_get_contents($audioPath))]],
             ['text' => self::prompt($language, $vocabulary)],
         ];
 

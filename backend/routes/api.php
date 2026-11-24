@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UploadSessionController;
 use App\Http\Controllers\Api\UsageController;
+use App\Http\Controllers\Api\VideoEditorAiController;
 use App\Http\Controllers\Api\VideoUploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -115,6 +116,13 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::delete('/exports/{export}', [ExportController::class, 'destroy']);
 
     // Caption templates (system presets + the user's own)
+    // Video editor AI tools (media stays in the browser; only audio parts or text are sent).
+    Route::prefix('video-editor/ai')->middleware('throttle:editor-ai')->group(function () {
+        Route::post('/transcribe', [VideoEditorAiController::class, 'transcribe']);
+        Route::post('/text', [VideoEditorAiController::class, 'text']);
+        Route::post('/speech', [VideoEditorAiController::class, 'speech']);
+    });
+
     Route::get('/caption-templates', [CaptionTemplateController::class, 'index']);
     Route::post('/caption-templates', [CaptionTemplateController::class, 'store'])->middleware('throttle:30,1');
     Route::delete('/caption-templates/{template}', [CaptionTemplateController::class, 'destroy']);

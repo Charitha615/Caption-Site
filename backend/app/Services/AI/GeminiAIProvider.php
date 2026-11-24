@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Exceptions\AIProviderException;
 use App\Support\AppLog;
+use App\Support\AudioMime;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -402,16 +403,6 @@ PROMPT;
 
     protected function mimeType(string $path): string
     {
-        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-            'wav' => 'audio/wav',
-            'm4a' => 'audio/mp4',
-            'aac' => 'audio/aac',
-            'ogg' => 'audio/ogg',
-            'flac' => 'audio/flac',
-            'mp4' => 'video/mp4',
-            'mov' => 'video/quicktime',
-            'webm' => 'video/webm',
-            default => 'audio/mpeg',
-        };
+        return AudioMime::of($path);
     }
 }

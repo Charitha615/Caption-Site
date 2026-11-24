@@ -85,6 +85,18 @@ class AIProviderFactory
         return new GeminiMixedTranscriber($this->keyFor($user)[0]);
     }
 
+    /** Writing help (scripts, titles, translation, Singlish → Sinhala, highlights) for the video editor. */
+    public function textAssistantForUser(User $user): TextAssistantInterface
+    {
+        return $this->usesUserKeys() ? new GeminiTextAssistant($this->keyFor($user)[0]) : new FakeTextAssistant;
+    }
+
+    /** Text to speech for AI voice-overs. */
+    public function speechForUser(User $user): SpeechSynthesizerInterface
+    {
+        return $this->usesUserKeys() ? new GeminiSpeechSynthesizer($this->keyFor($user)[0]) : new FakeSpeechSynthesizer;
+    }
+
     /** @return array{0: string, 1: bool} */
     private function keyFor(User $user): array
     {

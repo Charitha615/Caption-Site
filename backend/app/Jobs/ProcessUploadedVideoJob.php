@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\AI\AIProviderFactory;
 use App\Services\AI\CaptionRefinerInterface;
 use App\Services\AI\GeminiMixedTranscriber;
+use App\Services\AI\SpeechPartTranscriber;
 use App\Services\Caption\EnglishWords;
 use App\Services\Caption\ScriptAligner;
 use App\Services\Caption\SinhalaScriptRepair;
@@ -278,10 +279,7 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
     private function transcribe($ai, CaptionRefinerInterface $refiner, ?GeminiMixedTranscriber $mixed, VideoServiceInterface $video, MediaStorage $storage, UsageService $usage, User $user, Project $project, string $audioPath, float $duration, bool $review = true): array
     {
         $target = min(1800, max(20, (int) config('ai.gemini.transcribe_chunk_seconds', 30)));
-        $listen = (bool) config('ai.gemini.caption_review', true);
-        $repair = app(SinhalaScriptRepair::class);
-        $aligner = app(ScriptAligner::class);
-        $english = app(EnglishWords::class);
+        $partTranscriber = app(SpeechPartTranscriber::class);
         $dir = dirname($storage->tempPath('d')).'/chunks-'.$project->uuid;
 
         try {
@@ -295,59 +293,15 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
 
             foreach ($parts as $n => $part) {
                 $this->progress($project, $n + 1, count($parts));
-                $usage->ensureCanRequestAI($user);
-                $result = $ai->transcribe($part['path'], $this->targetLanguage, ['duration' => $part['duration']]);
-                $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $ai->name(), 'part' => $n + 1, 'offset' => $part['offset']] + $result['usage']);
-
-                $segments = array_map(fn ($seg) => $seg + ['transcribed_text' => $seg['text']], $result['segments']);
-                [$segments, $repaired] = $repair->repairSegments($segments);
-                $stats['repaired'] += $repaired;
-
-                // Mixed-script words from the prompted Flash model, lined up with the heard words' timings.
-                $flashLines = $mixed ? $this->mixedLines($mixed, $part, $segments, $result['language'], $project, $usage, $user, $n + 1, $stats) : null;
-
-                if ($flashLines === null && $segments !== [] && $review) {
-                    $reviewed = $refiner->refine($segments, $result['language'], $listen ? $part['path'] : null);
-                    if ($refiner->model()) {
-                        $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => $listen ? 'gemini-review' : 'gemini-cleanup', 'model' => $refiner->model(), 'part' => $n + 1]);
-                    }
-                    foreach ($segments as $i => &$seg) {
-                        $text = trim((string) ($reviewed[$i] ?? $seg['text']));
-                        if ($text !== '' && $text !== $seg['text']) {
-                            $seg['reviewed_text'] = $text;
-                            $seg['reviewed_words'] = $aligner->alignWords($text, $seg['words'] ?? [], (float) $seg['start'], (float) $seg['end']);
-                            $stats['reviewed']++;
-                        }
-                    }
-                    unset($seg);
-                }
-
-                // English words spoken in Sinhala speech → English letters (built-in list, always runs,
-                // so it still works when the AI review was busy or missed some).
-                foreach ($segments as &$seg) {
-                    $line = $english->applyToLine($seg['reviewed_text'] ?? $seg['text'], $seg['reviewed_words'] ?? $seg['words'] ?? []);
-                    if ($line['changed']) {
-                        $seg['reviewed_text'] = $line['text'];
-                        $seg['reviewed_words'] = $line['words'];
-                        $stats['english']++;
-                    }
-                }
-                unset($seg);
+                $done = $partTranscriber->transcribe($ai, $refiner, $mixed, $user, $project, $part, $this->targetLanguage, $n + 1, (string) $project->vocabulary, $review, $stats);
+                ['result' => $result, 'segments' => $segments] = $done;
+                $partLines = $done['lines'];
 
                 $offset = (float) $part['offset'];
                 $shift = fn (array $words) => array_map(fn ($w) => ['start' => round($w['start'] + $offset, 3), 'end' => round($w['end'] + $offset, 3)] + $w, $words);
 
                 // Caption lines for this part: Flash words, or (fallback) the reviewed transcription.
-                foreach ($flashLines ?? array_map(fn ($seg) => [
-                    'start' => (float) $seg['start'],
-                    'end' => (float) $seg['end'],
-                    'text' => $seg['reviewed_text'] ?? $seg['text'],
-                    'original' => $seg['transcribed_text'] ?? $seg['text'],
-                    'language' => $seg['language'],
-                    'words' => array_map(fn ($w) => ['word' => (string) ($w['word'] ?? $w['text'] ?? ''), 'start' => (float) $w['start'], 'end' => (float) $w['end']], $seg['reviewed_words'] ?? $seg['words'] ?? []),
-                    'source' => ['transcriber' => $ai->name()],
-                    'meta' => array_filter(['reviewed' => isset($seg['reviewed_text']) ? true : null, 'speaker' => $seg['speaker'] ?? null]),
-                ], $segments) as $line) {
+                foreach ($partLines as $line) {
                     $line['start'] = round($line['start'] + $offset, 3);
                     $line['end'] = round($line['end'] + $offset, 3);
                     $line['words'] = $shift($line['words']);
@@ -380,57 +334,6 @@ class ProcessUploadedVideoJob implements ShouldBeUnique, ShouldQueue
         } finally {
             File::deleteDirectory($dir);
         }
-    }
-
-    /**
-     * One part with the prompted Flash model: its mixed-script words, repaired and with the
-     * English word list applied, lined up with the words the transcribe model heard (exact
-     * timings; words it missed are placed in the gaps). Null → use the transcription instead.
-     *
-     * @return list<array<string, mixed>>|null caption lines, part-relative times
-     */
-    private function mixedLines(GeminiMixedTranscriber $mixed, array $part, array $segments, string $language, Project $project, UsageService $usage, User $user, int $partNumber, array &$stats): ?array
-    {
-        $speech = collect($segments)
-            ->flatMap(fn ($seg) => $seg['words'] ?? [])
-            ->filter(fn ($w) => isset($w['start'], $w['end']) && trim((string) ($w['word'] ?? $w['text'] ?? '')) !== '')
-            ->map(fn ($w) => ['word' => (string) ($w['word'] ?? $w['text']), 'start' => (float) $w['start'], 'end' => (float) $w['end']])
-            ->sortBy('start')->values()->all();
-
-        $usage->ensureCanRequestAI($user);
-        $text = $mixed->transcribe($part['path'], $language, (string) $project->vocabulary);
-        if ($mixed->model()) {
-            $usage->record($user, UsageRecord::ACTION_AI_REQUEST, 1, 'requests', $project, ['provider' => 'gemini-mixed', 'model' => $mixed->model(), 'part' => $partNumber]);
-        }
-        if ($text === null) {
-            return null; // every model busy: fall back to the transcription
-        }
-        if ($text === '' && $speech === []) {
-            $stats['mixed']++;
-
-            return []; // no speech in this part
-        }
-        if (! GeminiMixedTranscriber::plausible($text, count($speech), (float) $part['duration'])) {
-            $stats['mixed_rejected']++;
-            AppLog::warning('pipeline.mixed_rejected', ['project' => $project->uuid, 'part' => $partNumber, 'heard_words' => count($speech), 'flash_words' => count(preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [])]);
-
-            return null;
-        }
-
-        $text = app(EnglishWords::class)->apply(app(SinhalaScriptRepair::class)->repair($text));
-        $aligned = app(ScriptAligner::class)->align($text, $speech, (float) $part['duration'], $language);
-        $stats['mixed']++;
-
-        return array_map(fn ($seg) => [
-            'start' => (float) $seg['start'],
-            'end' => (float) $seg['end'],
-            'text' => $seg['text'],
-            'original' => $seg['text'],
-            'language' => $seg['language'],
-            'words' => $seg['words'],
-            'source' => ['transcriber' => $mixed->model(), 'timing' => 'gemini-transcribe'],
-            'meta' => ['matched_words' => $aligned['stats']['matched'], 'placed_words' => $aligned['stats']['placed']],
-        ], $aligned['segments']);
     }
 
     public static function progressKey(Project $project): string

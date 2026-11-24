@@ -1,3 +1,7 @@
+import { useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
+import { useToastStore } from '../../../stores/toastStore';
+import { ACCEPTED_FONTS, loadFontFile } from '../customFonts';
 import { filterCss, FILTER_PRESETS } from '../filters';
 import { fontCss, type Fill, type TextStyle } from '../model';
 import { useVideoEditorStore } from '../store';
@@ -15,7 +19,58 @@ const TEXT_PRESETS: { label: string; text: string; sample: string; style: Partia
   { label: 'Quote', text: '“A line worth sharing.”', sample: '“Quote”', style: { fontSize: 72, y: 0.5, font: 'serif', bold: false, animation: 'fade' } },
   { label: 'Social handle', text: '@yourchannel', sample: '@handle', style: { fontSize: 48, y: 0.92, font: 'rounded', background: 'rgba(255, 255, 255, 0.92)', color: '#111111', animation: 'slide' } },
   { label: 'Subscribe', text: 'Subscribe for more!', sample: 'Subscribe', style: { fontSize: 56, y: 0.85, font: 'rounded', background: '#dc2626', animation: 'pop' } },
+  { label: 'Lower third left', text: 'Your name\nWhat you do', sample: 'Name', style: { fontSize: 46, y: 0.8, x: 0.06, align: 'left', background: 'rgba(17, 17, 17, 0.85)', animation: 'slide' } },
+  { label: 'Breaking', text: 'BREAKING NEWS', sample: 'BREAKING', style: { fontSize: 54, y: 0.88, x: 0.06, align: 'left', font: 'impact', background: '#dc2626', animation: 'zoom' } },
+  { label: 'Bounce', text: 'Wow!', sample: 'Wow!', style: { fontSize: 140, y: 0.45, font: 'rounded', color: '#fde047', outline: true, animation: 'bounce' } },
+  { label: 'Dreamy', text: 'Somewhere in Ella', sample: 'Dreamy', style: { fontSize: 76, y: 0.5, font: 'serif', bold: false, animation: 'blur' } },
 ];
+
+function FontUpload() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fonts = useVideoEditorStore((s) => s.fonts);
+  const addFont = useVideoEditorStore((s) => s.addFont);
+  const addToast = useToastStore((s) => s.addToast);
+  const [busy, setBusy] = useState(false);
+  const onFiles = async (files: FileList) => {
+    setBusy(true);
+    for (const file of Array.from(files)) {
+      try {
+        const font = await loadFontFile(file);
+        addFont(font);
+        // Apply it straight away when a text clip is selected.
+        const s = useVideoEditorStore.getState();
+        const clip = s.clips.find((c) => c.id === s.selectedId);
+        if (clip?.kind === 'text') s.updateClip(clip.id, { style: { font: font.id } });
+      } catch (err) {
+        addToast({ type: 'error', message: err instanceof Error ? err.message : `Could not load “${file.name}”.` });
+      }
+    }
+    setBusy(false);
+  };
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED_FONTS}
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files) void onFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <button type="button" className="ve-secondary-btn" onClick={() => inputRef.current?.click()} disabled={busy}>
+        <Upload size={14} aria-hidden="true" /> {busy ? 'Loading font…' : 'Upload a font (TTF, OTF, WOFF)'}
+      </button>
+      {fonts.length > 0 && (
+        <p className="ve-panel-hint">
+          Your fonts: {fonts.map((f) => <span key={f.id} style={{ fontFamily: fontCss(f.id), color: 'var(--editor-text)' }}>{f.label} </span>)}
+        </p>
+      )}
+    </>
+  );
+}
 
 export function TextPanel() {
   const addTextClip = useVideoEditorStore((s) => s.addTextClip);
@@ -23,6 +78,7 @@ export function TextPanel() {
     <div className="ve-panel">
       <h2 className="ve-panel-title">Text</h2>
       <p className="ve-panel-hint">Added at the playhead. Change the words and look in the panel on the right.</p>
+      <FontUpload />
       <div className="ve-tile-grid">
         {TEXT_PRESETS.map((preset) => (
           <button key={preset.label} type="button" className="ve-tile" onClick={() => addTextClip(preset.text, preset.style)}>
