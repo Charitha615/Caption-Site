@@ -19,7 +19,7 @@ Schedule::command('queue:work', [
     '--queue='.implode(',', array_unique(['default', (string) config('captions.render_queue', 'default')])),
     '--stop-when-empty',
     '--tries=1',
-    '--timeout='.((int) env('RENDER_TIMEOUT', 3600)),
+    '--timeout='.((int) config('captions.render_timeout', 3600)),
     '--max-time=3300',
     '--memory=512',
 ])->everyMinute()->withoutOverlapping(60)->runInBackground()->when(fn () => (bool) config('queue.run_in_scheduler'));
