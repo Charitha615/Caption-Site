@@ -1,4 +1,4 @@
-/* Multi-track video editor (in development). Uses the dark editor palette from variables.css. */
+/* Multi-track video editor. Uses the dark editor palette from variables.css. */
 .ve {
   --ve-panel: var(--editor-surface);
   --ve-hover: var(--editor-surface-hover);
@@ -495,3 +495,12 @@
 .ve-voice-play { border: 1px solid var(--ve-line); background: var(--editor-bg); color: var(--editor-text); }
 .ve-voice-play:hover { border-color: var(--ve-accent); }
 .ve-voice-play:disabled { opacity: 0.4; cursor: default; }
+
+/* Autosave */
+.ve-save { display: inline-flex; align-items: center; gap: 4px; color: var(--ve-muted); font-size: 0.75rem; white-space: nowrap; }
+.ve-save.is-saved svg { color: #4ade80; }
+.ve-save.is-error { color: #fca5a5; }
+.ve-restoring {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--editor-bg); color: var(--editor-text); font-weight: 600;
+}

@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Captions, CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Plus, UploadCloud, Wand2, Download, Film } from 'lucide-react';
+import { CheckCircle2, Clapperboard, KeyRound, FolderOpen, Loader, Mic, MousePointer2, Music2, Play, Plus, Scissors, Type, UploadCloud, Wand2, Download } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUsageStore } from '../../stores/usageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { Button } from '../../components/Button/Button';
-import { Badge } from '../../components/Badge/Badge';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { RetryState } from '../../components/RetryState/RetryState';
@@ -17,7 +16,7 @@ import { Spotlight } from '../../components/Spotlight/Spotlight';
 import { ProjectCard } from '../../features/projects/ProjectCard';
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
 import { toAppError } from '../../services/errors';
-import { VIDEO_EDITOR_ENABLED, VIDEO_EDITOR_PATH } from '../../features/videoEditor/featureFlag';
+import { VIDEO_EDITOR_PATH } from '../../features/videoEditor/paths';
 import type { Project } from '../../types/project';
 import './DashboardPage.css';
 
@@ -32,30 +31,69 @@ const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: React.Re
 );
 
 interface ToolCardProps {
-  icon: React.ReactNode;
   title: string;
   description: string;
   /** Where the card goes; without it the card is shown but can't be opened. */
   to?: string;
-  badge?: React.ReactNode;
-  tone: 'purple' | 'amber';
+  /** Small pill above the title, e.g. "New" or "Soon". */
+  badge?: string;
+  theme: 'captions' | 'editor';
+  art: React.ReactNode;
 }
 
-const ToolCard: React.FC<ToolCardProps> = ({ icon, title, description, to, badge, tone }) => {
+const ToolCard: React.FC<ToolCardProps> = ({ title, description, to, badge, theme, art }) => {
   const body = (
     <>
-      <span className={`dash-tool-icon is-${tone}`} aria-hidden="true">{icon}</span>
       <span className="dash-tool-text">
-        <span className="dash-tool-title">{title} {badge}</span>
+        {badge && <span className="dash-tool-badge">{badge}</span>}
+        <span className="dash-tool-title">{title}</span>
         <span className="dash-tool-desc">{description}</span>
       </span>
-      {to && <ArrowRight size={18} className="dash-tool-arrow" aria-hidden="true" />}
+      <span className="dash-tool-art" aria-hidden="true">{art}</span>
     </>
   );
   return to
-    ? <Link to={to} className="dash-tool">{body}</Link>
-    : <div className="dash-tool is-disabled" aria-disabled="true">{body}</div>;
+    ? <Link to={to} className={`dash-tool is-${theme}`}>{body}</Link>
+    : <div className={`dash-tool is-${theme} is-disabled`} aria-disabled="true">{body}</div>;
 };
+
+/** Caption studio artwork: a video frame with a CC tag, a mic bubble, a waveform and caption lines. */
+const CaptionsArt = () => (
+  <>
+    <span className="art-frame">
+      <span className="art-scene" />
+      <span className="art-play"><Play size={14} /></span>
+      <span className="art-wave">{[5, 11, 7, 15, 9, 13, 6, 12, 8, 14, 5, 10].map((h, i) => <i key={i} style={{ height: h }} />)}</span>
+    </span>
+    <span className="art-chip art-cc">CC</span>
+    <span className="art-chip art-mic"><Mic size={16} /></span>
+    <span className="art-lines"><i /><i /></span>
+    <Sparkle className="art-spark s1" />
+    <Sparkle className="art-spark s2" />
+  </>
+);
+
+/** Video editor artwork: a preview with a play button, a tool rail and a timeline strip. */
+const EditorArt = () => (
+  <>
+    <span className="art-rail"><Scissors size={14} /><Music2 size={14} /><Type size={14} /><Music2 size={14} /></span>
+    <span className="art-frame is-editor">
+      <span className="art-scene is-sunset" />
+      <span className="art-play"><Play size={14} /></span>
+    </span>
+    <span className="art-timeline">
+      <i className="t1" /><i className="t2" /><i className="t3" /><i className="t4" />
+      <span className="art-playhead" />
+    </span>
+    <span className="art-cursor"><MousePointer2 size={18} /></span>
+    <Sparkle className="art-spark s1" />
+    <Sparkle className="art-spark s3" />
+  </>
+);
+
+const Sparkle = ({ className }: { className: string }) => (
+  <svg className={className} viewBox="0 0 24 24" width="14" height="14"><path d="M12 0c1 7 5 11 12 12-7 1-11 5-12 12-1-7-5-11-12-12 7-1 11-5 12-12z" fill="currentColor" /></svg>
+);
 
 const HERO_SCENE = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode';
 
@@ -137,19 +175,19 @@ export const DashboardPage: React.FC = () => {
         </div>
         <div className="dash-tools">
           <ToolCard
-            tone="purple"
-            icon={<Captions size={22} />}
-            title="Caption studio"
-            description="Upload a video and get timed Sinhala or English captions."
+            theme="captions"
+            title="Auto Captions"
+            description="Fast, accurate Sinhala and English captions"
             to="/projects/create"
+            art={<CaptionsArt />}
           />
           <ToolCard
-            tone="amber"
-            icon={<Film size={22} />}
-            title="Video editor"
-            description="Cut, arrange and add text to clips on a multi-track timeline."
-            badge={<Badge variant="amber">Coming soon</Badge>}
-            to={VIDEO_EDITOR_ENABLED ? VIDEO_EDITOR_PATH : undefined}
+            theme="editor"
+            badge="New"
+            title="Video Editor"
+            description="Simple yet powerful editing tools"
+            to={VIDEO_EDITOR_PATH}
+            art={<EditorArt />}
           />
         </div>
       </section>

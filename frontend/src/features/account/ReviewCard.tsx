@@ -6,6 +6,7 @@ import { reviewService, type OwnReview } from '../../services/reviewService';
 import { fieldError, toAppError, type AppError } from '../../services/errors';
 import { useToastStore } from '../../stores/toastStore';
 import { useBrand } from '../../hooks/useBrand';
+import '../../components/Input/Input.css';
 import './ReviewCard.css';
 
 const MAX = 300;

@@ -13,7 +13,6 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_AUTH_WALLPAPER?: string;
   /** "true" opens the in-development video editor outside dev builds; "false" hides it in dev too. */
-  readonly VITE_ENABLE_VIDEO_EDITOR?: string;
 }
 
 interface ImportMeta {

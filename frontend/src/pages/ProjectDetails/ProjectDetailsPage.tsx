@@ -30,6 +30,7 @@ import { validateVideoFile } from '../../utils/video';
 import { PROCESSING_STATUSES, VIDEO_UPLOAD } from '../../config/constants';
 import type { Caption, Project } from '../../types/project';
 import { formatDuration, formatDate, getLanguageLabel, formatFileSize } from '../../utils/formatters';
+import '../../components/Input/Input.css';
 import './ProjectDetailsPage.css';
 
 const VISIBLE_CAPTIONS = 300;

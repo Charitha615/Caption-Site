@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
-  AlignHorizontalJustifyStart, ArrowLeft, AudioLines, Bot, Captions, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
+  AlertTriangle, AlignHorizontalJustifyStart, ArrowLeft, Check, CloudOff, FilePlus2, Loader2, AudioLines, Bot, Captions, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
   Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, UploadCloud, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { Badge } from '../../components/Badge/Badge';
-import { VIDEO_EDITOR_ENABLED } from '../../features/videoEditor/featureFlag';
+import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
+import { useToastStore } from '../../stores/toastStore';
+import { autosaveSupported, createAutosave, indexedDbBackend, type Autosave, type SaveStatus } from '../../features/videoEditor/autosave';
 import { ASPECTS, formatTime, type AspectRatio } from '../../features/videoEditor/model';
 import { totalDuration, useVideoEditorStore } from '../../features/videoEditor/store';
 import { Preview } from '../../features/videoEditor/components/Preview';
@@ -129,6 +130,82 @@ function useShortcuts() {
   }, []);
 }
 
+/** Each editor visit gets a number, so a late clean-up from an earlier visit doesn't clear a newer one. */
+let editorVisit = 0;
+
+/**
+ * Reopens the last video saved in this browser and keeps saving it. Resolves `ready` once the saved
+ * project is loaded, so nothing is imported into the editor before that.
+ */
+function useEditorAutosave() {
+  const [status, setStatus] = useState<SaveStatus>('idle');
+  const [ready, setReady] = useState(false);
+  const ref = useRef<Autosave | null>(null);
+
+  useEffect(() => {
+    const visit = ++editorVisit;
+    const { reset } = useVideoEditorStore.getState();
+    if (!autosaveSupported()) {
+      setReady(true);
+      return () => reset();
+    }
+    const autosave = createAutosave(indexedDbBackend, { onStatus: setStatus });
+    ref.current = autosave;
+    let cancelled = false;
+    // Asks the browser not to clear the saved files when space runs low (it may say no).
+    void navigator.storage?.persist?.().catch(() => undefined);
+    autosave
+      .restore()
+      .then((found) => {
+        if (found && !cancelled) {
+          setStatus('saved');
+          useToastStore.getState().addToast({ type: 'info', message: 'Opened your last video. It is saved in this browser.' });
+        }
+      })
+      .catch((err) => console.warn('Could not open the saved video', err))
+      .finally(() => {
+        if (cancelled) return;
+        autosave.start();
+        setReady(true);
+      });
+    // Write straight away when the tab is hidden or closed.
+    const onHide = () => document.visibilityState === 'hidden' && void autosave.flush();
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onHide);
+      // The last change is written before the project's files are let go.
+      void autosave.stop().finally(() => {
+        if (editorVisit === visit) reset();
+      });
+    };
+  }, []);
+
+  /** Starts an empty video and forgets the saved one. */
+  const startNew = async () => {
+    const autosave = ref.current;
+    if (autosave) {
+      await autosave.stop();
+      await autosave.clear();
+    }
+    useVideoEditorStore.getState().reset();
+    autosave?.start();
+  };
+
+  return { status, ready, startNew };
+}
+
+function SaveBadge({ status }: { status: SaveStatus }) {
+  if (status === 'idle') return null;
+  const info: Record<Exclude<SaveStatus, 'idle'>, { icon: React.ReactNode; text: string; title: string }> = {
+    saving: { icon: <Loader2 size={13} className="ve-spin" />, text: 'Saving…', title: 'Saving in this browser' },
+    saved: { icon: <Check size={13} />, text: 'Saved', title: 'Saved in this browser. It reopens here next time.' },
+    error: { icon: <AlertTriangle size={13} />, text: 'Not saved', title: 'Could not save in this browser (storage may be full). Export to keep your video.' },
+  };
+  const { icon, text, title } = info[status];
+  return <span className={`ve-save is-${status}`} title={title} role="status">{icon} {text}</span>;
+}
+
 function togglePlay() {
   const s = useVideoEditorStore.getState();
   const end = totalDuration(s.clips);
@@ -141,6 +218,8 @@ function Editor() {
   useDocumentTitle('Video editor');
   usePlayback();
   useShortcuts();
+  const { status: saveStatus, ready, startNew } = useEditorAutosave();
+  const [confirmNew, setConfirmNew] = useState(false);
   const [tab, setTab] = useState<Tab>('media');
   const [exporting, setExporting] = useState(false);
   const snap = useVideoEditorStore((s) => s.snap);
@@ -155,7 +234,7 @@ function Editor() {
   const hasSelection = useVideoEditorStore((s) => s.selectedId !== null);
   const {
     setName, setAspect, undo, redo, splitAtPlayhead, deleteSelected, rippleDeleteSelected, duplicateSelected, closeGaps, toggleSnap,
-    setZoom, setPlayhead, reset,
+    setZoom, setPlayhead,
   } = useVideoEditorStore.getState();
   // Zoom so the whole video fits the visible timeline.
   const zoomToFit = () => setZoom(((window.innerWidth - 190) / Math.max(total, 5)) * 0.92);
@@ -165,8 +244,6 @@ function Editor() {
   const dragDepth = useRef(0);
   const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
 
-  // Each visit starts a fresh project and frees the local files on the way out.
-  useEffect(() => () => reset(), [reset]);
 
   return (
     <div
@@ -205,8 +282,9 @@ function Editor() {
       <header className="ve-topbar">
         <Link to="/dashboard" className="ve-back" aria-label="Back to dashboard"><ArrowLeft size={18} /></Link>
         <input className="ve-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Video name" />
-        <Badge variant="amber">In development</Badge>
+        {autosaveSupported() ? <SaveBadge status={saveStatus} /> : <span className="ve-save is-error" title="This browser can't save projects. Export to keep your video."><CloudOff size={13} /> Not saved</span>}
         <div className="ve-topbar-spacer" />
+        <button type="button" className="ve-icon-btn" onClick={() => setConfirmNew(true)} aria-label="New video" title="New video"><FilePlus2 size={16} /></button>
         <button type="button" className="ve-icon-btn" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
         <button type="button" className="ve-icon-btn" onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><Redo2 size={16} /></button>
         <select className="ve-select" value={aspect} onChange={(e) => setAspect(e.target.value as AspectRatio)} aria-label="Aspect ratio">
@@ -268,8 +346,25 @@ function Editor() {
 
       <Timeline />
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      {!ready && (
+        <div className="ve-restoring" role="status">
+          <Loader2 size={22} className="ve-spin" aria-hidden="true" /> Opening your last video…
+        </div>
+      )}
+      <ConfirmDialog
+        isOpen={confirmNew}
+        title="Start a new video?"
+        message="The current video and its files will be removed from this browser. Export it first if you want to keep it."
+        confirmLabel="Start new video"
+        tone="danger"
+        onCancel={() => setConfirmNew(false)}
+        onConfirm={() => {
+          setConfirmNew(false);
+          void startNew();
+        }}
+      />
     </div>
   );
 }
 
-export const VideoEditorPage: React.FC = () => (VIDEO_EDITOR_ENABLED ? <Editor /> : <Navigate to="/dashboard" replace />);
+export const VideoEditorPage: React.FC = () => <Editor />;

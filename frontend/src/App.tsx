@@ -60,7 +60,7 @@ const RoutedApp: React.FC = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/admin/reviews" element={<AdminReviewsPage />} />
             </Route>
-            {/* Full-screen multi-track video editor (in development; see features/videoEditor/featureFlag.ts) */}
+            {/* Full-screen multi-track video editor */}
             <Route
               path="/video-editor"
               element={

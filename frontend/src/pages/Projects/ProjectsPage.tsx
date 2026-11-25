@@ -13,6 +13,8 @@ import { ProjectCard } from '../../features/projects/ProjectCard';
 import { projectService } from '../../services/projectService';
 import { toAppError } from '../../services/errors';
 import type { Project, ProjectsListResponse } from '../../types/project';
+// The search box uses the shared input styles; import them here so they load even when no Input component has.
+import '../../components/Input/Input.css';
 import './ProjectsPage.css';
 
 const FILTERS = [
