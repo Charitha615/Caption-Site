@@ -1,0 +1,2 @@
+# Netlify / Cloudflare Pages: prerendered pages are real files; everything else opens the app shell.
+/*  /app.html  200

@@ -8,9 +8,10 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { BrandLogo } from '../../components/BrandLogo/BrandLogo';
 import { Pricing } from '../../components/ui/Pricing/Pricing';
+import { LANDING_FAQ as FAQ } from './landingFaq';
+import { MarketingFooter } from '../Marketing/MarketingChrome';
 import './LandingPage.css';
 
-const YEAR = new Date().getFullYear();
 
 /** Caption playground: the same words, rendered in each real caption style. */
 const PLAY_WORDS = ['අද', 'අපි', 'Toyota', 'Aqua', 'එක', 'review', 'කරමු'];
@@ -42,13 +43,6 @@ const SPECS = [
   { icon: Languages, title: 'Names spelled your way', text: 'Add brands, people and places once — they are written exactly like that in every caption.' },
 ];
 
-const FAQ = [
-  { q: 'Which languages does it support?', a: 'Sinhala, English, and the mix most Sri Lankans actually speak. English words inside Sinhala speech are written in English letters automatically.' },
-  { q: 'Do I need to install anything?', a: 'No. It runs in your browser on a computer or a phone. Upload a video and the captions come back in the editor.' },
-  { q: 'What does the Google API key do?', a: 'Captions are generated with your own free Google API key, so the processing quota is yours. You add it once in Account & usage — it takes about a minute.' },
-  { q: 'Can I fix mistakes?', a: 'Always. Every word and timing is editable, and the original transcription is kept so you can compare or restore it.' },
-  { q: 'Are my videos private?', a: 'Yes. Files are stored privately and only reachable through expiring links. Deleting a project removes its files.' },
-];
 
 /** Interactive caption preview: pick a style, words light up in time. */
 function CaptionPlayground() {
@@ -125,6 +119,8 @@ export const LandingPage: React.FC = () => {
             <a href="#flow">How it works</a>
             <a href="#pricing">Pricing</a>
             <a href="#faq">FAQ</a>
+            <Link to="/guides">Guides</Link>
+            <Link to="/si" lang="si">සිංහල</Link>
           </nav>
           <div className="sx-nav-actions">
             <Link to="/login" className="sx-btn sx-btn-quiet sx-btn-sm">Sign in</Link>
@@ -280,22 +276,7 @@ export const LandingPage: React.FC = () => {
         </section>
       </main>
 
-      <footer className="sx-footer">
-        <div className="sx-wrap sx-footer-inner">
-          <div className="sx-footer-brand">
-            <BrandLogo />
-            <p lang="si">සිංහල creators ලා වෙනුවෙන් හදපු caption tool එක.</p>
-          </div>
-          <nav aria-label="Footer" className="sx-footer-links">
-            <a href="#difference">Why {BRAND.name}</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#faq">FAQ</a>
-            <Link to="/login">Sign in</Link>
-            <a href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a>
-          </nav>
-        </div>
-        <div className="sx-wrap sx-footer-bottom">© {YEAR} {BRAND.name} · {BRAND.domain} · Made in Sri Lanka</div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 };

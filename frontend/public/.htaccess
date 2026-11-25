@@ -1,48 +1,71 @@
-# SampleCap frontend (React SPA) — Apache / Hostinger
+# Sinsub frontend (React SPA with prerendered public pages) — Apache / Hostinger
 Options -Indexes -MultiViews
+# /guides must not be redirected to /guides/ (pages are canonical without the slash).
+DirectorySlash Off
+DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
+
+    # One address for the whole site: sinsub.cc and www. go to https://sinsub.lk (keeps the path).
+    RewriteCond %{HTTP_HOST} ^(www\.)?sinsub\.cc$ [NC,OR]
+    RewriteCond %{HTTP_HOST} ^www\.sinsub\.lk$ [NC]
+    RewriteRule ^ https://sinsub.lk%{REQUEST_URI} [L,R=301]
 
     # Force HTTPS (Hostinger terminates SSL at its proxy)
     RewriteCond %{HTTPS} !=on
     RewriteCond %{HTTP:X-Forwarded-Proto} !https
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-    # Real files and folders are served as they are
-    RewriteCond %{REQUEST_FILENAME} -f [OR]
-    RewriteCond %{REQUEST_FILENAME} -d
+    # No trailing slash (except the home page): /guides/ → /guides
+    RewriteRule ^(.+)/$ /$1 [L,R=301]
+
+    # Prerendered pages: /guides → guides/index.html
+    RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f
+    RewriteRule ^(.+)$ $1/index.html [L]
+
+    # Real files are served as they are
+    RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
 
-    # Every app route (/projects, /projects/…/editor, /account …) → index.html
-    RewriteRule ^ index.html [L]
+    # Every app route (/dashboard, /projects/…/editor, /video-editor …) → the app shell
+    RewriteRule ^ app.html [L]
 </IfModule>
 
-# Never cache index.html (so a new deploy is picked up at once)
-<FilesMatch "^index\.html$">
-    <IfModule mod_headers.c>
-        Header set Cache-Control "no-cache, no-store, must-revalidate"
-    </IfModule>
-</FilesMatch>
-
-# Hashed build assets can be cached for a year
 <IfModule mod_headers.c>
-    <FilesMatch "\.(js|css|woff2?|ttf|svg|png|jpg|jpeg|webp|ico)$">
-        Header set Cache-Control "public, max-age=31536000, immutable"
+    # Pages are never cached, so a new deploy is picked up at once
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+    # The app shell is never indexed (it is served for every signed-in screen)
+    <FilesMatch "^app\.html$">
+        Header set X-Robots-Tag "noindex, nofollow"
+    </FilesMatch>
+    # Images, icons, sitemap and robots: a day
+    <FilesMatch "\.(png|jpg|jpeg|webp|ico|svg|xml|txt|webmanifest)$">
+        Header set Cache-Control "public, max-age=86400"
     </FilesMatch>
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
+# Hashed build files (assets/…) can be cached for a year
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#^/assets/#">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+</IfModule>
+
 # Compression
 <IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml application/xml text/plain application/manifest+json
 </IfModule>
 
 # Correct types for fonts / modules
 <IfModule mod_mime.c>
     AddType application/javascript .js .mjs
     AddType font/woff2 .woff2
+    AddType application/manifest+json .webmanifest
 </IfModule>

@@ -31,3 +31,7 @@ backend/bootstrap/cache/*
 .vscode/
 *.swp
 *.swo
+
+# Production env files (real secrets). Keep them out of git.
+.env_server
+.env*.server

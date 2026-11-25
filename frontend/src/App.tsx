@@ -7,10 +7,29 @@ import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { LoadingState } from './components/LoadingState/LoadingState';
 import { AppLayout } from './layouts/AppLayout/AppLayout';
 import { AuthLayout } from './layouts/AuthLayout/AuthLayout';
+import { SeoManager } from './seo/SeoManager';
+import { CONTENT_PAGES } from './pages/Marketing/content';
+
+const CONTENT_PATHS = CONTENT_PAGES.map((p) => p.path);
 
 /* Every screen is its own chunk, so the first load ships only what it needs. */
-const named = <K extends string>(loader: () => Promise<{ [P in K]: React.ComponentType }>, key: K) =>
-  lazy(() => loader().then((m) => ({ default: m[key] })));
+type Preloadable<P extends object = object> = React.FC<P> & { preload: () => Promise<void> };
+
+/**
+ * A lazily loaded screen. `preload()` loads it ahead of time; once loaded it renders straight away
+ * (no loading fallback), which keeps prerendered pages from flashing a spinner on start-up.
+ */
+const named = <K extends string, P extends object = object>(loader: () => Promise<{ [N in K]: React.ComponentType<P> }>, key: K): Preloadable<P> => {
+  let loaded: React.ComponentType<P> | null = null;
+  const load = () => loader().then((m): React.ComponentType<P> => {
+    loaded = m[key];
+    return loaded;
+  });
+  const Lazy = lazy(() => load().then((c) => ({ default: c })));
+  const Screen = ((props: P) => (loaded ? React.createElement(loaded, props) : React.createElement(Lazy, props))) as Preloadable<P>;
+  Screen.preload = () => load().then(() => undefined);
+  return Screen;
+};
 
 const LandingPage = named(() => import('./pages/Landing/LandingPage'), 'LandingPage');
 const LoginPage = named(() => import('./pages/Login/LoginPage'), 'LoginPage');
@@ -25,14 +44,25 @@ const AdminReviewsPage = named(() => import('./pages/Admin/AdminReviewsPage'), '
 const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFoundPage');
 const VideoEditorPage = named(() => import('./pages/VideoEditor/VideoEditorPage'), 'VideoEditorPage');
 const StudioEditorPage = named(() => import('./pages/Editor/StudioEditorPage'), 'StudioEditorPage');
+const ContentPage = named<'ContentPage', { path: string }>(() => import('./pages/Marketing/ContentPage'), 'ContentPage');
+const GuidesPage = named<'GuidesPage'>(() => import('./pages/Marketing/ContentPage'), 'GuidesPage');
+
+/** Loads the screen of a public page before the first render (see main.tsx). */
+export function preloadPublicPage(pathname: string): Promise<void> {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/') return LandingPage.preload();
+  if (path === '/guides') return GuidesPage.preload();
+  if (CONTENT_PATHS.includes(path)) return ContentPage.preload();
+  return Promise.resolve();
+}
 
 const PageFallback = () => <LoadingState label="Loading…" />;
 
 /** Signed-in users skip the marketing and auth pages. */
 const GuestRoute: React.FC = () => {
   const { isAuthenticated, isInitialized } = useAuthStore();
-  if (!isInitialized) return <LoadingState fullScreen label="Loading…" />;
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
+  // The page shows while sign-in is checked (no spinner over a prerendered page); signed-in users move on after.
+  return isInitialized && isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
 };
 
 const RoutedApp: React.FC = () => {
@@ -40,6 +70,7 @@ const RoutedApp: React.FC = () => {
 
   return (
     <ErrorBoundary resetKey={location.pathname} fullScreen>
+      <SeoManager />
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route element={<GuestRoute />}>
@@ -80,6 +111,9 @@ const RoutedApp: React.FC = () => {
             />
           </Route>
 
+          {/* Public content pages: open to everyone, signed in or not. */}
+          {CONTENT_PATHS.map((path) => <Route key={path} path={path} element={<ContentPage path={path} />} />)}
+          <Route path="/guides" element={<GuidesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

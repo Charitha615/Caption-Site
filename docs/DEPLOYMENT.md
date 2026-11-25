@@ -167,7 +167,19 @@ npm ci
 VITE_API_URL=https://api.example.com/api VITE_BRAND_NAME=SampleCap npm run build
 ```
 
-Upload `frontend/dist/` to any static host or CDN (Netlify, Cloudflare Pages, S3 + CloudFront, Nginx). Configure SPA fallback: unknown paths serve `index.html`. Cache `assets/*` for one year (file names are content-hashed); never cache `index.html`.
+Set `VITE_SITE_URL=https://sinsub.lk` (the one public address: canonical URLs, sitemap and share tags use it).
+
+`npm run build` also **prerenders the public pages** (home, `/si`, feature pages, guides) into real HTML files, and writes `sitemap.xml`, `robots.txt` and `app.html` (the empty app shell). Upload `frontend/dist/` to any static host or CDN:
+
+- A path that has a prerendered page serves it: `/guides` → `guides/index.html` (no trailing slash; `/guides/` should 301 to `/guides`).
+- **Every other path serves `app.html`** (SPA fallback), not `index.html`, which is now the home page.
+- Cache `assets/*` for one year (file names are content-hashed); never cache `*.html`.
+
+Apache / Hostinger: `public/.htaccess` (copied into `dist/`) does all of this, plus the domain redirect below. Netlify / Cloudflare Pages: `public/_redirects` sets the fallback.
+
+**One domain.** Point `sinsub.cc`, `www.sinsub.cc` and `www.sinsub.lk` at the same site; they 301 to `https://sinsub.lk` with the same path (in `.htaccess`; on Nginx use a separate `server` block with `return 301 https://sinsub.lk$request_uri;`).
+
+**After the first deploy:** add `https://sinsub.lk` in Google Search Console and Bing Webmaster Tools, submit `https://sinsub.lk/sitemap.xml`, and use URL inspection on the home page to check Google sees the content. Check link previews with the Facebook Sharing Debugger.
 
 Nginx (app):
 
@@ -177,7 +189,7 @@ server {
     server_name app.example.com;
     root /var/www/samplecap/frontend/dist;
     location /assets/ { expires 1y; add_header Cache-Control "public, immutable"; }
-    location / { try_files $uri /index.html; add_header Cache-Control "no-cache"; }
+    location / { try_files $uri $uri/index.html /app.html; add_header Cache-Control "no-cache"; }
     add_header X-Frame-Options DENY;
     add_header X-Content-Type-Options nosniff;
     add_header Referrer-Policy strict-origin-when-cross-origin;
