@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { AudioWaveform, Link2, Loader2, Mic2, Scissors, Sparkles, Star, Type, Wand2, X } from 'lucide-react';
 import { useToastStore } from '../../../stores/toastStore';
 import {
-  BUILT_IN_VOICES, VOICE_STYLES, VOICE_TAGS, aiErrorMessage, aiService, type Moment, type TextLanguage, type VoiceOption,
+  BUILT_IN_VOICES, aiErrorMessage, aiService, type Moment, type TextLanguage, type VoiceOption,
 } from '../ai/aiService';
 import { cleanClipAudio } from '../ai/cleanAudio';
 import { DEFAULT_SILENCE, SPEECH_RATE, findSilences, mixTimeline } from '../ai/timelineAudio';
 import { clipEnd, formatTime } from '../model';
 import { mergeRanges, totalDuration, useVideoEditorStore } from '../store';
 import { useImportFiles } from '../useImportFiles';
+import { ExpressionPicker, StylePicker, VoiceSelect } from './VoicePicker';
 
 const LANGUAGES: { value: TextLanguage; label: string }[] = [
   { value: 'si', label: 'Sinhala' },
@@ -97,30 +98,11 @@ function VoiceOver({ text, setText }: { text: string; setText: (t: string) => vo
         <span>What should the voice say?</span>
         <textarea ref={textRef} rows={4} maxLength={3000} value={text} onChange={(e) => setText(e.target.value)} placeholder="ආයුබෝවන්! අද අපි බලමු…" />
       </label>
-      <div className="ve-field">
-        <span>Sound effects (added at the cursor)</span>
-        <div className="ve-chips">
-          {VOICE_TAGS.map((tag) => <button key={tag} type="button" onClick={() => insertTag(tag)}>{tag.slice(1, -1)}</button>)}
-        </div>
+      <div className="ve-voice-bar">
+        <StylePicker value={style} onChange={setStyle} />
+        <ExpressionPicker onInsert={insertTag} />
       </div>
-      <label className="ve-field">
-        <span>Voice</span>
-        <select className="ve-select" value={voice} onChange={(e) => setVoice(e.target.value)}>
-          {voices.map((v) => (
-            <option key={v.id} value={v.id}>{v.name}{v.description ? ` · ${v.description}` : ''}{v.gender ? ` (${v.gender})` : ''}</option>
-          ))}
-        </select>
-      </label>
-      <div className="ve-field">
-        <span>Style</span>
-        <div className="ve-chips">
-          <button type="button" className={style === '' ? 'is-on' : ''} aria-pressed={style === ''} onClick={() => setStyle('')}>Natural</button>
-          {VOICE_STYLES.map((st) => (
-            <button key={st} type="button" className={style === st ? 'is-on' : ''} aria-pressed={style === st} onClick={() => setStyle(st)}>{st}</button>
-          ))}
-        </div>
-        <input className="ve-input" value={style} maxLength={120} placeholder="Or describe it: e.g. like a friendly radio host" onChange={(e) => setStyle(e.target.value)} aria-label="Speaking style" />
-      </div>
+      <VoiceSelect voices={voices} value={voice} onChange={setVoice} />
       <button type="button" className="ve-secondary-btn" disabled={!text.trim() || busy !== null} onClick={() => void generate()}>
         <Spin on={busy === 'voice'} icon={<Mic2 size={14} aria-hidden="true" />} /> {busy ? 'Making the voice…' : 'Make voice-over at the playhead'}
       </button>
@@ -438,24 +420,47 @@ function ImportFromLink() {
   );
 }
 
+type AiTool = 'link' | 'voice' | 'silence' | 'noise' | 'script' | 'titles' | 'highlights';
+
+const AI_TOOLS: { id: AiTool; label: string; title: string; Icon: typeof Link2 }[] = [
+  { id: 'link', label: 'Video link', title: 'Import from a link', Icon: Link2 },
+  { id: 'voice', label: 'Voice-over', title: 'AI voice-over', Icon: Mic2 },
+  { id: 'silence', label: 'Silences', title: 'Remove silences', Icon: Scissors },
+  { id: 'noise', label: 'Noise', title: 'Remove noise', Icon: Wand2 },
+  { id: 'script', label: 'Script', title: 'Script writer', Icon: Type },
+  { id: 'titles', label: 'Titles', title: 'Title ideas', Icon: Sparkles },
+  { id: 'highlights', label: 'Highlights', title: 'Highlights', Icon: Star },
+];
+
 export function AiToolsPanel() {
+  const [tool, setTool] = useState<AiTool>('link');
   const [voiceText, setVoiceText] = useState('');
+  const current = AI_TOOLS.find((t) => t.id === tool)!;
   return (
     <div className="ve-panel">
-      <h2 className="ve-panel-title">Import from a link</h2>
-      <ImportFromLink />
-      <h2 className="ve-panel-title">AI voice-over</h2>
-      <VoiceOver text={voiceText} setText={setVoiceText} />
-      <h2 className="ve-panel-title">Remove silences</h2>
-      <SilenceRemoval />
-      <h2 className="ve-panel-title">Remove noise</h2>
-      <NoiseRemoval />
-      <h2 className="ve-panel-title">Script writer</h2>
-      <ScriptWriter onUseAsVoice={setVoiceText} />
-      <h2 className="ve-panel-title">Title ideas</h2>
-      <TitleIdeas />
-      <h2 className="ve-panel-title">Highlights</h2>
-      <Highlights />
+      <div className="ve-tool-grid" role="group" aria-label="AI tools">
+        {AI_TOOLS.map(({ id, label, Icon }) => (
+          <button key={id} type="button" className={tool === id ? 'is-on' : ''} aria-pressed={tool === id} onClick={() => setTool(id)}>
+            <Icon size={18} aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+      <h2 className="ve-panel-title">{current.title}</h2>
+      {tool === 'link' && <ImportFromLink />}
+      {tool === 'voice' && <VoiceOver text={voiceText} setText={setVoiceText} />}
+      {tool === 'silence' && <SilenceRemoval />}
+      {tool === 'noise' && <NoiseRemoval />}
+      {tool === 'script' && (
+        <ScriptWriter
+          onUseAsVoice={(text) => {
+            setVoiceText(text);
+            setTool('voice');
+          }}
+        />
+      )}
+      {tool === 'titles' && <TitleIdeas />}
+      {tool === 'highlights' && <Highlights />}
     </div>
   );
 }

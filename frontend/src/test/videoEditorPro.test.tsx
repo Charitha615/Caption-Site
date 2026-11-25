@@ -198,3 +198,21 @@ describe('Pro editing controls', () => {
     expect(screen.getByRole('button', { name: /Record voice-over/ })).toBeInTheDocument();
   });
 });
+
+describe('Watermark', () => {
+  beforeEach(() => {
+    store().reset();
+    store().addMedia(video);
+    store().addMediaClip('m-video');
+  });
+
+  it('covers the whole video, faint, wherever the playhead is', () => {
+    store().setPlayhead(6);
+    store().addWatermark('@kandyvlogs', { fontSize: 36 }, 0.5);
+    const mark = store().clips.find((c) => c.kind === 'text')!;
+    expect(mark).toMatchObject({ start: 0, duration: 10, text: '@kandyvlogs', label: 'Watermark' });
+    expect(mark.transform.opacity).toBe(0.5);
+    store().undo();
+    expect(store().clips.some((c) => c.kind === 'text')).toBe(false);
+  });
+});

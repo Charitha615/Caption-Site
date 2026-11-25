@@ -8,7 +8,10 @@ import { useVideoEditorStore } from '../store';
 
 /* ---------- Text ---------- */
 
-const TEXT_PRESETS: { label: string; text: string; sample: string; style: Partial<TextStyle> }[] = [
+const TEXT_PRESETS: { label: string; text: string; sample: string; style: Partial<TextStyle>; watermark?: number }[] = [
+  // Watermarks run the whole video, faint (the number is the opacity; change it under Opacity).
+  { label: 'Watermark', text: '@yourbrand', sample: '© brand', watermark: 0.5, style: { fontSize: 36, x: 0.96, y: 0.94, align: 'right', font: 'rounded', animation: 'none' } },
+  { label: 'Big watermark', text: 'YOUR BRAND', sample: 'BRAND', watermark: 0.18, style: { fontSize: 150, y: 0.5, font: 'impact', outline: true, animation: 'none' } },
   { label: 'Title', text: 'Your title', sample: 'Title', style: { fontSize: 120, y: 0.45, animation: 'pop' } },
   { label: 'Subtitle', text: 'Add a subtitle', sample: 'Subtitle', style: { fontSize: 60, y: 0.6, bold: false, animation: 'fade' } },
   { label: 'Caption box', text: 'Caption text', sample: 'Caption', style: { fontSize: 52, y: 0.86, background: 'rgba(0, 0, 0, 0.65)', animation: 'none' } },
@@ -74,14 +77,15 @@ function FontUpload() {
 
 export function TextPanel() {
   const addTextClip = useVideoEditorStore((s) => s.addTextClip);
+  const addWatermark = useVideoEditorStore((s) => s.addWatermark);
   return (
     <div className="ve-panel">
       <h2 className="ve-panel-title">Text</h2>
-      <p className="ve-panel-hint">Added at the playhead. Change the words and look in the panel on the right.</p>
+      <p className="ve-panel-hint">Added at the playhead (watermarks cover the whole video). Change the words and look in the panel on the right.</p>
       <FontUpload />
       <div className="ve-tile-grid">
         {TEXT_PRESETS.map((preset) => (
-          <button key={preset.label} type="button" className="ve-tile" onClick={() => addTextClip(preset.text, preset.style)}>
+          <button key={preset.label} type="button" className="ve-tile" onClick={() => (preset.watermark ? addWatermark(preset.text, preset.style, preset.watermark) : addTextClip(preset.text, preset.style))}>
             <span className="ve-tile-art is-text" aria-hidden="true">
               <span
                 style={{
@@ -90,6 +94,7 @@ export function TextPanel() {
                   fontWeight: preset.style.bold === false ? 500 : 800,
                   fontFamily: fontCss(preset.style.font ?? 'sans'),
                   WebkitTextStroke: preset.style.outline ? '0.5px #000' : undefined,
+                  opacity: preset.watermark ? Math.max(preset.watermark, 0.35) : undefined,
                 }}
               >
                 {preset.sample}

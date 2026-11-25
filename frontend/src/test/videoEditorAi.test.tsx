@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { useVideoEditorStore } from '../features/videoEditor/store';
@@ -160,7 +160,12 @@ describe('Subtitles and AI tabs', () => {
     expect(screen.getByRole('button', { name: /Generate subtitles/ })).toBeDisabled();
     expect(screen.getByText(/Add a video with sound/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'AI tools' }));
+    // One tool at a time: the link import shows first, the others are a click away.
+    expect(screen.getByRole('button', { name: /Download and import/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Find pauses/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Voice-over' }));
     expect(screen.getByRole('button', { name: /Make voice-over/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Silences' }));
     expect(screen.getByRole('button', { name: /Find pauses/ })).toBeInTheDocument();
   });
 });
@@ -344,5 +349,23 @@ describe('Import from a link', () => {
     expect(screen.getByRole('button', { name: /Download TikTok \(no watermark\)/ })).toBeDisabled();
     await user.click(screen.getByLabelText('I own this video or have permission to use it'));
     expect(screen.getByRole('button', { name: /Download TikTok \(no watermark\)/ })).toBeEnabled();
+  });
+});
+
+describe('Deleting a clip after typing in a text box', () => {
+  it('moves focus to the clicked clip so Delete removes it', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    const s = useVideoEditorStore.getState();
+    s.addMedia({ id: 'm-link', kind: 'video', name: 'tiktok.mp4', url: 'blob:link', duration: 8, width: 720, height: 1280 });
+    s.addMediaClip('m-link');
+    await user.click(screen.getByRole('button', { name: 'AI tools' }));
+    await user.type(screen.getByLabelText('Video link'), 'https://example.com/a.mp4');
+    const clipEl = await screen.findByRole('button', { name: /^video clip tiktok\.mp4/ });
+    fireEvent.pointerDown(clipEl, { button: 0, clientX: 10 });
+    fireEvent.pointerUp(window);
+    expect(clipEl).toHaveFocus();
+    await user.keyboard('{Delete}');
+    expect(useVideoEditorStore.getState().clips.filter((c) => c.mediaId === 'm-link')).toHaveLength(0);
   });
 });

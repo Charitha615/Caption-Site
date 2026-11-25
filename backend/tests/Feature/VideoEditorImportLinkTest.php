@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\Media\LinkDownloader;
+use App\Services\Rendering\ProcessRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -15,11 +16,57 @@ class VideoEditorImportLinkTest extends TestCase
     /** @var array<string, list<string>> */
     private array $dns = [];
 
+    /** What the fake yt-dlp writes: null = it fails, so the page reader is used. */
+    private ?string $ytDlpFile = null;
+
+    /** @var list<list<string>> */
+    private array $ytDlpCalls = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->dns = ['www.tiktok.com' => ['142.250.1.1'], 'vm.tiktok.com' => ['142.250.1.2'], 'v16.tiktokcdn.com' => ['142.250.1.3'], 'cdn.example.com' => ['93.184.216.34']];
-        $this->app->instance(LinkDownloader::class, new LinkDownloader(fn (string $host) => $this->dns[$host] ?? []));
+        $test = $this;
+        $runner = new class($test) extends ProcessRunner
+        {
+            public function __construct(private VideoEditorImportLinkTest $test) {}
+
+            public function run(array $command, ?callable $onStdout = null, ?callable $shouldStop = null, ?float $timeout = null): array
+            {
+                return $this->test->fakeYtDlp($command);
+            }
+        };
+        $this->app->instance(LinkDownloader::class, new LinkDownloader(fn (string $host) => $this->dns[$host] ?? [], $runner));
+    }
+
+    /**
+     * @param  list<string>  $command
+     * @return array{exitCode: int, stdout: string, stderr: string, stopped: bool}
+     */
+    public function fakeYtDlp(array $command): array
+    {
+        $this->ytDlpCalls[] = $command;
+        if ($this->ytDlpFile === null) {
+            return ['exitCode' => 1, 'stdout' => '', 'stderr' => 'ERROR: Unable to extract', 'stopped' => false];
+        }
+        $template = $command[array_search('-o', $command, true) + 1];
+        $path = str_replace(['%(uploader)s', '%(id)s', '%(ext)s'], ['kandy', '123', 'mp4'], $template);
+        file_put_contents($path, $this->ytDlpFile);
+
+        return ['exitCode' => 0, 'stdout' => $path, 'stderr' => '', 'stopped' => false];
+    }
+
+    public function test_tiktok_links_download_with_yt_dlp_first(): void
+    {
+        $this->ytDlpFile = "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom".str_repeat("\x00", 64);
+        Http::fake();
+
+        $response = $this->import('https://vt.tiktok.com/ZSabc/');
+
+        $response->assertOk()->assertHeader('Content-Type', 'video/mp4');
+        $this->assertStringContainsString('tiktok-kandy-123.mp4', (string) $response->headers->get('Content-Disposition'));
+        $this->assertSame(['--', 'https://vt.tiktok.com/ZSabc/'], array_slice($this->ytDlpCalls[0], -2));
+        Http::assertNothingSent();
     }
 
     private function tiktokPage(array $item): string
@@ -48,7 +95,8 @@ class VideoEditorImportLinkTest extends TestCase
                     'downloadAddr' => 'https://v16.tiktokcdn.com/watermarked.mp4',
                     'bitrateInfo' => [
                         ['Bitrate' => 500000, 'PlayAddr' => ['UrlList' => ['https://v16.tiktokcdn.com/play-500.mp4']]],
-                        ['Bitrate' => 1800000, 'PlayAddr' => ['UrlList' => ['https://v16.tiktokcdn.com/play-1800.mp4']]],
+                        ['Bitrate' => 1800000, 'CodecType' => 'h264', 'PlayAddr' => ['UrlList' => ['https://v16.tiktokcdn.com/play-1800.mp4']]],
+                        ['Bitrate' => 2500000, 'CodecType' => 'h265_hvc1', 'PlayAddr' => ['UrlList' => ['https://v16.tiktokcdn.com/play-h265.mp4']]],
                     ],
                 ],
             ]), 200, ['Set-Cookie' => 'tt_chain_token=abc; Path=/; Domain=.tiktok.com']),
@@ -62,16 +110,19 @@ class VideoEditorImportLinkTest extends TestCase
         $this->assertSame('MP4-BYTES', $response->streamedContent());
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'play-1800') && $r->header('Referer')[0] === 'https://www.tiktok.com/');
         Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'watermarked'));
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'play-h265'));
     }
 
     public function test_tiktok_photo_posts_and_unreadable_pages_say_why(): void
     {
         Http::fake(['www.tiktok.com/*' => Http::sequence()
             ->push($this->tiktokPage(['id' => '1', 'imagePost' => ['images' => [[]]], 'video' => []]))
-            ->push('<html>Please log in</html>')]);
+            ->push('<html>Please log in</html>')
+            ->push('<html><body>Please wait... <p id="wci" class="_wafchallengeid"></p></body></html>')]);
 
         $this->import('https://www.tiktok.com/@a/photo/1')->assertStatus(422)->assertJsonPath('message', 'This TikTok is a photo post, not a video.');
         $this->import('https://www.tiktok.com/@a/video/2')->assertStatus(422)->assertJsonPath('message', 'Could not read this TikTok post. It may be private, removed, or not available in your region.');
+        $this->import('https://www.tiktok.com/@a/video/3')->assertStatus(422)->assertJsonPath('message', 'TikTok blocked the download with a bot check. Download the video from the TikTok app (Save video) and upload the file to Media instead.');
     }
 
     public function test_a_direct_media_link_is_downloaded_and_other_pages_are_refused(): void

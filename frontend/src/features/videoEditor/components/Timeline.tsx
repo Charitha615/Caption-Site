@@ -401,7 +401,11 @@ export function Timeline() {
                   data-clip-id={clip.id}
                   className={`ve-clip is-${clip.kind} ${isSelected(clip.id) ? 'is-selected' : ''} ${clip.muted ? 'is-muted' : ''}`}
                   style={{ left: clip.start * zoom, width: Math.max(4, clip.duration * zoom) }}
-                  onPointerDown={(e) => startMove(e, clip)}
+                  onPointerDown={(e) => {
+                    // Take focus from any text box, so Delete and other shortcuts act on the clip.
+                    e.currentTarget.focus({ preventScroll: true });
+                    startMove(e, clip);
+                  }}
                   role="button"
                   tabIndex={0}
                   aria-pressed={isSelected(clip.id)}
@@ -411,6 +415,13 @@ export function Timeline() {
                       e.preventDefault();
                       e.stopPropagation();
                       select(clip.id);
+                    } else if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const st = useVideoEditorStore.getState();
+                      if (!st.selectedIds.includes(clip.id) && st.selectedId !== clip.id) select(clip.id);
+                      if (e.shiftKey) st.rippleDeleteSelected();
+                      else st.deleteSelected();
                     }
                   }}
                 >

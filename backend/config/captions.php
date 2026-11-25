@@ -19,6 +19,11 @@ return [
     'ffmpeg_binary' => env('FFMPEG_BINARY', 'ffmpeg'),
     'ffprobe_binary' => env('FFPROBE_BINARY', 'ffprobe'),
 
+    // yt-dlp downloads TikTok links for the video editor's "Import from a link" (empty = off).
+    // macOS: brew install yt-dlp   Linux: download the release binary or pip install yt-dlp.
+    // Keep it current (yt-dlp -U or brew upgrade yt-dlp): TikTok changes often.
+    'ytdlp_binary' => env('YTDLP_BINARY', 'yt-dlp'),
+
     // Queue for MP4 renders. Use a dedicated queue in production so long renders
     // don't block AI captioning: php artisan queue:work --queue=renders,default
     'render_queue' => env('RENDER_QUEUE', 'default'),

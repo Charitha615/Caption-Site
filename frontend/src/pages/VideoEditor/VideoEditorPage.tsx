@@ -73,8 +73,16 @@ function usePlayback() {
   }, [playing]);
 }
 
-const isTyping = (target: EventTarget | null) =>
-  target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+/** Input types that don't take typed text, so editor shortcuts still work while they have focus. */
+const NON_TEXT_INPUTS = ['checkbox', 'radio', 'range', 'color', 'button', 'submit', 'reset', 'file'];
+
+/** Whether a key press is typing into a field (then shortcuts like Delete leave it alone). */
+const isTyping = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLInputElement) return !target.disabled && !NON_TEXT_INPUTS.includes(target.type);
+  return (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) && !target.disabled;
+};
 
 function useShortcuts() {
   useEffect(() => {

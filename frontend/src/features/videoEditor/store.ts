@@ -104,6 +104,8 @@ export interface VideoEditorState extends Snapshot {
   addMediaClip: (mediaId: string, at?: { trackId?: string; start?: number; freeTrack?: boolean; volume?: number; fadeOut?: number }) => void;
   /** Adds text at the playhead, on a text track that is free there (a new one if needed). */
   addTextClip: (text: string, style?: Partial<TextStyle>, duration?: number) => void;
+  /** Faint text over the whole video, from the start to the end (or the default length when empty). */
+  addWatermark: (text: string, style?: Partial<TextStyle>, opacity?: number) => void;
   /** Adds a colour or gradient at the playhead, on a video track that is free there (a new one if needed). */
   addColorClip: (fill: Fill, label: string, duration?: number) => void;
   /** A background with a title over it, as one undo step. */
@@ -383,6 +385,17 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
     addTextClip: (text, style, duration = TEXT_DEFAULT_DURATION) => {
       record();
       placeText(text, style, duration);
+    },
+
+    addWatermark: (text, style, opacity = 0.5) => {
+      record();
+      const duration = Math.max(totalDuration(get().clips), TEXT_DEFAULT_DURATION);
+      const trackId = freeTrack('text', 0, duration);
+      const clip = newClip({
+        trackId, kind: 'text', start: 0, duration, text, label: 'Watermark',
+        style: { ...DEFAULT_TEXT_STYLE, ...style }, transform: { ...DEFAULT_TRANSFORM, opacity },
+      });
+      set((s) => ({ clips: [...s.clips, clip], selectedId: clip.id }));
     },
 
     addColorClip: (fill, label, duration = IMAGE_DEFAULT_DURATION) => {

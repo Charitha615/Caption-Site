@@ -3,6 +3,7 @@
 namespace App\Services\Media;
 
 use App\Exceptions\UserFacingException;
+use App\Services\Rendering\ProcessRunner;
 use App\Support\AppLog;
 use Closure;
 use GuzzleHttp\Cookie\CookieJar;
@@ -17,6 +18,9 @@ use Illuminate\Support\Str;
  * Downloads a video, audio or image from a link for the video editor (which can't fetch other sites
  * from the browser): a TikTok post (TikTok's own stream without the watermark overlay) or a direct
  * link to a media file.
+ *
+ * TikTok links go through yt-dlp first (TikTok often answers servers with a bot check); reading
+ * the post's page is the fallback when yt-dlp is missing or fails.
  *
  * The server fetches what users point it at, so every hop is checked: http(s) only, the host must
  * resolve to public addresses only, and the connection is pinned to the address that was checked
@@ -38,8 +42,11 @@ class LinkDownloader
     /** @var Closure(string): list<string> host → IP addresses */
     private Closure $resolver;
 
-    public function __construct(?Closure $resolver = null)
+    private ProcessRunner $runner;
+
+    public function __construct(?Closure $resolver = null, ?ProcessRunner $runner = null)
     {
+        $this->runner = $runner ?? new ProcessRunner;
         $this->resolver = $resolver ?? fn (string $host): array => array_values(array_unique(array_merge(
             gethostbynamel($host) ?: [],
             array_column(@dns_get_record($host, DNS_AAAA) ?: [], 'ipv6'),
@@ -64,12 +71,83 @@ class LinkDownloader
     {
         $url = trim($url);
         if (self::isTikTok($url)) {
+            $file = $this->tiktokWithYtDlp($url, $maxBytes);
+            if ($file !== null) {
+                return $file;
+            }
             [$mediaUrl, $name, $headers, $jar] = $this->tiktok($url);
 
             return $this->fetchMedia($mediaUrl, $name, $maxBytes, $headers, $jar);
         }
 
         return $this->fetchMedia($url, null, $maxBytes);
+    }
+
+    /**
+     * Downloads a TikTok post with yt-dlp, preferring a stream without the watermark.
+     * Returns null when yt-dlp is not installed or could not get the video, so the caller can fall back.
+     *
+     * @return array{path: string, name: string, mime: string, bytes: int}|null
+     *
+     * @throws UserFacingException when the video is over the size limit
+     */
+    private function tiktokWithYtDlp(string $url, int $maxBytes): ?array
+    {
+        $binary = (string) config('captions.ytdlp_binary');
+        if ($binary === '' || strtolower((string) parse_url($url, PHP_URL_SCHEME)) !== 'https') {
+            return null;
+        }
+        $storage = app(MediaStorage::class);
+        $dir = $storage->tempPath('ytdlp');
+        File::ensureDirectoryExists($dir, 0700);
+        try {
+            $result = $this->runner->run([
+                $binary, '--ignore-config', '--no-playlist', '--no-warnings', '--no-progress', '--restrict-filenames',
+                '--max-filesize', (string) $maxBytes,
+                // H.264 first: browsers often can't decode TikTok's H.265 (bytevc1) streams, so the
+                // preview stays black while the sound plays. Skip the watermarked "download" copy.
+                '-f', 'b[vcodec^=h264][acodec!=none][format_note!*=?watermark][format_id!*=?download]'
+                    .'/b[vcodec^=avc][acodec!=none][format_id!*=?download]'
+                    .'/b[vcodec!=none][acodec!=none][format_note!*=?watermark][format_id!*=?download]/b',
+                '-o', $dir.'/tiktok-%(uploader)s-%(id)s.%(ext)s',
+                '--print', 'after_move:filepath',
+                '--', $url,
+            ], timeout: 300);
+        } catch (\Throwable $e) {
+            File::deleteDirectory($dir);
+            AppLog::warning('link.ytdlp_unavailable', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+        $files = File::files($dir);
+        if ($result['exitCode'] !== 0 || $files === []) {
+            File::deleteDirectory($dir);
+            // yt-dlp skips (and still exits 0) when the file is over --max-filesize.
+            if ($result['exitCode'] === 0) {
+                throw new UserFacingException('This file is bigger than your plan allows ('.round($maxBytes / 1048576).' MB).');
+            }
+            AppLog::warning('link.ytdlp_failed', ['exit' => $result['exitCode'], 'error' => Str::limit(trim($result['stderr']), 500)]);
+
+            return null;
+        }
+        $file = $files[0];
+        $name = $file->getFilename();
+        $path = $storage->tempPath('part');
+        File::move($file->getPathname(), $path);
+        File::deleteDirectory($dir);
+        $bytes = (int) filesize($path);
+        $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($path);
+        if ($bytes > $maxBytes || ! isset(self::MEDIA_EXTENSIONS[$mime])) {
+            @unlink($path);
+            if ($bytes > $maxBytes) {
+                throw new UserFacingException('This file is bigger than your plan allows ('.round($maxBytes / 1048576).' MB).');
+            }
+            AppLog::warning('link.ytdlp_not_media', ['mime' => $mime]);
+
+            return null;
+        }
+
+        return ['path' => $path, 'name' => $name, 'mime' => $mime, 'bytes' => $bytes];
     }
 
     /**
@@ -86,7 +164,12 @@ class LinkDownloader
         if (! $page->successful()) {
             throw new UserFacingException('TikTok did not open this link. Check that the video is public.', ['status' => $page->status()]);
         }
-        $item = self::tiktokItem((string) $page->body());
+        $html = (string) $page->body();
+        $item = self::tiktokItem($html);
+        if ($item === null && self::isBotCheck($html)) {
+            AppLog::warning('link.tiktok_bot_check', ['url' => $finalUrl]);
+            throw new UserFacingException('TikTok blocked the download with a bot check. Download the video from the TikTok app (Save video) and upload the file to Media instead.');
+        }
         if ($item === null) {
             AppLog::warning('link.tiktok_unreadable', ['url' => $finalUrl]);
             throw new UserFacingException('Could not read this TikTok post. It may be private, removed, or not available in your region.');
@@ -96,10 +179,12 @@ class LinkDownloader
         $candidates = [];
         foreach ((array) ($video['bitrateInfo'] ?? []) as $rate) {
             foreach ((array) ($rate['PlayAddr']['UrlList'] ?? []) as $u) {
-                $candidates[] = ['url' => $u, 'rate' => (int) ($rate['Bitrate'] ?? 0)];
+                $codec = strtolower((string) ($rate['CodecType'] ?? ''));
+                $candidates[] = ['url' => $u, 'rate' => (int) ($rate['Bitrate'] ?? 0), 'h264' => $codec === '' || str_contains($codec, '264')];
             }
         }
-        usort($candidates, fn ($a, $b) => $b['rate'] <=> $a['rate']);
+        // H.264 before H.265 (which many browsers can't play), then the highest bitrate.
+        usort($candidates, fn ($a, $b) => [$b['h264'], $b['rate']] <=> [$a['h264'], $a['rate']]);
         $urls = array_values(array_filter([...array_column($candidates, 'url'), $video['playAddr'] ?? null], fn ($u) => is_string($u) && str_starts_with($u, 'http')));
         if ($urls === []) {
             if (! empty($item['imagePost'])) {
@@ -111,6 +196,12 @@ class LinkDownloader
         $name = "tiktok-{$author}-".preg_replace('/\D/', '', (string) ($item['id'] ?? '')).'.mp4';
 
         return [$urls[0], $name, ['User-Agent' => self::BROWSER_UA, 'Referer' => 'https://www.tiktok.com/', 'Accept' => '*/*'], $jar];
+    }
+
+    /** Whether TikTok answered with its "Please wait…" bot-check page instead of the post. */
+    public static function isBotCheck(string $html): bool
+    {
+        return str_contains($html, '_wafchallengeid') || str_contains($html, 'SlardarWAF');
     }
 
     /**

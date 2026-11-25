@@ -49,9 +49,17 @@ export const BUILT_IN_VOICES: VoiceOption[] = (
 ).map(([name, description]) => ({ id: name, name, description, gender: null }));
 
 /** Ready-made speaking styles (sent as the style instruction; any text works). */
-export const VOICE_STYLES = [
-  'cheerful and friendly', 'warm and enthusiastic', 'calm and relaxed', 'excited and energetic', 'serious news anchor',
-  'storytelling, slow and dramatic', 'professional narrator', 'soft and gentle', 'whispered urgently', 'sad and quiet',
+/** Speaking styles: the name is shown, the prompt is what the speech model is told (max 120 characters). */
+export const VOICE_STYLES: { name: string; description: string; prompt: string }[] = [
+  { name: 'Whisper', description: 'Whisper quietly', prompt: 'whisper quietly' },
+  { name: 'Friendly', description: 'Warm and neutral delivery with micro-pauses', prompt: 'friendly: warm and neutral delivery with micro-pauses' },
+  { name: 'Narration', description: 'Commanding, rich vocal modulation, dramatic pauses', prompt: 'narration: commanding, rich vocal modulation, dramatic pauses' },
+  { name: 'Promote', description: 'High energy, elongated vowels', prompt: 'promotional: high energy, elongated vowels' },
+  { name: 'Podcast', description: 'Calm, measured delivery', prompt: 'podcast host: calm, measured delivery' },
+  { name: 'News anchor', description: 'Crisp, confident and serious', prompt: 'news anchor: crisp, confident and serious' },
+  { name: 'Storytelling', description: 'Slow, expressive and dramatic', prompt: 'storytelling: slow, expressive and dramatic' },
+  { name: 'Cheerful', description: 'Bright and smiling', prompt: 'cheerful: bright and smiling' },
+  { name: 'Sad', description: 'Quiet, soft and slow', prompt: 'sad: quiet, soft and slow' },
 ];
 
 /** Sound tags the speech model performs instead of reading out. */
