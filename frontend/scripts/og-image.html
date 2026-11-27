@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Source of public/og-image.png (the 1200×630 link-preview image).
+  Regenerate: node scripts/og-image.mjs [domain]   e.g. node scripts/og-image.mjs sinsub.lk
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;800&family=Noto+Sans+Sinhala:wght@700;800&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    position: relative;
+    font-family: Inter, "Noto Sans Sinhala", sans-serif;
+    color: #1A1530;
+    background:
+      radial-gradient(circle at 0% 100%, rgba(249,115,22,.10), transparent 45%),
+      radial-gradient(circle at 100% 0%, rgba(91,33,182,.08), transparent 50%),
+      #FBF8F6;
+  }
+  .si { font-family: "Noto Sans Sinhala", sans-serif; }
+  .bg-letters {
+    position: absolute; right: -10px; top: 70px; width: 600px;
+    font: 800 150px/1.05 "Noto Sans Sinhala", sans-serif;
+    color: rgba(91,33,182,.07); word-break: break-all; text-align: right;
+  }
+  .logo { position: absolute; left: 80px; top: 70px; display: flex; align-items: center; gap: 18px; }
+  .logo svg { width: 64px; height: 64px; }
+  .logo span { font: 800 34px/1 "Noto Sans Sinhala", sans-serif; }
+  h1 { position: absolute; left: 80px; top: 180px; margin: 0; width: 900px; font-size: 64px; font-weight: 800; line-height: 1.12; letter-spacing: -1px; }
+  h1 .si { color: #6D28D9; }
+  p { position: absolute; left: 80px; top: 365px; margin: 0; width: 840px; font-size: 26px; font-weight: 500; line-height: 1.45; color: #4A4560; }
+  .chips { position: absolute; left: 80px; top: 490px; display: flex; gap: 14px; }
+  .chips span { background: #1A1530; color: #fff; border-radius: 12px; padding: 14px 18px; font-size: 30px; font-weight: 800; line-height: 1; }
+  .chips .on { background: #F97316; }
+  .domain { position: absolute; right: 80px; top: 515px; font-size: 26px; font-weight: 800; color: #6D28D9; }
+</style>
+</head>
+<body>
+  <div class="bg-letters" aria-hidden="true">අආඇඉඋඑඔකගචජටඩතදනපබම</div>
+  <div class="logo">
+    <svg viewBox="0 0 48 48"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#5B21B6"/><stop offset="100%" stop-color="#F97316"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#g)"/><path d="M24 10L27.5 19.5L37 23L27.5 26.5L24 36L20.5 26.5L11 23L20.5 19.5Z" fill="#fff"/><circle cx="34" cy="14" r="2.5" fill="#fff" opacity=".85"/></svg>
+    <span>සිංසබ්</span>
+  </div>
+  <h1>Automatic <span class="si">සිංහල</span> &amp; English captions for your videos</h1>
+  <p>Word-by-word timing, caption styles, SRT &amp; MP4 export, and an online video editor.</p>
+  <div class="chips"><span class="si">අද</span><span class="si">අපි</span><span class="on">Toyota</span><span>Aqua</span><span>review</span></div>
+  <div class="domain" id="domain">sinsub.cc</div>
+  <script>
+    const d = new URLSearchParams(location.search).get('domain');
+    if (d) document.getElementById('domain').textContent = d;
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown } from 'lucide-react';
-import { CONTENT_PAGES, GUIDES, contentPage, type Block, type ContentPageData } from './content';
+import { CONTENT_PAGES, contentPage, guidesLabel, guidesOf, guidesPath, homePath, type Block, type ContentPageData, type Lang } from './content';
 import { MarketingFooter, MarketingHeader } from './MarketingChrome';
 import { NotFoundPage } from '../NotFound/NotFoundPage';
 
@@ -21,6 +21,15 @@ function BlockView({ block }: { block: Block }) {
   );
 }
 
+/** "27 November 2026" / "2026 නොවැම්බර් 27" (in UTC, so the prerender and the browser agree). */
+const SI_MONTHS = ['ජනවාරි', 'පෙබරවාරි', 'මාර්තු', 'අප්‍රේල්', 'මැයි', 'ජූනි', 'ජූලි', 'අගෝස්තු', 'සැප්තැම්බර්', 'ඔක්තෝබර්', 'නොවැම්බර්', 'දෙසැම්බර්'];
+
+function formatDate(date: string, lang: Lang) {
+  const d = new Date(`${date}T00:00:00Z`);
+  if (lang === 'si') return `${d.getUTCFullYear()} ${SI_MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
 function PageBody({ page }: { page: ContentPageData }) {
   const related = page.related.map((path) => CONTENT_PAGES.find((p) => p.path === path)).filter((p): p is ContentPageData => !!p);
   const si = page.lang === 'si';
@@ -34,7 +43,7 @@ function PageBody({ page }: { page: ContentPageData }) {
             <div className="sx-wrap mk-narrow">
               {page.kind === 'guide' && (
                 <nav className="mk-crumbs" aria-label="Breadcrumb">
-                  <Link to="/">Home</Link> <span aria-hidden="true">/</span> <Link to="/guides">Guides</Link>
+                  <Link to={homePath(page.lang)}>{si ? 'මුල් පිටුව' : 'Home'}</Link> <span aria-hidden="true">/</span> <Link to={guidesPath(page.lang)}>{guidesLabel(page.lang)}</Link>
                 </nav>
               )}
               <p className="sx-kicker">{page.eyebrow}</p>
@@ -42,7 +51,7 @@ function PageBody({ page }: { page: ContentPageData }) {
               <p className="mk-intro">{page.intro}</p>
               <div className="mk-hero-actions">
                 <Link to="/register" className="sx-btn sx-btn-accent sx-btn-lg">{page.cta.button} <ArrowRight size={18} aria-hidden="true" /></Link>
-                {page.updated && <span className="mk-updated">Updated <time dateTime={page.updated}>{new Date(`${page.updated}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}</time></span>}
+                {page.kind === 'guide' && <span className="mk-updated">{si ? 'යාවත්කාලීන කළේ' : 'Updated'} <time dateTime={page.updated}>{formatDate(page.updated, page.lang)}</time></span>}
               </div>
             </div>
           </header>
@@ -92,7 +101,7 @@ function PageBody({ page }: { page: ContentPageData }) {
           </div>
         </article>
       </main>
-      <MarketingFooter />
+      <MarketingFooter lang={page.lang} />
     </div>
   );
 }
@@ -103,22 +112,37 @@ export function ContentPage({ path }: { path: string }) {
   return page ? <PageBody page={page} /> : <NotFoundPage />;
 }
 
-export function GuidesPage() {
+const GUIDES_TEXT = {
+  en: {
+    skip: 'Skip to content',
+    h1: 'Guides for Sinhala subtitles and video',
+    intro: 'Short, practical how-tos for captions, subtitle files and editing videos for YouTube, TikTok and Reels.',
+  },
+  si: {
+    skip: 'අන්තර්ගතයට යන්න',
+    h1: 'සිංහල subtitles සහ video ගැන මාර්ගෝපදේශ',
+    intro: 'YouTube, TikTok සහ Reels වලට captions, subtitle files සහ video editing ගැන කෙටි, ප්‍රායෝගික පියවරෙන් පියවර උපදෙස්.',
+  },
+};
+
+/** The list of guides in one language (/guides, /si/guides). */
+export function GuidesPage({ lang = 'en' }: { lang?: Lang }) {
+  const text = GUIDES_TEXT[lang];
   return (
-    <div className="landing">
-      <a href="#main" className="skip-link">Skip to content</a>
-      <MarketingHeader />
+    <div className="landing" lang={lang}>
+      <a href="#main" className="skip-link">{text.skip}</a>
+      <MarketingHeader lang={lang} />
       <main id="main">
         <header className="mk-hero">
           <div className="sx-wrap mk-narrow">
-            <p className="sx-kicker">Guides</p>
-            <h1 className="mk-h1">Guides for Sinhala subtitles and video</h1>
-            <p className="mk-intro">Short, practical how-tos for captions, subtitle files and editing videos for YouTube, TikTok and Reels.</p>
+            <p className="sx-kicker">{guidesLabel(lang)}</p>
+            <h1 className="mk-h1">{text.h1}</h1>
+            <p className="mk-intro">{text.intro}</p>
           </div>
         </header>
         <div className="sx-wrap mk-narrow mk-body">
           <ul className="mk-cards">
-            {GUIDES.map((g) => (
+            {guidesOf(lang).map((g) => (
               <li key={g.path}>
                 <Link to={g.path}>
                   <strong>{g.h1}</strong>
@@ -129,7 +153,7 @@ export function GuidesPage() {
           </ul>
         </div>
       </main>
-      <MarketingFooter />
+      <MarketingFooter lang={lang} />
     </div>
   );
 }

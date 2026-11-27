@@ -167,7 +167,7 @@ npm ci
 VITE_API_URL=https://api.example.com/api VITE_BRAND_NAME=SampleCap npm run build
 ```
 
-Set `VITE_SITE_URL=https://sinsub.lk` (the one public address: canonical URLs, sitemap and share tags use it).
+Set `VITE_SITE_URL=https://sinsub.cc` (the one public address: canonical URLs, sitemap and share tags use it).
 
 `npm run build` also **prerenders the public pages** (home, `/si`, feature pages, guides) into real HTML files, and writes `sitemap.xml`, `robots.txt` and `app.html` (the empty app shell). Upload `frontend/dist/` to any static host or CDN:
 
@@ -177,9 +177,21 @@ Set `VITE_SITE_URL=https://sinsub.lk` (the one public address: canonical URLs, s
 
 Apache / Hostinger: `public/.htaccess` (copied into `dist/`) does all of this, plus the domain redirect below. Netlify / Cloudflare Pages: `public/_redirects` sets the fallback.
 
-**One domain.** Point `sinsub.cc`, `www.sinsub.cc` and `www.sinsub.lk` at the same site; they 301 to `https://sinsub.lk` with the same path (in `.htaccess`; on Nginx use a separate `server` block with `return 301 https://sinsub.lk$request_uri;`).
+**One domain.** Today the main domain is `https://sinsub.cc`; `www.sinsub.cc` 301s to it (in `.htaccess`; on Nginx use a separate `server` block with `return 301 https://sinsub.cc$request_uri;`).
 
-**After the first deploy:** add `https://sinsub.lk` in Google Search Console and Bing Webmaster Tools, submit `https://sinsub.lk/sitemap.xml`, and use URL inspection on the home page to check Google sees the content. Check link previews with the Facebook Sharing Debugger.
+**After the first deploy:** add `https://sinsub.cc` in Google Search Console and Bing Webmaster Tools, submit `https://sinsub.cc/sitemap.xml`, and use URL inspection on the home page to check Google sees the content. Check link previews with the Facebook Sharing Debugger.
+
+### Moving the main domain to sinsub.lk (later)
+
+Once `sinsub.lk` is bought, keep `sinsub.cc` too; both work, and `.cc` sends visitors to `.lk`:
+
+1. Point `sinsub.lk` and `www.sinsub.lk` at the same site (hPanel → Domains) and turn on SSL for both. Keep `sinsub.cc` and `www.sinsub.cc` attached.
+2. `frontend/.env.production`: `VITE_BRAND_DOMAIN=sinsub.lk`, `VITE_SITE_URL=https://sinsub.lk`, `VITE_BRAND_SUPPORT_EMAIL=support@sinsub.lk`.
+3. `frontend/public/.htaccess`: swap the "NOW" redirect for the "LATER" one (all hosts → `https://sinsub.lk`, path kept, 301).
+4. Backend `.env`: `FRONTEND_URL=https://sinsub.lk`, `BRAND_DOMAIN=sinsub.lk`, `BRAND_SUPPORT_EMAIL=support@sinsub.lk`; then `php artisan config:cache`.
+5. Google OAuth client (if used): add `https://sinsub.lk` to Authorized JavaScript origins.
+6. `npm run build` and upload `dist/`. Check `curl -I https://sinsub.cc/guides` returns `301` to `https://sinsub.lk/guides`.
+7. Search Console: add `https://sinsub.lk`, submit its sitemap, then use **Change of Address** on the `sinsub.cc` property so rankings move over. Keep `sinsub.cc` renewed for at least a year or two.
 
 Nginx (app):
 

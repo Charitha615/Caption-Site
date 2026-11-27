@@ -34,6 +34,8 @@ const named = <K extends string, P extends object = object>(loader: () => Promis
 const LandingPage = named(() => import('./pages/Landing/LandingPage'), 'LandingPage');
 const LoginPage = named(() => import('./pages/Login/LoginPage'), 'LoginPage');
 const RegisterPage = named(() => import('./pages/Register/RegisterPage'), 'RegisterPage');
+const ForgotPasswordPage = named(() => import('./pages/PasswordReset/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = named(() => import('./pages/PasswordReset/ResetPasswordPage'), 'ResetPasswordPage');
 const DashboardPage = named(() => import('./pages/Dashboard/DashboardPage'), 'DashboardPage');
 const ProjectsPage = named(() => import('./pages/Projects/ProjectsPage'), 'ProjectsPage');
 const CreateProjectPage = named(() => import('./pages/CreateProject/CreateProjectPage'), 'CreateProjectPage');
@@ -45,13 +47,15 @@ const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFo
 const VideoEditorPage = named(() => import('./pages/VideoEditor/VideoEditorPage'), 'VideoEditorPage');
 const StudioEditorPage = named(() => import('./pages/Editor/StudioEditorPage'), 'StudioEditorPage');
 const ContentPage = named<'ContentPage', { path: string }>(() => import('./pages/Marketing/ContentPage'), 'ContentPage');
-const GuidesPage = named<'GuidesPage'>(() => import('./pages/Marketing/ContentPage'), 'GuidesPage');
+const GuidesPage = named<'GuidesPage', { lang?: 'en' | 'si' }>(() => import('./pages/Marketing/ContentPage'), 'GuidesPage');
+const PrivacyPage = named<'PrivacyPage'>(() => import('./pages/Marketing/PrivacyPage'), 'PrivacyPage');
 
 /** Loads the screen of a public page before the first render (see main.tsx). */
 export function preloadPublicPage(pathname: string): Promise<void> {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (path === '/') return LandingPage.preload();
-  if (path === '/guides') return GuidesPage.preload();
+  if (path === '/guides' || path === '/si/guides') return GuidesPage.preload();
+  if (path === '/privacy') return PrivacyPage.preload();
   if (CONTENT_PATHS.includes(path)) return ContentPage.preload();
   return Promise.resolve();
 }
@@ -78,7 +82,12 @@ const RoutedApp: React.FC = () => {
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             </Route>
+          </Route>
+          {/* Opened from the reset email: works whether or not this browser is signed in. */}
+          <Route element={<AuthLayout />}>
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
           </Route>
 
           <Route element={<ProtectedRoute />}>
@@ -114,6 +123,8 @@ const RoutedApp: React.FC = () => {
           {/* Public content pages: open to everyone, signed in or not. */}
           {CONTENT_PATHS.map((path) => <Route key={path} path={path} element={<ContentPage path={path} />} />)}
           <Route path="/guides" element={<GuidesPage />} />
+          <Route path="/si/guides" element={<GuidesPage lang="si" />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

@@ -70,6 +70,11 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(20)->by('login-ip|'.$request->ip()),
         ]);
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
+        // Forgot/reset password: few tries per email+IP (the broker also allows one email per minute per account).
+        RateLimiter::for('password-reset', fn (Request $request) => [
+            Limit::perMinute(3)->by('pw-reset|'.strtolower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perHour(20)->by('pw-reset-ip|'.$request->ip()),
+        ]);
 
         RateLimiter::for('polling', fn (Request $request) => Limit::perMinute(120)->by($byUser($request)));
         RateLimiter::for('autosave', fn (Request $request) => Limit::perMinute(120)->by($byUser($request)));

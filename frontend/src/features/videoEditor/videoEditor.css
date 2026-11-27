@@ -66,7 +66,15 @@
 
 /* Body: tool rail, side panel, preview, inspector */
 .ve-body { display: flex; min-height: 0; }
-.ve-rail { display: flex; flex-direction: column; gap: 4px; width: 72px; padding: 10px 6px; border-right: 1px solid var(--ve-line); background: var(--ve-panel); }
+.ve-rail {
+  display: flex; flex-direction: column; gap: 4px; width: 72px; flex: none; padding: 10px 6px;
+  border-right: 1px solid var(--ve-line); background: var(--ve-panel);
+  /* Short screens (tablets, small laptops): the tools scroll instead of being cut off. */
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--ve-line) transparent;
+}
+.ve-rail::-webkit-scrollbar { width: 4px; }
+.ve-rail::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--ve-line); }
+.ve-rail button { flex: none; }
 .ve-rail button {
   display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border: 0; border-radius: 10px;
   background: none; color: var(--ve-muted); font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer;
@@ -181,6 +189,7 @@
 .ve-clip.is-text { align-items: center; background: #7c2d5b; }
 .ve-clip.is-selected { border-color: #fff; box-shadow: 0 0 0 1px #fff; z-index: 2; }
 .ve-clip-thumbs { position: absolute; inset: 0; background-size: auto 100%; background-repeat: repeat-x; opacity: 0.55; }
+.ve-clip-filmstrip { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.7; pointer-events: none; }
 .ve-clip-wave {
   position: absolute; inset: 30% 4px 22% 4px; opacity: 0.55;
   background: repeating-linear-gradient(90deg, #fdba74 0 2px, transparent 2px 5px);
@@ -503,4 +512,73 @@
 .ve-restoring {
   position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 10px;
   background: var(--editor-bg); color: var(--editor-text); font-weight: 600;
+}
+
+/* Right-click menu of a timeline clip */
+.ve-context-menu {
+  position: fixed; z-index: 1000; min-width: 220px; padding: 5px;
+  border: 1px solid var(--ve-line, rgba(255, 255, 255, 0.12)); border-radius: 10px;
+  background: var(--ve-panel, #1c1b22); color: var(--editor-text, #f4f4f5);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); font-size: 0.82rem;
+}
+.ve-context-menu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px;
+  border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.ve-context-menu button span { flex: 1; }
+.ve-context-menu button:hover:not(:disabled), .ve-context-menu button:focus-visible { background: rgba(255, 255, 255, 0.08); outline: none; }
+.ve-context-menu button:disabled { opacity: 0.4; cursor: default; }
+.ve-context-menu button.is-danger { color: #f87171; }
+.ve-context-menu kbd { font: inherit; font-size: 0.72rem; color: var(--ve-muted, #a1a1aa); }
+.ve-context-sep { height: 1px; margin: 4px 6px; background: var(--ve-line, rgba(255, 255, 255, 0.12)); }
+
+/* ---------------------------------------------------------------- Tablets and touch */
+.ve-inspector-close { display: none; }
+.ve-side[hidden] { display: none; }
+
+/* Narrow screens (iPad portrait, small laptops): the clip properties float over the preview. */
+@media (max-width: 960px) {
+  .ve { --ve-track-head: 132px; }
+  .ve-body { position: relative; }
+  .ve-rail { width: 64px; padding: 8px 4px; }
+  .ve-side { width: 240px; }
+  .ve-center { padding: 10px; }
+  .ve-inspector {
+    position: absolute; top: 8px; right: 8px; bottom: 8px; z-index: 20; width: min(300px, calc(100% - 16px));
+    border: 1px solid var(--ve-line); border-radius: 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+  .ve-inspector-close { display: inline-grid; }
+  .ve-name { width: min(200px, 26vw); }
+  .ve-time { font-size: 0.78rem; }
+}
+
+/* Fingers instead of a mouse: bigger buttons and trim handles, no hover-only cues. */
+@media (pointer: coarse) {
+  .ve { --ve-lane-h: 64px; }
+  .ve-icon-btn { width: 40px; height: 40px; }
+  .ve-rail button { padding: 12px 4px; }
+  .ve-trim { width: 18px; }
+  .ve-clip.is-selected .ve-trim { background: rgba(255, 255, 255, 0.9); }
+  .ve-clip:not(.is-selected) .ve-trim { background: rgba(255, 255, 255, 0.18); }
+  .ve-context-menu button { padding: 11px 12px; }
+  .ve-context-menu kbd { display: none; }
+  .ve-timeline-scroll { -webkit-overflow-scrolling: touch; }
+}
+
+/* Phones: "use a tablet or computer" notice over the editor */
+.ve-phone-notice {
+  position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 20px;
+  background: var(--editor-bg); overflow-y: auto; user-select: text; -webkit-user-select: text;
+}
+.ve-phone-card { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 360px; text-align: center; color: var(--editor-text); }
+.ve-phone-card > svg { color: var(--ve-accent); }
+.ve-phone-card h2 { margin: 0; font-size: 1.2rem; line-height: 1.35; }
+.ve-phone-card p { margin: 0; color: var(--ve-muted); line-height: 1.55; }
+.ve-phone-card p[lang='si'] { font-family: 'Noto Sans Sinhala', sans-serif; }
+.ve-phone-hint { font-size: 0.8rem; }
+.ve-phone-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 8px; }
+.ve-phone-actions .ve-export { justify-content: center; height: 44px; text-decoration: none; }
+.ve-phone-continue {
+  height: 44px; border: 1px solid var(--ve-line); border-radius: 10px; background: none;
+  color: var(--editor-text); font: inherit; font-weight: 600; cursor: pointer;
 }

@@ -3,7 +3,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { analyzeShake } from '../ai/stabilize';
 import {
   AlignCenter, AlignLeft, AlignRight, ChevronDown, Copy, Diamond, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Trash2,
-  Loader2, Unlink2, Vibrate, Volume2, VolumeX, ZoomIn, ZoomOut,
+  Loader2, Unlink2, Vibrate, Volume2, VolumeX, ZoomIn, ZoomOut, X,
 } from 'lucide-react';
 import { FILTER_PRESETS } from '../filters';
 import {
@@ -219,6 +219,7 @@ export function Inspector() {
         <h2 className="ve-panel-title" title={title}>{title}</h2>
         <button type="button" className="ve-icon-btn" onClick={duplicateSelected} aria-label="Duplicate clip" title="Duplicate (Ctrl+D)"><Copy size={15} /></button>
         <button type="button" className="ve-icon-btn" onClick={deleteSelected} aria-label="Delete clip" title="Delete (Del)"><Trash2 size={15} /></button>
+        <button type="button" className="ve-icon-btn ve-inspector-close" onClick={() => select(null)} aria-label="Close clip properties" title="Close (Esc)"><X size={15} /></button>
       </div>
       <dl className="ve-inspector-times">
         <div><dt>Start</dt><dd>{formatTime(clip.start)}</dd></div>

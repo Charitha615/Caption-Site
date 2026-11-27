@@ -53,3 +53,37 @@ describe('Content pages', () => {
     expect(screen.getAllByRole('link', { name: /How to add Sinhala subtitles to a YouTube video/ }).length).toBeGreaterThan(0);
   });
 });
+
+describe('Sinhala pages', () => {
+  const siPages = CONTENT_PAGES.filter((p) => p.lang === 'si' && p.kind !== 'home');
+
+  it('pair every Sinhala page with its English version, both ways (hreflang)', () => {
+    expect(siPages.length).toBeGreaterThanOrEqual(6);
+    for (const page of [...siPages.map((p) => p.path), '/si/guides']) {
+      const en = page.slice(3);
+      for (const path of [page, en]) {
+        const alt = seoFor(path)!.alternates!;
+        expect(alt, path).toEqual([
+          { lang: 'en', path: en },
+          { lang: 'si', path: page },
+          { lang: 'x-default', path: en },
+        ]);
+      }
+    }
+  });
+
+  it('link only to Sinhala pages from a Sinhala page', () => {
+    for (const page of CONTENT_PAGES.filter((p) => p.lang === 'si')) {
+      for (const path of page.related) expect(path.startsWith('/si/'), `${page.path} → ${path}`).toBe(true);
+    }
+  });
+
+  it('render a Sinhala guide with Sinhala breadcrumbs, date and a switch to the English version', () => {
+    const page = CONTENT_PAGES.find((p) => p.path === '/si/guides/create-sinhala-srt-file')!;
+    render(<MemoryRouter initialEntries={[page.path]}><ContentPage path={page.path} /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(page.h1);
+    expect(screen.getAllByRole('link', { name: 'මාර්ගෝපදේශ' })[0]).toHaveAttribute('href', '/si/guides');
+    expect(screen.getByText(/නොවැම්බර්/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'English' })).toHaveAttribute('href', '/guides/create-sinhala-srt-file');
+  });
+});

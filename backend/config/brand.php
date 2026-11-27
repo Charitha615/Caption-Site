@@ -9,14 +9,14 @@ return [
     | Modify product naming, typography, colors, and locale defaults here.
     | Changing these values updates the entire backend branding, email
     | notifications, API brand endpoint, and metadata across the system.
-    | Fully Unicode / Sinhala compliant (e.g. "සිංසබ්.lk").
+    | Fully Unicode / Sinhala compliant (e.g. "සිංසබ්").
     |
     */
 
     'name' => env('BRAND_NAME', env('APP_NAME', 'Sinsub')),
     'short_name' => env('BRAND_SHORT_NAME', env('BRAND_NAME', env('APP_NAME', 'Sinsub'))),
     // Logo: Sinhala name + English domain ending.
-    'logo_text' => env('BRAND_LOGO_TEXT', 'සිංසබ්.lk'),
+    'logo_text' => env('BRAND_LOGO_TEXT', 'සිංසබ්'),
     'domain' => env('BRAND_DOMAIN', 'sinsub.lk'),
     'tagline' => env('BRAND_TAGLINE', 'Sinhala & English video captions'),
     'description' => env('BRAND_DESCRIPTION', 'Create, edit and export Sinhala and English captions for your videos.'),

@@ -2,8 +2,10 @@
  * Public content pages (features, guides, the Sinhala home page). Each is plain data rendered by
  * ContentPage, prerendered to HTML at build time and listed in the sitemap.
  *
- * Adding a page: add an entry here. Routes, the sitemap, the footer and the guides list pick it up.
+ * Adding a page: add an entry here (Sinhala pages in content.si.ts, at /si + the English path).
+ * Routes, the sitemap, hreflang, the language switch, the footer and the guides list pick it up.
  */
+import { SI_CONTENT_PAGES } from './content.si';
 
 export type Block =
   | { kind: 'p'; text: string }
@@ -30,8 +32,8 @@ export interface ContentPageData {
   faq?: { q: string; a: string }[];
   /** Other pages to link at the end. */
   related: string[];
-  /** Guides: when the text last changed (YYYY-MM-DD). */
-  updated?: string;
+  /** When the text last changed (YYYY-MM-DD); the sitemap's lastmod. Update it when you edit the page. */
+  updated: string;
   cta: { text: string; button: string };
   /** Short name for links and the footer. */
   linkLabel: string;
@@ -41,6 +43,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
   /* ------------------------------------------------------------------ features */
   {
     path: '/sinhala-subtitle-generator',
+    updated: '2026-11-27',
     lang: 'en',
     kind: 'feature',
     linkLabel: 'Sinhala subtitle generator',
@@ -89,6 +92,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
   },
   {
     path: '/sinhala-english-mixed-captions',
+    updated: '2026-11-27',
     lang: 'en',
     kind: 'feature',
     linkLabel: 'Sinhala + English captions',
@@ -125,6 +129,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
   },
   {
     path: '/online-video-editor',
+    updated: '2026-11-27',
     lang: 'en',
     kind: 'feature',
     linkLabel: 'Online video editor',
@@ -317,6 +322,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
   /* ----------------------------------------------------------- Sinhala home */
   {
     path: '/si',
+    updated: '2026-11-27',
     lang: 'si',
     kind: 'home',
     linkLabel: 'සිංහලෙන්',
@@ -360,11 +366,36 @@ export const CONTENT_PAGES: ContentPageData[] = [
       { q: 'සිංහල සහ English මිශ්‍ර කතාවට වැඩ කරනවද?', a: 'ඔව්. සිංහල කතාව ඇතුළේ තියෙන English වචන English අකුරින්ම ලියවෙනවා.' },
       { q: 'මගේ videos ආරක්ෂිතද?', a: 'ඔව්. Files private විදියට තියාගන්නවා. Project එකක් delete කළොත් ඒකේ files ත් මැකෙනවා.' },
     ],
-    related: ['/sinhala-subtitle-generator', '/guides/add-sinhala-subtitles-to-youtube-videos', '/online-video-editor'],
+    related: ['/si/sinhala-subtitle-generator', '/si/guides/add-sinhala-subtitles-to-youtube-videos', '/si/online-video-editor'],
     cta: { text: 'ඔබේ පළමු video එකට captions හදන්න', button: 'නොමිලේ පටන් ගන්න' },
   },
+
+  /* ------------------------------------- Sinhala feature pages and guides (/si/…) */
+  ...SI_CONTENT_PAGES,
 ];
 
-export const GUIDES = CONTENT_PAGES.filter((p) => p.kind === 'guide');
-export const FEATURE_PAGES = CONTENT_PAGES.filter((p) => p.kind === 'feature');
+export type Lang = ContentPageData['lang'];
+
+export const guidesOf = (lang: Lang) => CONTENT_PAGES.filter((p) => p.kind === 'guide' && p.lang === lang);
+export const featurePagesOf = (lang: Lang) => CONTENT_PAGES.filter((p) => p.kind === 'feature' && p.lang === lang);
+export const GUIDES = guidesOf('en');
+export const FEATURE_PAGES = featurePagesOf('en');
 export const contentPage = (path: string) => CONTENT_PAGES.find((p) => p.path === path);
+
+/** Home and guides list of each language. */
+export const homePath = (lang: Lang) => (lang === 'si' ? '/si' : '/');
+export const guidesPath = (lang: Lang) => (lang === 'si' ? '/si/guides' : '/guides');
+
+export const guidesLabel = (lang: Lang) => (lang === 'si' ? 'මාර්ගෝපදේශ' : 'Guides');
+
+/** Pages that can have a version in the other language. */
+const LANGUAGE_PATHS = ['/', '/guides', '/si/guides', ...CONTENT_PAGES.map((p) => p.path)];
+
+/**
+ * The same page in the other language, or undefined if it has none.
+ * A Sinhala page lives at /si + the English path: /x ↔ /si/x, and / ↔ /si.
+ */
+export function otherLanguagePath(path: string): string | undefined {
+  const other = path === '/si' ? '/' : path.startsWith('/si/') ? path.slice(3) : path === '/' ? '/si' : `/si${path}`;
+  return LANGUAGE_PATHS.includes(other) ? other : undefined;
+}

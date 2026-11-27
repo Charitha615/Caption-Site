@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, Film, Image as ImageIcon, Music, Palette, Sparkles, Trash2, Type, Volume2, VolumeX, X } from 'lucide-react';
 import { ANIM_PROPS, clipEnd, formatTime, trackGaps, type Clip, type MediaItem, type Track, type TrackKind } from '../model';
 import { totalDuration, useVideoEditorStore } from '../store';
+import { FRAME_H, useFilmstrip } from '../filmstrip';
+import { TimelineContextMenu, type TimelineMenuState } from './TimelineContextMenu';
 import { useImportFiles } from '../useImportFiles';
 
 export const MEDIA_DRAG_TYPE = 'application/x-video-editor-media';
@@ -59,6 +61,37 @@ function Waveform({ clip, media, width }: { clip: Clip; media: MediaItem; width:
   return <canvas ref={ref} className="ve-clip-waveform" aria-hidden="true" />;
 }
 
+/**
+ * The frames of the part of the video this clip plays (its in-point onwards, at its speed), so trimming
+ * the start visibly removes the first frames. Shows the single picture until the frames are ready.
+ */
+function Filmstrip({ clip, media, width }: { clip: Clip; media: MediaItem; width: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const strip = useFilmstrip(media);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !strip) return;
+    const h = canvas.clientHeight || 46;
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = Math.max(1, Math.min(MAX_WAVE_PX, Math.round(width)));
+    canvas.width = Math.round(cssW * scale);
+    canvas.height = Math.round(h * scale);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, cssW, h);
+    const tileW = (strip.frameW * h) / FRAME_H;
+    const secondsPerPx = (clip.duration * clip.speed) / cssW;
+    for (let x = 0; x < cssW; x += tileW) {
+      // Source time at the middle of this tile.
+      const t = clip.offset + (x + tileW / 2) * secondsPerPx;
+      const i = Math.max(0, Math.min(strip.ready - 1, Math.floor(t / strip.interval)));
+      ctx.drawImage(strip.sprite, i * strip.frameW, 0, strip.frameW, FRAME_H, x, 0, tileW, h);
+    }
+  }, [strip, clip.offset, clip.duration, clip.speed, width]);
+  if (!strip) return media.thumb ? <span className="ve-clip-thumbs" style={{ backgroundImage: `url("${media.thumb}")` }} aria-hidden="true" /> : null;
+  return <canvas ref={ref} className="ve-clip-filmstrip" aria-hidden="true" />;
+}
+
 /** Small diamonds where the clip has keyframes. */
 function KeyMarks({ clip, zoom }: { clip: Clip; zoom: number }) {
   const times = new Set<number>();
@@ -88,7 +121,8 @@ function ClipBody({ clip, media, zoom }: { clip: Clip; media?: MediaItem; zoom: 
   const Icon = clip.kind === 'audio' ? Music : clip.kind === 'image' ? ImageIcon : Film;
   return (
     <>
-      {media?.thumb && clip.kind !== 'audio' && <span className="ve-clip-thumbs" style={{ backgroundImage: `url("${media.thumb}")` }} aria-hidden="true" />}
+      {clip.kind === 'video' && media && <Filmstrip clip={clip} media={media} width={clip.duration * zoom} />}
+      {media?.thumb && clip.kind === 'image' && <span className="ve-clip-thumbs" style={{ backgroundImage: `url("${media.thumb}")` }} aria-hidden="true" />}
       {clip.kind === 'audio' && (media ? <Waveform clip={clip} media={media} width={clip.duration * zoom} /> : <span className="ve-clip-wave" aria-hidden="true" />)}
       {fades}
       <KeyMarks clip={clip} zoom={zoom} />
@@ -123,6 +157,9 @@ export function Timeline() {
   /** While a clip is dragged: whether it is over one of the "new track" areas. */
   const [newTrackHint, setNewTrackHint] = useState<'top' | 'bottom' | null>(null);
   const [draggingClip, setDraggingClip] = useState(false);
+  /** The open right-click menu (of a clip or of empty track space). */
+  const [menu, setMenu] = useState<TimelineMenuState | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const { importFiles } = useImportFiles();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -276,7 +313,56 @@ export function Timeline() {
     select(clip.id);
     commit();
     const edges = edgesExcept(clip.id);
-    drag((e) => trimClip(clip.id, edge, snapTime(timeAt(e.clientX), edges, zoom)));
+    /** While trimming, the preview shows the frame at the edge being dragged (the new first or last frame). */
+    const showEdge = () => {
+      const st = useVideoEditorStore.getState();
+      const now = st.clips.find((c) => c.id === clip.id);
+      if (now) st.setPlayhead(edge === 'start' ? now.start : Math.max(now.start, clipEnd(now) - 1 / 30));
+    };
+    // The dragged edge follows the pointer: the start edge cuts the front, the end edge cuts the back.
+    drag((e) => {
+      trimClip(clip.id, edge, snapTime(timeAt(e.clientX), edges, zoom));
+      showEdge();
+    });
+  };
+
+  /** Right-click (or long-press) on a clip: select it (keeping a multi-selection it is part of) and open its menu. */
+  const openClipMenu = (clip: Clip, x: number, y: number) => {
+    const st = useVideoEditorStore.getState();
+    if (st.selectedId !== clip.id && !st.selectedIds.includes(clip.id)) select(clip.id);
+    setMenu({ kind: 'clip', clipId: clip.id, x, y, time: timeAt(x) });
+  };
+
+  /** Right-click (or long-press) on empty space of a track. */
+  const openLaneMenu = (track: Track, x: number, y: number) => {
+    setMenu({ kind: 'lane', trackId: track.id, x, y, time: timeAt(x) });
+  };
+
+  /**
+   * Touch screens have no right-click: holding a finger still for half a second opens the menu instead.
+   * Moving the finger first (dragging a clip, scrolling) cancels it.
+   */
+  const longPress = (event: React.PointerEvent, open: (x: number, y: number) => void) => {
+    if (event.pointerType !== 'touch') return;
+    const x0 = event.clientX;
+    const y0 = event.clientY;
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', cleanup);
+      window.removeEventListener('pointercancel', cleanup);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (Math.hypot(e.clientX - x0, e.clientY - y0) > 8) cleanup();
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      navigator.vibrate?.(10);
+      open(x0, y0);
+    }, 500);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', cleanup);
+    window.addEventListener('pointercancel', cleanup);
   };
 
   const onDrop = (event: React.DragEvent, track: Track) => {
@@ -370,7 +456,14 @@ export function Timeline() {
               key={track.id}
               data-track-id={track.id}
               className={`ve-lane is-${track.kind}`}
-              onPointerDown={startLanePointer}
+              onPointerDown={(e) => {
+                if (e.target === e.currentTarget) longPress(e, (x, y) => openLaneMenu(track, x, y));
+                startLanePointer(e);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openLaneMenu(track, e.clientX, e.clientY);
+              }}
               onDragOver={(e) => {
                 if (e.dataTransfer.types.includes(MEDIA_DRAG_TYPE) || e.dataTransfer.types.includes('Files')) e.preventDefault();
               }}
@@ -404,14 +497,26 @@ export function Timeline() {
                   onPointerDown={(e) => {
                     // Take focus from any text box, so Delete and other shortcuts act on the clip.
                     e.currentTarget.focus({ preventScroll: true });
+                    longPress(e, (x, y) => openClipMenu(clip, x, y));
                     startMove(e, clip);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openClipMenu(clip, e.clientX, e.clientY);
                   }}
                   role="button"
                   tabIndex={0}
                   aria-pressed={isSelected(clip.id)}
                   aria-label={`${clip.kind} clip ${clip.kind === 'text' ? clip.text : byId.get(clip.mediaId ?? '')?.name ?? ''}, ${formatTime(clip.start)} to ${formatTime(clipEnd(clip))}`}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      if (!isSelected(clip.id)) select(clip.id);
+                      setMenu({ kind: 'clip', clipId: clip.id, x: r.left + 12, y: r.bottom, time: Math.max(clip.start, Math.min(playhead, clipEnd(clip))) });
+                    } else if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       e.stopPropagation();
                       select(clip.id);
@@ -464,6 +569,7 @@ export function Timeline() {
           </div>
         </div>
       </div>
+      {menu && <TimelineContextMenu menu={menu} onClose={closeMenu} />}
     </div>
   );
 }

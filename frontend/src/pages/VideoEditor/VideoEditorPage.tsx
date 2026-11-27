@@ -19,6 +19,7 @@ import { AudioPanel } from '../../features/videoEditor/components/AudioPanel';
 import { SubtitlesPanel } from '../../features/videoEditor/components/SubtitlesPanel';
 import { AiToolsPanel } from '../../features/videoEditor/components/AiToolsPanel';
 import { ExportDialog } from '../../features/videoEditor/components/ExportDialog';
+import { PhoneNotice } from '../../features/videoEditor/components/PhoneNotice';
 import { drawFrame, frameSize } from '../../features/videoEditor/render';
 import { downloadBlob, fileBase, previewLookup } from '../../features/videoEditor/sources';
 import { useImportFiles } from '../../features/videoEditor/useImportFiles';
@@ -221,6 +222,8 @@ function Editor() {
   const { status: saveStatus, ready, startNew } = useEditorAutosave();
   const [confirmNew, setConfirmNew] = useState(false);
   const [tab, setTab] = useState<Tab>('media');
+  /** The side panel can be folded away (tap the open tab again) to give the preview more room on tablets. */
+  const [sideOpen, setSideOpen] = useState(true);
   const [exporting, setExporting] = useState(false);
   const snap = useVideoEditorStore((s) => s.snap);
   const name = useVideoEditorStore((s) => s.name);
@@ -261,6 +264,11 @@ function Editor() {
       onDragOver={(e) => {
         if (hasFiles(e)) e.preventDefault();
       }}
+      // The browser's own right-click menu is off in the editor (clips have their own menu);
+      // text fields keep it for copy and paste.
+      onContextMenu={(e) => {
+        if (!isTyping(e.target)) e.preventDefault();
+      }}
       onDrop={(e) => {
         dragDepth.current = 0;
         setDragging(false);
@@ -299,12 +307,25 @@ function Editor() {
       <div className="ve-body">
         <nav className="ve-rail" aria-label="Editor tools">
           {TABS.map((t) => (
-            <button key={t.id} type="button" className={tab === t.id ? 'is-on' : ''} aria-pressed={tab === t.id} onClick={() => setTab(t.id)}>
+            <button
+              key={t.id}
+              type="button"
+              className={tab === t.id && sideOpen ? 'is-on' : ''}
+              aria-pressed={tab === t.id && sideOpen}
+              title={tab === t.id && sideOpen ? `Hide ${t.label}` : t.label}
+              onClick={() => {
+                if (tab === t.id) setSideOpen((open) => !open);
+                else {
+                  setTab(t.id);
+                  setSideOpen(true);
+                }
+              }}
+            >
               {t.icon} {t.label}
             </button>
           ))}
         </nav>
-        <section className="ve-side">
+        <section className="ve-side" hidden={!sideOpen}>
           {tab === 'media' && <MediaPanel />}
           {tab === 'text' && <TextPanel />}
           {tab === 'audio' && <AudioPanel />}
@@ -326,7 +347,7 @@ function Editor() {
           <button type="button" className="ve-icon-btn" onClick={deleteSelected} disabled={!hasSelection} aria-label="Delete selected clip" title="Delete (Del)"><Trash2 size={16} /></button>
           <button type="button" className="ve-icon-btn" onClick={rippleDeleteSelected} disabled={!hasSelection} aria-label="Delete and close the gap" title="Delete and close gap (Shift+Del)"><Unlink size={16} /></button>
           <span className="ve-divider" aria-hidden="true" />
-          <button type="button" className="ve-icon-btn" onClick={closeGaps} disabled={total === 0} aria-label="Remove gaps on the track" title="Remove gaps (selected clip's track, or the main video track)"><AlignHorizontalJustifyStart size={16} /></button>
+          <button type="button" className="ve-icon-btn" onClick={() => closeGaps()} disabled={total === 0} aria-label="Remove gaps on the track" title="Remove gaps (selected clip's track, or the main video track)"><AlignHorizontalJustifyStart size={16} /></button>
           <button type="button" className="ve-icon-btn" onClick={toggleSnap} aria-pressed={snap} aria-label="Snapping" title={snap ? 'Snapping on' : 'Snapping off'}><Magnet size={16} /></button>
         </div>
         <div className="ve-controls-center">
@@ -346,6 +367,7 @@ function Editor() {
 
       <Timeline />
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      <PhoneNotice />
       {!ready && (
         <div className="ve-restoring" role="status">
           <Loader2 size={22} className="ve-spin" aria-hidden="true" /> Opening your last video…

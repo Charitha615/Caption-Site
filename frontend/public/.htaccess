@@ -8,10 +8,16 @@ DirectoryIndex index.html
     RewriteEngine On
     RewriteBase /
 
-    # One address for the whole site: sinsub.cc and www. go to https://sinsub.lk (keeps the path).
-    RewriteCond %{HTTP_HOST} ^(www\.)?sinsub\.cc$ [NC,OR]
-    RewriteCond %{HTTP_HOST} ^www\.sinsub\.lk$ [NC]
-    RewriteRule ^ https://sinsub.lk%{REQUEST_URI} [L,R=301]
+    # One address for the whole site (keeps the path).
+    # NOW: sinsub.cc is the main domain; www.sinsub.cc goes to it.
+    RewriteCond %{HTTP_HOST} ^www\.sinsub\.cc$ [NC]
+    RewriteRule ^ https://sinsub.cc%{REQUEST_URI} [L,R=301]
+
+    # LATER, once sinsub.lk is bought and points at this site: delete the 2 lines above
+    # and uncomment these 3, so sinsub.cc, www.sinsub.cc and www.sinsub.lk all go to https://sinsub.lk.
+    # RewriteCond %{HTTP_HOST} ^(www\.)?sinsub\.cc$ [NC,OR]
+    # RewriteCond %{HTTP_HOST} ^www\.sinsub\.lk$ [NC]
+    # RewriteRule ^ https://sinsub.lk%{REQUEST_URI} [L,R=301]
 
     # Force HTTPS (Hostinger terminates SSL at its proxy)
     RewriteCond %{HTTPS} !=on

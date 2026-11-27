@@ -4,7 +4,7 @@
  */
 import { BRAND } from '../config/brand';
 import { PRICING_CURRENCY, PRICING_PLANS } from '../config/pricing';
-import { CONTENT_PAGES, GUIDES, type ContentPageData } from '../pages/Marketing/content';
+import { CONTENT_PAGES, guidesLabel, guidesOf, guidesPath, homePath, otherLanguagePath, type ContentPageData, type Lang } from '../pages/Marketing/content';
 import { LANDING_FAQ } from '../pages/Landing/landingFaq';
 import { absoluteUrl, OG_IMAGE, SITE_URL, type SeoMeta } from './site';
 
@@ -59,16 +59,19 @@ const breadcrumbs = (trail: { name: string; path: string }[]) => ({
 
 const withContext = (items: object[]) => items.map((i) => ({ '@context': 'https://schema.org', ...i }));
 
-const HOME_ALTERNATES: SeoMeta['alternates'] = [
-  { lang: 'en', path: '/' },
-  { lang: 'si', path: '/si' },
-  { lang: 'x-default', path: '/' },
-];
+/** hreflang links for a page that exists in both languages (English is the default). */
+function alternatesFor(path: string, lang: Lang): SeoMeta['alternates'] {
+  const other = otherLanguagePath(path);
+  if (!other) return undefined;
+  const en = lang === 'en' ? path : other;
+  const si = lang === 'si' ? path : other;
+  return [{ lang: 'en', path: en }, { lang: 'si', path: si }, { lang: 'x-default', path: en }];
+}
 
 function contentMeta(page: ContentPageData): SeoMeta {
   const trail = page.kind === 'guide'
-    ? [{ name: BRAND.name, path: '/' }, { name: 'Guides', path: '/guides' }, { name: page.h1, path: page.path }]
-    : [{ name: BRAND.name, path: '/' }, { name: page.linkLabel, path: page.path }];
+    ? [{ name: BRAND.name, path: homePath(page.lang) }, { name: guidesLabel(page.lang), path: guidesPath(page.lang) }, { name: page.h1, path: page.path }]
+    : [{ name: BRAND.name, path: homePath(page.lang) }, { name: page.linkLabel, path: page.path }];
   const ld: object[] = [];
   if (page.kind === 'home') ld.push(organization, website, app);
   if (page.kind === 'feature') ld.push(app);
@@ -103,8 +106,23 @@ function contentMeta(page: ContentPageData): SeoMeta {
     path: page.path,
     lang: page.lang,
     type: page.kind === 'guide' ? 'article' : 'website',
-    alternates: page.kind === 'home' ? HOME_ALTERNATES : undefined,
+    alternates: alternatesFor(page.path, page.lang),
     jsonLd: withContext(ld),
+  };
+}
+
+function guidesIndexMeta(lang: Lang, title: string, description: string): SeoMeta {
+  const path = guidesPath(lang);
+  return {
+    title,
+    description,
+    path,
+    lang,
+    alternates: alternatesFor(path, lang),
+    jsonLd: withContext([
+      { '@type': 'CollectionPage', name: guidesLabel(lang), inLanguage: lang, hasPart: guidesOf(lang).map((g) => ({ '@type': 'Article', headline: g.h1, url: absoluteUrl(g.path) })) },
+      breadcrumbs([{ name: BRAND.name, path: homePath(lang) }, { name: guidesLabel(lang), path }]),
+    ]),
   };
 }
 
@@ -116,19 +134,20 @@ export const PUBLIC_PAGES: SeoMeta[] = [
     description: 'Automatic Sinhala and English captions for your videos, with word-by-word timing, beautiful styles and SRT, VTT or MP4 export. Free to start.',
     path: '/',
     lang: 'en',
-    alternates: HOME_ALTERNATES,
+    alternates: alternatesFor('/', 'en'),
     jsonLd: withContext([organization, website, app, faqLd(LANDING_FAQ)]),
   },
   ...CONTENT_PAGES.map(contentMeta),
+  guidesIndexMeta('en', 'Guides: Sinhala Subtitles, Captions and Video Editing',
+    'Step-by-step guides for adding Sinhala subtitles to YouTube, making captions for TikTok and Reels, and creating SRT files.'),
+  guidesIndexMeta('si', 'මාර්ගෝපදේශ: සිංහල Subtitles, Captions සහ Video Editing',
+    'YouTube වලට සිංහල subtitles දාන හැටි, TikTok සහ Reels වලට captions හදන හැටි, SRT files හදන හැටි වගේ පියවරෙන් පියවර මාර්ගෝපදේශ.'),
   {
-    title: 'Guides: Sinhala Subtitles, Captions and Video Editing',
-    description: 'Step-by-step guides for adding Sinhala subtitles to YouTube, making captions for TikTok and Reels, and creating SRT files.',
-    path: '/guides',
+    title: 'Privacy Policy',
+    description: `How ${BRAND.name} collects, uses and protects your account details, videos and captions, including Google sign-in.`,
+    path: '/privacy',
     lang: 'en',
-    jsonLd: withContext([
-      { '@type': 'CollectionPage', name: 'Guides', hasPart: GUIDES.map((g) => ({ '@type': 'Article', headline: g.h1, url: absoluteUrl(g.path) })) },
-      breadcrumbs([{ name: BRAND.name, path: '/' }, { name: 'Guides', path: '/guides' }]),
-    ]),
+    jsonLd: withContext([breadcrumbs([{ name: BRAND.name, path: '/' }, { name: 'Privacy Policy', path: '/privacy' }])]),
   },
 ];
 
@@ -136,6 +155,8 @@ export const PUBLIC_PAGES: SeoMeta[] = [
 export const NOINDEX_PAGES: SeoMeta[] = [
   { title: 'Sign in', description: `Sign in to ${BRAND.name}.`, path: '/login', lang: 'en', noindex: true },
   { title: 'Create your free account', description: `Create a free ${BRAND.name} account.`, path: '/register', lang: 'en', noindex: true },
+  { title: 'Forgot password', description: `Reset your ${BRAND.name} password.`, path: '/forgot-password', lang: 'en', noindex: true },
+  { title: 'Set a new password', description: `Choose a new ${BRAND.name} password.`, path: '/reset-password', lang: 'en', noindex: true },
 ];
 
 export const seoFor = (path: string): SeoMeta | undefined =>

@@ -51,6 +51,8 @@
   padding: 10px 12px; border-radius: 10px; font-size: 0.88rem;
   background: var(--status-error-bg); color: var(--status-error-text); border: 1px solid var(--status-error-border);
 }
+.auth-alert-success { background: var(--status-success-bg); color: var(--status-success-text); border-color: var(--status-success-border); }
+a.auth-social { text-decoration: none; }
 
 .auth-divider { position: relative; margin: 22px 0; text-align: center; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
 .auth-divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: color-mix(in srgb, var(--border-color) 70%, transparent); }

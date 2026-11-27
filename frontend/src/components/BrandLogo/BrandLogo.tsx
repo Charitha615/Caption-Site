@@ -1,7 +1,7 @@
 import { BRAND } from '../../config/brand';
 import './BrandLogo.css';
 
-/** Splits "සිංසබ්.lk" into the Sinhala name and the English domain ending (".lk"). */
+/** Splits a logo like "name.lk" into the Sinhala name and an English ending; a plain name has no ending. */
 function splitLogo(text: string): { name: string; ending: string } {
   const dot = text.lastIndexOf('.');
   if (dot <= 0) return { name: text, ending: '' };
@@ -9,7 +9,7 @@ function splitLogo(text: string): { name: string; ending: string } {
 }
 
 /**
- * The product wordmark: Sinhala name + English ".lk", e.g. සිංසබ්.lk.
+ * The product wordmark (the Sinhala name, optionally with an English ending such as ".lk").
  * Screen readers hear the plain product name ("Sinsub").
  */
 export function BrandLogo({ className = '' }: { className?: string }) {

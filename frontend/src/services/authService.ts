@@ -19,6 +19,18 @@ export const authService = {
     return res.data.data;
   },
 
+  /** Emails a reset link. Answers the same whether or not the email has an account. Returns the server's message. */
+  async forgotPassword(email: string): Promise<string> {
+    const res = await apiClient.post<ApiResponse<null>>('/auth/forgot-password', { email });
+    return res.data.message;
+  },
+
+  /** Sets a new password from the emailed link's token. Returns the server's message. */
+  async resetPassword(data: { token: string; email: string; password: string; password_confirmation: string }): Promise<string> {
+    const res = await apiClient.post<ApiResponse<null>>('/auth/reset-password', data);
+    return res.data.message;
+  },
+
   async logout(): Promise<void> {
     await apiClient.post<ApiResponse<null>>('/auth/logout');
   },

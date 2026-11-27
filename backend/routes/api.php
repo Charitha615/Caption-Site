@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CaptionTemplateController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\MediaStreamController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SettingsController;
@@ -48,6 +49,8 @@ Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::post('/google', [AuthController::class, 'google'])->middleware('throttle:login');
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendLink'])->middleware('throttle:password-reset');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:password-reset');
 });
 
 /*

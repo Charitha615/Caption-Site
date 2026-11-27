@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { forgetDecodedAudio } from './ai/timelineAudio';
+import { forgetFilmstrip } from './filmstrip';
 import { forgetCustomFonts, type CustomFont } from './customFonts';
 import {
   DEFAULT_CHROMA, DEFAULT_FILTER, DEFAULT_TEXT_STYLE, DEFAULT_TRANSFORM, IMAGE_DEFAULT_DURATION, KEY_EPSILON, MIN_CLIP_DURATION,
@@ -146,8 +147,8 @@ export interface VideoEditorState extends Snapshot {
   /** Deletes the selected clip and pulls later clips on its track left to close the hole. */
   rippleDeleteSelected: () => void;
   duplicateSelected: () => void;
-  /** Packs the clips of a track (the selected clip's, or the main video track) one after another from 0. */
-  closeGaps: () => void;
+  /** Packs the clips of a track (the given one, else the selected clip's, else the main video track) one after another from 0. */
+  closeGaps: (trackId?: string) => void;
   /**
    * Adds a track (no history entry; call `commit` first). By default visual tracks go above the others
    * of their kind and audio at the bottom; 'top' / 'bottom' put it above or below every track of its kind
@@ -323,6 +324,7 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
       const item = get().media.find((m) => m.id === id);
       if (!item) return;
       record();
+      forgetFilmstrip(item.url);
       URL.revokeObjectURL(item.url);
       set((s) => ({
         media: s.media.filter((m) => m.id !== id),
@@ -705,9 +707,9 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
       });
     },
 
-    closeGaps: () => {
+    closeGaps: (only) => {
       const { selectedId, clips, tracks } = get();
-      const trackId = clips.find((c) => c.id === selectedId)?.trackId ?? tracks.find((t) => t.kind === 'video')?.id;
+      const trackId = only ?? clips.find((c) => c.id === selectedId)?.trackId ?? tracks.find((t) => t.kind === 'video')?.id;
       if (!trackId) return;
       const onTrack = clips.filter((c) => c.trackId === trackId).sort((a, b) => a.start - b.start);
       let cursor = 0;
@@ -771,7 +773,10 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
     toggleTrack: (id, key) => set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, [key]: !t[key] } : t)) })),
 
     reset: () => {
-      get().media.forEach((m) => URL.revokeObjectURL(m.url));
+      get().media.forEach((m) => {
+        forgetFilmstrip(m.url);
+        URL.revokeObjectURL(m.url);
+      });
       forgetCustomFonts();
       forgetDecodedAudio();
       lastEdit = { id: '', at: 0 };

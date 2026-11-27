@@ -3,7 +3,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, UserRound } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { BRAND } from '../../config/brand';
 import { fieldError, toAppError, type AppError } from '../../services/errors';
 import { safeNextPath } from '../../utils/navigation';
 import { FancyButton } from '../../components/ui/FancyButton/FancyButton';
@@ -72,7 +71,7 @@ export const LoginPage: React.FC = () => {
           onChange={(e) => setPassword(e.target.value)}
           error={fieldError(error, 'password')}
           labelAside={
-            <a className="auth-link" href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent('Password reset')}`}>Forgot password?</a>
+            <Link className="auth-link" to="/forgot-password">Forgot password?</Link>
           }
           required
         />

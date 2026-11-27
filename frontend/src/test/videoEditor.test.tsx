@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { totalDuration, useVideoEditorStore } from '../features/videoEditor/store';
@@ -156,5 +156,78 @@ describe('Video editor page', () => {
     await user.click(screen.getByRole('button', { name: /^Export/ }));
     const dialog = screen.getByRole('dialog', { name: 'Export video' });
     expect(dialog).toHaveTextContent(/can.t record video/);
+  });
+});
+
+describe('Video editor: trimming and the right-click menus', () => {
+  beforeEach(() => {
+    store().reset();
+    store().addMedia(video);
+  });
+
+  it('trims a clip from the edge that is dragged, keeping the other edge where it is', () => {
+    store().addMediaClip('m-video');
+    const id = store().clips[0]!.id;
+    store().trimClip(id, 'start', 3);
+    // Start edge: the front is cut and the end stays at 10 s.
+    expect(store().clips[0]).toMatchObject({ start: 3, duration: 7, offset: 3 });
+    store().trimClip(id, 'end', 8);
+    // End edge: the back is cut and the start stays at 3 s.
+    expect(store().clips[0]).toMatchObject({ start: 3, duration: 5, offset: 3 });
+  });
+
+  it('opens a clip menu on right-click that splits the clip where it was clicked', async () => {
+    store().addMediaClip('m-video');
+    const { container } = render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    const clip = container.querySelector<HTMLElement>('[data-clip-id]')!;
+    const zoom = store().zoom;
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 4 * zoom });
+    clip.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    const menu = await screen.findByRole('menu', { name: 'Clip actions' });
+    expect(menu).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /Split here/ }));
+    expect(store().clips.map((c) => [c.start, c.duration, c.offset])).toEqual([[0, 4, 0], [4, 6, 4]]);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('opens a timeline menu on empty track space that closes the gap under the pointer', async () => {
+    store().addMediaClip('m-video');
+    store().addMediaClip('m-video');
+    const second = store().clips[1]!;
+    store().moveClip(second.id, 14);
+    const { container } = render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    const lane = container.querySelector<HTMLElement>('[data-track-id="track-video"]')!;
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 12 * store().zoom });
+    lane.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    await screen.findByRole('menu', { name: 'Timeline actions' });
+    await userEvent.click(screen.getByRole('menuitem', { name: /Close this gap/ }));
+    expect(store().clips.map((c) => c.start)).toEqual([0, 10]);
+    store().undo();
+    expect(store().clips.map((c) => c.start)).toEqual([0, 14]);
+  });
+});
+
+describe('Video editor on a phone', () => {
+  it('suggests a tablet or computer, and can be dismissed', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: true, media: query, onchange: null,
+      addEventListener: () => undefined, removeEventListener: () => undefined,
+      addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    sessionStorage.clear();
+    try {
+      store().reset();
+      render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+      const notice = screen.getByRole('dialog', { name: /works best on a bigger screen/ });
+      expect(within(notice).getByRole('link', { name: 'Back to dashboard' })).toHaveAttribute('href', '/dashboard');
+      await userEvent.click(screen.getByRole('button', { name: 'Continue anyway' }));
+      expect(screen.queryByRole('dialog', { name: /works best on a bigger screen/ })).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+      sessionStorage.clear();
+    }
   });
 });

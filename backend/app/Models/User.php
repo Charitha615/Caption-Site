@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use App\Support\AppLog;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -155,5 +156,11 @@ class User extends Authenticatable
     public function settings(): HasMany
     {
         return $this->hasMany(Setting::class);
+    }
+
+    /** "Forgot password" email, with a link to the frontend's reset page. */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 }

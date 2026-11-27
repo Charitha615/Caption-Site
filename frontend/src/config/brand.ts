@@ -1,7 +1,7 @@
 export interface BrandConfig {
   name: string;
   shortName: string;
-  /** Logo wordmark, e.g. "සිංසබ්.lk" (Sinhala name + English domain ending). */
+  /** Logo wordmark, e.g. "සිංසබ්". */
   logoText: string;
   domain: string;
   tagline: string;
@@ -29,14 +29,14 @@ const name = env.VITE_BRAND_NAME?.trim() || 'Sinsub';
 /**
  * SINGLE SOURCE OF FRONTEND BRANDING.
  *
- * Rename the product (e.g. to "Sinsub") with VITE_BRAND_NAME; the logo is VITE_BRAND_LOGO_TEXT ("සිංසබ්.lk") in frontend/.env —
+ * Rename the product (e.g. to "Sinsub") with VITE_BRAND_NAME; the logo is VITE_BRAND_LOGO_TEXT ("සිංසබ්") in frontend/.env —
  * every screen, the document title and index.html read from here. Pair it with
  * BRAND_NAME in backend/.env (used in API metadata and rendered files).
  */
 export const BRAND: BrandConfig = {
   name,
   shortName: env.VITE_BRAND_SHORT_NAME?.trim() || name,
-  logoText: env.VITE_BRAND_LOGO_TEXT?.trim() || 'සිංසබ්.lk',
+  logoText: env.VITE_BRAND_LOGO_TEXT?.trim() || 'සිංසබ්',
   domain: env.VITE_BRAND_DOMAIN?.trim() || 'sinsub.lk',
   tagline: env.VITE_BRAND_TAGLINE?.trim() || 'Sinhala & English video captions',
   description: env.VITE_BRAND_DESCRIPTION?.trim() || 'Create, edit and export Sinhala and English captions for your videos.',
