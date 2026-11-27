@@ -42,4 +42,13 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /** On Pro until a month from now. */
+    public function pro(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'plan' => 'pro',
+            'plan_expires_at' => now()->addMonth(),
+        ]);
+    }
 }

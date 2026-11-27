@@ -53,8 +53,10 @@ class AssCaptionRenderer
     /**
      * @param  array<int, array{start: float, end: float, text: string, language?: string, words?: ?array, style_override?: ?array}>  $captions
      * @param  array  $style  global (project) style
+     * @param  ?string  $watermark  small brand mark shown for the whole video (free plan), e.g. "සිංSub"
+     * @param  float  $duration  video length in seconds, for the watermark (0 = unknown)
      */
-    public function render(array $captions, array $style, int $width, int $height): string
+    public function render(array $captions, array $style, int $width, int $height, ?string $watermark = null, float $duration = 0): string
     {
         $global = $this->normalizer->normalize($style);
         $scale = min($width, $height) / 1080;
@@ -77,7 +79,28 @@ class AssCaptionRenderer
             array_push($lines, ...$this->captionEvents($text, $start, $end, $words, $resolved, $width, $height, $scale));
         }
 
+        if ($watermark !== null && trim($watermark) !== '') {
+            $lines[] = $this->watermarkEvent($watermark, $width, $height, $scale, $duration);
+        }
+
         return $this->header($width, $height, $global).implode("\n", $lines)."\n";
+    }
+
+    /**
+     * A small, semi-transparent mark in the bottom-right corner for the whole video, on its own
+     * top layer so captions never cover it. libass shapes the Sinhala letters like the captions.
+     */
+    protected function watermarkEvent(string $text, int $w, int $h, float $scale, float $duration): string
+    {
+        $size = max(14, round(30 * $scale));
+        $margin = (int) round(max(12, 28 * $scale));
+        // Unknown length: long enough for any video the plans allow.
+        $end = $duration > 0 ? $duration + 1 : 6 * 3600;
+
+        return sprintf(
+            'Dialogue: 99,%s,%s,Watermark,,0000,0000,0000,,{\an3\pos(%d,%d)\fs%s\bord%s\1a&H55&\3a&H99&}%s',
+            $this->time(0), $this->time($end), $w - $margin, $h - $margin, $this->num($size), $this->num(max(1, 2 * $scale)), $this->escape($text),
+        );
     }
 
     /* ------------------------------------------------------------------ events */
@@ -508,6 +531,7 @@ class AssCaptionRenderer
             "Style: Text,{$sinhala},48,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1",
             "Style: Box,{$sinhala},48,&HFF000000,&HFF000000,&HFF000000,&HFF000000,0,0,0,0,100,100,0,0,4,0,0,2,0,0,0,1",
             "Style: WordBox,{$sinhala},48,&HFF000000,&HFF000000,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,3,0,0,2,0,0,0,1",
+            "Style: Watermark,{$sinhala},30,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,1,0,0,0,100,100,0,0,1,2,0,3,0,0,0,1",
             '',
             '[Events]',
             'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',

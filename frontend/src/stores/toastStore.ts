@@ -8,6 +8,8 @@ export interface ToastItem {
   title?: string;
   message: string;
   duration?: number;
+  /** A link under the message, e.g. { label: 'See Pro', href: '/billing' }. */
+  action?: { label: string; href: string };
 }
 
 interface ToastState {

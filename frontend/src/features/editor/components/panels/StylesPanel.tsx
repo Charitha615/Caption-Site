@@ -8,6 +8,8 @@ import { useTemplateStore } from '../../../../stores/editor/templateStore';
 import { apiErrorMessage } from '../../../../services/exportService';
 import { sanitizeStyle } from '../../utils/captionStyle';
 import { applyPresetLook, BUILT_IN_PRESETS } from '../../model/presets';
+import { usePlan } from '../../../../hooks/usePlan';
+import { PRO_ANIMATIONS } from '../../../../config/pricing';
 import type { CaptionStyle } from '../../model/types';
 import { Segmented } from '../controls';
 import { CaptionBox } from '../player/CaptionBox';
@@ -23,6 +25,7 @@ const PresetCard = memo(function PresetCard({
   selected,
   onApply,
   onDelete,
+  pro = false,
 }: {
   label: string;
   description: string;
@@ -31,6 +34,8 @@ const PresetCard = memo(function PresetCard({
   selected: boolean;
   onApply: () => void;
   onDelete?: () => void;
+  /** Shows a "Pro" badge: the style can be tried, but exporting it needs Pro. */
+  pro?: boolean;
 }) {
   const previewStyle = { ...style, maxWidth: 100, animation: 'none' as const };
   return (
@@ -47,6 +52,7 @@ const PresetCard = memo(function PresetCard({
         <div className="ed-preset-meta">
           <span className="ed-preset-name">
             {label}
+            {pro && <span className="ed-pro-badge" title="Exporting this style needs Pro">Pro</span>}
             {selected && <Check size={13} />}
           </span>
           <span className="ed-preset-desc">{description}</span>
@@ -82,6 +88,8 @@ export const StylesPanel = memo(function StylesPanel() {
   }, [isDemo]);
 
   const target = scope === 'caption' && selected ? selected.id : null;
+  const plan = usePlan();
+  const proLocked = plan.known && !plan.features.premium_styles;
   const currentPreset = target ? selected?.styleOverride?.preset ?? style.preset : style.preset;
 
   return (
@@ -109,6 +117,7 @@ export const StylesPanel = memo(function StylesPanel() {
             sample={p.sample}
             style={applyPresetLook(style, p.key, p.look)}
             selected={currentPreset === p.key}
+            pro={proLocked && PRO_ANIMATIONS.includes(p.look.animation)}
             onApply={() => useCaptionStore.getState().applyPreset(p.key, target)}
           />
         ))}

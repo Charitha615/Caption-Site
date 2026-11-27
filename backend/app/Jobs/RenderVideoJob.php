@@ -75,7 +75,14 @@ class RenderVideoJob implements ShouldQueue
             File::ensureDirectoryExists($workDir, 0700);
             $assPath = $workDir.'/captions.ass';
             $outPath = $workDir.'/output.mp4';
-            file_put_contents($assPath, $captionRenderer->render($exports->captionsFor($project), $meta['style'] ?? [], $width, $height));
+            file_put_contents($assPath, $captionRenderer->render(
+                $exports->captionsFor($project),
+                $meta['style'] ?? [],
+                $width,
+                $height,
+                ! empty($meta['watermark']) ? (string) config('brand.title_name') : null,
+                (float) ($meta['duration'] ?? 0),
+            ));
 
             $lastWrite = 0.0;
             $lastCancelCheck = 0.0;

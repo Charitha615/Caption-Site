@@ -65,6 +65,8 @@ class User extends Authenticatable
             // Encrypted at rest with APP_KEY. Never serialised (see $hidden).
             'gemini_api_key' => 'encrypted',
             'gemini_key_checked_at' => 'datetime',
+            'plan_expires_at' => 'datetime',
+            'plan_reminded_at' => 'datetime',
         ];
     }
 
@@ -88,11 +90,38 @@ class User extends Authenticatable
         return $this->hasMany(UsageRecord::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /** The plan in force now: a paid plan whose end date has passed counts as the default plan. */
     public function planKey(): string
     {
         $plan = $this->plan ?: config('plans.default');
+        if (! array_key_exists($plan, config('plans.plans'))) {
+            return config('plans.default');
+        }
+        if ($plan !== config('plans.default') && $this->plan_expires_at && $this->plan_expires_at->isPast()) {
+            return config('plans.default');
+        }
 
-        return array_key_exists($plan, config('plans.plans')) ? $plan : config('plans.default');
+        return $plan;
+    }
+
+    /**
+     * What the current plan includes (see config/plans.php `features`).
+     *
+     * @return array{max_export_height: int, watermark: bool, premium_styles: bool, editor_ai: bool, priority_support: bool}
+     */
+    public function planFeatures(): array
+    {
+        return config('plans.plans.'.$this->planKey().'.features');
+    }
+
+    public function hasFeature(string $feature): bool
+    {
+        return (bool) ($this->planFeatures()[$feature] ?? false);
     }
 
     /**

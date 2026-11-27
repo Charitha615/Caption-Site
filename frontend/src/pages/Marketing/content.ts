@@ -72,7 +72,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
             { title: 'Upload your video', text: 'MP4, MOV, WEBM or MKV. Large uploads resume if the connection drops.' },
             { title: 'Get the subtitles', text: 'The speech is transcribed and every word is timed automatically.' },
             { title: 'Edit and style', text: 'Correct any word, adjust timings on the timeline and pick a caption style and font.' },
-            { title: 'Export', text: 'Download SRT, VTT or TXT, or render an MP4 from 720p up to 4K with the captions burned in.' },
+            { title: 'Export', text: 'Download SRT, VTT or TXT, or render an MP4 with the captions burned in: HD on Free, up to 4K on Pro.' },
           ] },
         ],
       },
@@ -84,7 +84,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
       },
     ],
     faq: [
-      { q: 'Is the Sinhala subtitle generator free?', a: 'Yes. The free plan includes 120 caption minutes every month, all caption styles and SRT, VTT and MP4 export.' },
+      { q: 'Is the Sinhala subtitle generator free?', a: 'Yes. The free plan includes 30 caption minutes every month, 6 caption styles, SRT, VTT and TXT files and HD (720p) MP4 export. Pro (LKR 490 a month) adds 600 minutes, 4K, every style and the AI tools.' },
       { q: 'Can it handle Sinhala mixed with English?', a: 'Yes. Mixed speech is common in Sri Lanka, so English words inside Sinhala speech are written in English letters automatically.' },
       { q: 'Which subtitle formats can I download?', a: 'SRT, VTT and plain text, or an MP4 video with the captions burned in.' },
     ],
@@ -153,7 +153,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
         ],
       },
       {
-        heading: 'AI tools',
+        heading: 'AI tools (Pro)',
         blocks: [
           { kind: 'list', items: [
             'Sinhala and English subtitles generated from the speech.',
@@ -209,7 +209,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
           { kind: 'p', text: 'Burned-in captions are always visible and keep your style (font, colour, highlight). This works best for Shorts and for videos that are also shared on Facebook or WhatsApp.' },
           { kind: 'steps', items: [
             { title: 'Pick a caption style', text: 'Choose a style and font in the editor.' },
-            { title: 'Export MP4', text: 'Render the video at 720p, 1080p or up to 4K.' },
+            { title: 'Export MP4', text: 'Render the video in HD (720p), or at 1080p up to 4K on Pro.' },
             { title: 'Upload the new video', text: 'Upload the exported MP4 to YouTube.' },
           ] },
         ],
@@ -363,7 +363,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
       },
     ],
     faq: [
-      { q: 'මේක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 120ක්, හැම caption style එකක්ම, SRT සහ MP4 export තියෙනවා.' },
+      { q: 'මේක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 30ක්, caption styles 6ක්, SRT සහ HD (720p) MP4 export තියෙනවා. Pro (මාසෙට රු. 490) එකේ minutes 600ක්, 4K, හැම style එකක්ම සහ AI tools තියෙනවා.' },
       { q: 'සිංහල සහ English මිශ්‍ර කතාවට වැඩ කරනවද?', a: 'ඔව්. සිංහල කතාව ඇතුළේ තියෙන English වචන English අකුරින්ම ලියවෙනවා.' },
       { q: 'මගේ videos ආරක්ෂිතද?', a: 'ඔව්. Files private විදියට තියාගන්නවා. Project එකක් delete කළොත් ඒකේ files ත් මැකෙනවා.' },
     ],

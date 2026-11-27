@@ -30,7 +30,8 @@ class ExportApiTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
 
-        $this->owner = User::factory()->create();
+        // Pro: these tests cover Full HD / 4K renders (free exports are capped at 720p, see ProFeaturesTest).
+        $this->owner = User::factory()->pro()->create();
         $this->project = Project::factory()->create([
             'user_id' => $this->owner->id,
             'name' => 'සිංහල ව්‍යාපෘතිය',
@@ -173,8 +174,9 @@ class ExportApiTest extends TestCase
 
         $this->as($this->owner)->postJson($url, ['type' => 'mp4'])->assertStatus(201);
         $this->as($this->owner)->postJson($url, ['type' => 'mp4'])->assertStatus(201);
-        $this->as($this->owner)->postJson($url, ['type' => 'mp4'])->assertStatus(422); // max 2 active renders
-        Queue::assertPushed(RenderVideoJob::class, 2);
+        $this->as($this->owner)->postJson($url, ['type' => 'mp4'])->assertStatus(201);
+        $this->as($this->owner)->postJson($url, ['type' => 'mp4'])->assertStatus(422); // Pro: max 3 active renders
+        Queue::assertPushed(RenderVideoJob::class, 3);
     }
 
     public function test_4k_allowed_when_source_is_4k(): void

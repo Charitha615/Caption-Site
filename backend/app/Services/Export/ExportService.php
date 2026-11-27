@@ -2,6 +2,7 @@
 
 namespace App\Services\Export;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Jobs\RenderVideoJob;
 use App\Models\CaptionTemplate;
 use App\Models\Export;
@@ -69,8 +70,16 @@ class ExportService
         }
 
         [$sourceW, $sourceH] = $this->sourceDimensions($project);
-        $resolution = $data['resolution'] ?? '1080';
+        $maxHeight = $this->usage->maxExportHeight($user);
+        $resolution = $data['resolution'] ?? ($maxHeight >= 1080 ? '1080' : (string) $maxHeight);
         $shortSide = $resolution === 'source' ? null : (int) config("captions.resolutions.{$resolution}");
+        if ($shortSide && $shortSide > $maxHeight) {
+            throw new UsageLimitExceededException("Exports above {$maxHeight}p (Full HD, 2K and 4K) are part of Pro.", 'max_export_height');
+        }
+        if ($shortSide === null && min($sourceW, $sourceH) > $maxHeight) {
+            // "Same as source" on a plan with a lower cap: the plan's best size instead.
+            $shortSide = $maxHeight;
+        }
         if ($shortSide && $shortSide > 1080 && $shortSide > min($sourceW, $sourceH)) {
             $label = $shortSide >= 2160 ? '4K' : '2K';
             throw ValidationException::withMessages(['resolution' => "{$label} export needs a source video that is at least {$shortSide}p."]);
@@ -87,6 +96,9 @@ class ExportService
                 throw ValidationException::withMessages(['template' => 'That caption template does not exist.']);
             }
         }
+
+        $style = $this->styleFor($project, $template);
+        $this->usage->ensureCanUseStyles($user, $this->animationsUsed($project, $style));
 
         $export = Export::create([
             'project_id' => $project->id,
@@ -105,7 +117,8 @@ class ExportService
                 'duration' => (float) ($media->duration ?: $project->duration ?: 0),
                 'template' => $template ? ['uuid' => $template->uuid, 'name' => $template->name] : null,
                 // Snapshot so later edits don't change a render already in the queue.
-                'style' => $this->styleFor($project, $template),
+                'style' => $style,
+                'watermark' => $user->hasFeature('watermark'),
             ],
         ]);
 
@@ -167,6 +180,20 @@ class ExportService
                 'words' => $c->metadata['words'] ?? null,
                 'style_override' => $c->style_override,
             ])->all();
+    }
+
+    /**
+     * Caption animations an export would use: the main style's, plus any per-caption overrides.
+     *
+     * @return array<int, string>
+     */
+    public function animationsUsed(Project $project, array $style): array
+    {
+        $overrides = $project->captions()->whereNotNull('style_override')->pluck('style_override')
+            ->map(fn ($o) => is_array($o) ? ($o['animation'] ?? null) : null)
+            ->filter();
+
+        return $overrides->push($style['animation'] ?? 'none')->unique()->values()->all();
     }
 
     /** Style used for rendering: a chosen template, else the project's editor style. */

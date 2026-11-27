@@ -20,14 +20,15 @@ describe('Pricing', () => {
     const toggle = screen.getByRole('switch', { name: /yearly billing/i });
 
     expect(toggle).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getAllByText('billed monthly')).toHaveLength(2);
-    expect(screen.getByLabelText('PRO plan')).toHaveTextContent('LKR 990');
+    expect(screen.getByText('paid monthly by bank transfer')).toBeInTheDocument();
+    expect(screen.getByLabelText('PRO plan')).toHaveTextContent('LKR 490/ month');
+    expect(screen.getByText(/Save 32%/)).toBeInTheDocument();
 
     await userEvent.click(toggle);
 
     expect(toggle).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByText(/billed yearly · LKR 9,480 \/ year/)).toBeInTheDocument();
-    expect(screen.getByLabelText('PRO plan')).toHaveTextContent('LKR 790');
+    expect(screen.getByLabelText('PRO plan')).toHaveTextContent('LKR 3,990/ year');
+    expect(screen.getByText(/about LKR 333 a month · paid once a year/)).toBeInTheDocument();
     expect(confetti).toHaveBeenCalledTimes(1);
   });
 
@@ -35,7 +36,9 @@ describe('Pricing', () => {
     render(<MemoryRouter><Pricing plans={PRICING_PLANS} /></MemoryRouter>);
     expect(screen.getByLabelText('PRO plan')).toHaveTextContent('Popular');
     expect(screen.getByRole('link', { name: 'Start free' })).toHaveAttribute('href', '/register');
-    expect(screen.getByRole('link', { name: 'Get Pro' })).toHaveAttribute('href', '/register?plan=pro');
+    expect(screen.getByRole('link', { name: 'Get Pro' })).toHaveAttribute('href', '/register?next=/billing');
+    // Free shows what it leaves out.
+    expect(screen.getByLabelText('FREE plan')).toHaveTextContent('watermark');
   });
 });
 

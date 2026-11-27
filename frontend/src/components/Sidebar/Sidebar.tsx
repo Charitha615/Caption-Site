@@ -13,8 +13,11 @@ import {
   X,
   Gauge,
   MessageSquareHeart,
+  Crown,
+  Banknote,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
+import { formatDate } from '../../utils/formatters';
 import { useAuthStore } from '../../stores/authStore';
 import { useUsageStore, meterPercent } from '../../stores/usageStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -37,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const navigate = useNavigate();
 
   const minutes = usage?.caption_minutes;
+  const isPro = Boolean(usage && usage.plan.key !== 'free');
   const percent = minutes ? meterPercent(minutes.used, minutes.limit) : null;
 
   const handleLogout = async () => {
@@ -82,12 +86,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <User size={18} aria-hidden="true" />
           <span>Account &amp; usage</span>
         </NavLink>
+        <NavLink to="/billing" className={linkClass}>
+          <Crown size={18} aria-hidden="true" />
+          <span>{isPro ? 'Pro plan' : 'Upgrade to Pro'}</span>
+        </NavLink>
         {user?.role === 'admin' && (
           <>
             <div className="sidebar-nav-section-label" aria-hidden="true">ADMIN</div>
             <NavLink to="/admin/reviews" className={linkClass}>
               <MessageSquareHeart size={18} aria-hidden="true" />
               <span>Reviews</span>
+            </NavLink>
+            <NavLink to="/admin/payments" className={linkClass}>
+              <Banknote size={18} aria-hidden="true" />
+              <span>Payments</span>
             </NavLink>
           </>
         )}
@@ -124,10 +136,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           ) : (
             <p className="pro-card-subtext">Loading usage…</p>
           )}
-          <button type="button" className="pro-manage-btn" onClick={() => navigate('/profile')}>
-            <span>View usage</span>
-            <ArrowUpRight size={14} aria-hidden="true" />
-          </button>
+          {isPro && usage?.plan.expires_at && (
+            <p className="pro-card-subtext">Pro until {formatDate(usage.plan.expires_at)}</p>
+          )}
+          {isPro ? (
+            <button type="button" className="pro-manage-btn" onClick={() => navigate('/profile')}>
+              <span>View usage</span>
+              <ArrowUpRight size={14} aria-hidden="true" />
+            </button>
+          ) : (
+            <button type="button" className="pro-manage-btn pro-upgrade-btn" onClick={() => navigate('/billing')}>
+              <Crown size={14} aria-hidden="true" />
+              <span>Upgrade to Pro</span>
+            </button>
+          )}
         </div>
 
         <div className="sidebar-user-row">

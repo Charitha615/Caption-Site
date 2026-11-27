@@ -26,10 +26,12 @@ class UsageLimitsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.usage.plan.key', 'free')
             ->assertJsonPath('data.usage.caption_minutes.used', 10)
-            ->assertJsonPath('data.usage.caption_minutes.limit', 120)
+            ->assertJsonPath('data.usage.caption_minutes.limit', 30)
+            ->assertJsonPath('data.usage.features.max_export_height', 720)
+            ->assertJsonPath('data.usage.features.watermark', true)
             ->assertJsonPath('data.usage.ai_requests_today.used', 1);
 
-        $this->withHeaders($headers)->getJson('/api/dashboard')->assertJsonPath('data.summary.caption_minutes_limit', 120);
+        $this->withHeaders($headers)->getJson('/api/dashboard')->assertJsonPath('data.summary.caption_minutes_limit', 30);
     }
 
     public function test_exhausted_caption_minutes_block_new_uploads_and_regeneration_with_402(): void

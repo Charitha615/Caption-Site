@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastContainer } from './components/Toast/ToastContainer';
@@ -8,6 +8,7 @@ import { LoadingState } from './components/LoadingState/LoadingState';
 import { AppLayout } from './layouts/AppLayout/AppLayout';
 import { AuthLayout } from './layouts/AuthLayout/AuthLayout';
 import { SeoManager } from './seo/SeoManager';
+import { safeNextPath } from './utils/navigation';
 import { CONTENT_PAGES } from './pages/Marketing/content';
 
 const CONTENT_PATHS = CONTENT_PAGES.map((p) => p.path);
@@ -43,6 +44,8 @@ const ProjectDetailsPage = named(() => import('./pages/ProjectDetails/ProjectDet
 const SettingsPage = named(() => import('./pages/Settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = named(() => import('./pages/Profile/ProfilePage'), 'ProfilePage');
 const AdminReviewsPage = named(() => import('./pages/Admin/AdminReviewsPage'), 'AdminReviewsPage');
+const AdminPaymentsPage = named(() => import('./pages/Admin/AdminPaymentsPage'), 'AdminPaymentsPage');
+const BillingPage = named(() => import('./pages/Billing/BillingPage'), 'BillingPage');
 const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFoundPage');
 const VideoEditorPage = named(() => import('./pages/VideoEditor/VideoEditorPage'), 'VideoEditorPage');
 const StudioEditorPage = named(() => import('./pages/Editor/StudioEditorPage'), 'StudioEditorPage');
@@ -62,11 +65,12 @@ export function preloadPublicPage(pathname: string): Promise<void> {
 
 const PageFallback = () => <LoadingState label="Loading…" />;
 
-/** Signed-in users skip the marketing and auth pages. */
+/** Signed-in users skip the marketing and auth pages (to `?next=` when given, e.g. "Get Pro" → /billing). */
 const GuestRoute: React.FC = () => {
   const { isAuthenticated, isInitialized } = useAuthStore();
+  const [params] = useSearchParams();
   // The page shows while sign-in is checked (no spinner over a prerendered page); signed-in users move on after.
-  return isInitialized && isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
+  return isInitialized && isAuthenticated ? <Navigate to={safeNextPath(params.get('next'))} replace /> : <Outlet />;
 };
 
 const RoutedApp: React.FC = () => {
@@ -99,6 +103,8 @@ const RoutedApp: React.FC = () => {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/admin/reviews" element={<AdminReviewsPage />} />
+              <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+              <Route path="/billing" element={<BillingPage />} />
             </Route>
             {/* Full-screen multi-track video editor */}
             <Route

@@ -76,6 +76,8 @@ apiClient.interceptors.response.use(
       message: appError.requestId && appError.status && appError.status >= 500
         ? `${appError.message} (Ref: ${appError.requestId.slice(0, 8)})`
         : appError.message,
+      // "Part of Pro" and other plan limits: one tap to the upgrade page.
+      action: appError.code === 'usage_limit_exceeded' ? { label: 'See Pro plans', href: '/billing' } : undefined,
     });
 
     return Promise.reject(error);

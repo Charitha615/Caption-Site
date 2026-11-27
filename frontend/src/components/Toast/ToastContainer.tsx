@@ -31,6 +31,7 @@ export const ToastContainer: React.FC = () => {
           <div className="toast-content">
             {toast.title && <div className="toast-title">{toast.title}</div>}
             <div className="toast-message">{toast.message}</div>
+            {toast.action && <a className="toast-action" href={toast.action.href}>{toast.action.label}</a>}
           </div>
           <button className="toast-close" onClick={() => removeToast(toast.id)} aria-label="Dismiss notification">
             <X size={16} aria-hidden="true" />

@@ -3,7 +3,7 @@
  * Used by the browser (useSeo), the prerender step and the sitemap.
  */
 import { BRAND } from '../config/brand';
-import { PRICING_CURRENCY, PRICING_PLANS } from '../config/pricing';
+import { PRICING_CURRENCY, PRO_PRICES } from '../config/pricing';
 import { CONTENT_PAGES, guidesLabel, guidesOf, guidesPath, homePath, otherLanguagePath, type ContentPageData, type Lang } from '../pages/Marketing/content';
 import { LANDING_FAQ } from '../pages/Landing/landingFaq';
 import { absoluteUrl, OG_IMAGE, SITE_URL, type SeoMeta } from './site';
@@ -37,13 +37,11 @@ const app = {
   operatingSystem: 'Any (web browser)',
   inLanguage: ['si', 'en'],
   description: 'Automatic Sinhala and English video captions with word-level timing, caption styles, SRT/VTT export and an online video editor.',
-  offers: PRICING_PLANS.map((p) => ({
-    '@type': 'Offer',
-    name: p.name,
-    price: String(p.price),
-    priceCurrency: PRICING_CURRENCY,
-    category: p.price === 0 ? 'free' : 'subscription',
-  })),
+  offers: [
+    { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: PRICING_CURRENCY, category: 'free' },
+    { '@type': 'Offer', name: 'Pro (monthly)', price: String(PRO_PRICES.monthly), priceCurrency: PRICING_CURRENCY, category: 'subscription' },
+    { '@type': 'Offer', name: 'Pro (yearly)', price: String(PRO_PRICES.yearly), priceCurrency: PRICING_CURRENCY, category: 'subscription' },
+  ],
   publisher: { '@id': `${SITE_URL}/#organization` },
 };
 

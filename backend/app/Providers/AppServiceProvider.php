@@ -36,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('moderate-reviews', fn (User $user) => $user->isAdmin());
+        Gate::define('manage-payments', fn (User $user) => $user->isAdmin());
 
         // Signed media/download URLs must be generated with the public HTTPS scheme behind a proxy.
         if (str_starts_with((string) config('app.url'), 'https://')) {

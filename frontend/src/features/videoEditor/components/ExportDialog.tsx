@@ -5,6 +5,9 @@ import { formatTime } from '../model';
 import { frameSize } from '../render';
 import { downloadBlob, fileBase } from '../sources';
 import { totalDuration, useVideoEditorStore } from '../store';
+import { Link } from 'react-router-dom';
+import { usePlan } from '../../../hooks/usePlan';
+import { BRAND } from '../../../config/brand';
 
 type Phase =
   | { kind: 'setup' }
@@ -25,7 +28,13 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const aspect = useVideoEditorStore((s) => s.aspect);
   const total = useVideoEditorStore((s) => totalDuration(s.clips));
   const format = useMemo(() => pickExportFormat(), []);
+  const plan = usePlan();
+  const proOnly = (q: ExportQuality) => plan.known && q > plan.features.max_export_height;
   const [quality, setQuality] = useState<ExportQuality>(1080);
+  // Free plan: 720p at most (once the plan is known).
+  useEffect(() => {
+    if (plan.known && quality > plan.features.max_export_height) setQuality(720);
+  }, [plan.known, plan.features.max_export_height, quality]);
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' });
   const abortRef = useRef<AbortController | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -56,6 +65,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         media: s.media,
         format,
         signal: controller.signal,
+        watermark: plan.features.watermark ? BRAND.titleName : undefined,
         onProgress: (done) => {
           // A state update per percent is plenty.
           const pct = Math.floor(done * 100);
@@ -107,10 +117,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
             <fieldset className="ve-quality">
               <legend>Quality</legend>
               {QUALITIES.map((q) => (
-                <label key={q.value} className={quality === q.value ? 'is-on' : ''}>
-                  <input type="radio" name="ve-quality" value={q.value} checked={quality === q.value} onChange={() => setQuality(q.value)} />
-                  <strong>{q.label}</strong>
-                  <span>{q.hint}</span>
+                <label key={q.value} className={`${quality === q.value ? 'is-on' : ''} ${proOnly(q.value) ? 'is-locked' : ''}`} title={proOnly(q.value) ? 'Available on Pro' : undefined}>
+                  <input type="radio" name="ve-quality" value={q.value} checked={quality === q.value} disabled={proOnly(q.value)} onChange={() => setQuality(q.value)} />
+                  <strong>{q.label}{proOnly(q.value) && <span className="ve-pro-badge">Pro</span>}</strong>
+                  <span>{proOnly(q.value) ? 'Available on Pro' : q.hint}</span>
                 </label>
               ))}
             </fieldset>
@@ -119,6 +129,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               <div><dt>Size</dt><dd>{size.width} × {size.height}</dd></div>
               <div><dt>Length</dt><dd>{formatTime(total)}</dd></div>
             </dl>
+            {plan.known && plan.features.watermark && (
+              <p className="ve-panel-hint ve-pro-note">
+                Free exports are up to 720p with a small {BRAND.titleName} mark in the corner. <Link to="/billing">Pro</Link> exports Full HD without it.
+              </p>
+            )}
             <p className="ve-panel-hint">
               The video is recorded as it plays, so this takes about {formatTime(total, false)}. Keep this tab open and in front until it finishes.
             </p>

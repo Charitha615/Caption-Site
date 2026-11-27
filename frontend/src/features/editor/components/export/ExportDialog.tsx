@@ -10,6 +10,9 @@ import { useUIStore } from '../../../../stores/editor/uiStore';
 import { useVideoStore } from '../../../../stores/editor/videoStore';
 import type { CreateExportPayload, ExportItem, ExportResolution, ExportType } from '../../../../types/export';
 import { flush } from '../../services/autosave';
+import { Link } from 'react-router-dom';
+import { usePlan } from '../../../../hooks/usePlan';
+import { PRO_ANIMATIONS } from '../../../../config/pricing';
 
 const RESOLUTIONS: Array<{ value: Exclude<ExportResolution, 'source'>; label: string; short: number }> = [
   { value: '720', label: '720p', short: 720 },
@@ -166,6 +169,11 @@ export function ExportDialog() {
   const aspect = useCaptionStore((s) => s.canvas.aspect);
   const captionCount = useCaptionStore((s) => s.captions.length);
   const preferences = useSettingsStore((st) => st.settings);
+  const plan = usePlan();
+  const planMax = plan.features.max_export_height;
+  const usesProStyle = useCaptionStore((s) => PRO_ANIMATIONS.includes(s.style.animation) || s.captions.some((c) => c.styleOverride?.animation && PRO_ANIMATIONS.includes(c.styleOverride.animation)));
+  const styleLocked = plan.known && !plan.features.premium_styles && usesProStyle;
+  const proOnly = (short: number) => plan.known && short > planMax;
 
   const srcW = (!isLocalPreview && videoW) || projectW || 1920;
   const srcH = (!isLocalPreview && videoH) || projectH || 1080;
@@ -175,6 +183,16 @@ export function ExportDialog() {
   const initial = RESOLUTIONS.find((r) => r.value === preferred && allowed(r.short))?.value ?? (srcShort >= 1080 ? '1080' : '720');
 
   const [resolution, setResolution] = useState<Exclude<ExportResolution, 'source'>>(initial);
+  // Once the plan is known, a size above it (e.g. a saved 1080p default on Free) drops to the plan's best.
+  useEffect(() => {
+    if (!plan.known) return;
+    const current = RESOLUTIONS.find((r) => r.value === resolution);
+    if (current && current.short > planMax) {
+      const best = [...RESOLUTIONS].reverse().find((r) => r.short <= planMax && allowed(r.short));
+      if (best) setResolution(best.value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.known, planMax]);
   const [items, setItems] = useState<ExportItem[]>([]);
   const [focusUuid, setFocusUuid] = useState<string | null>(null);
   const [busy, setBusy] = useState<ExportType | null>(null);
@@ -300,13 +318,15 @@ export function ExportDialog() {
                 <legend className="ed-field-label">Resolution</legend>
                 <div className="ed-export2-res-grid">
                   {RESOLUTIONS.map((r) => {
-                    const ok = allowed(r.short);
+                    const sizeOk = allowed(r.short);
+                    const pro = proOnly(r.short);
+                    const ok = sizeOk && !pro;
                     const [w, h] = outputSize(srcW, srcH, aspect, r.short);
                     return (
-                      <label key={r.value} className={`ed-export2-res-option ${resolution === r.value ? 'is-selected' : ''} ${ok ? '' : 'is-disabled'}`} title={ok ? `${w}×${h}` : `Needs a source video of at least ${r.short}p`}>
-                        <input type="radio" name="export-resolution" value={r.value} checked={resolution === r.value} disabled={!ok} onChange={() => setResolution(r.value)} aria-label={ok ? `${r.label}, ${w} by ${h}` : `${r.label}, needs a larger source video`} />
-                        <span className="ed-export2-res-label">{r.label}</span>
-                        <span className="ed-export2-res-size">{ok ? `${w}×${h}` : 'Source too small'}</span>
+                      <label key={r.value} className={`ed-export2-res-option ${resolution === r.value ? 'is-selected' : ''} ${ok ? '' : 'is-disabled'}`} title={pro ? 'Available on Pro' : sizeOk ? `${w}×${h}` : `Needs a source video of at least ${r.short}p`}>
+                        <input type="radio" name="export-resolution" value={r.value} checked={resolution === r.value} disabled={!ok} onChange={() => setResolution(r.value)} aria-label={pro ? `${r.label}, available on Pro` : sizeOk ? `${r.label}, ${w} by ${h}` : `${r.label}, needs a larger source video`} />
+                        <span className="ed-export2-res-label">{r.label}{pro && <span className="ed-pro-badge">Pro</span>}</span>
+                        <span className="ed-export2-res-size">{pro ? 'Pro plan' : sizeOk ? `${w}×${h}` : 'Source too small'}</span>
                       </label>
                     );
                   })}
@@ -314,7 +334,18 @@ export function ExportDialog() {
               </fieldset>
 
               {mp4Blocked && <p className="ed-help">{mp4Blocked}</p>}
-              <button type="button" className="ed-btn is-accent is-lg ed-export2-cta" onClick={exportVideo} disabled={!!mp4Blocked || captionCount === 0 || busy !== null}>
+              {styleLocked && (
+                <p className="ed-help ed-pro-note" role="note">
+                  This caption style highlights words one by one (Spotlight, Hormozi, Word Box, TikTok), which is part of Pro.
+                  Pick another style in Styles, or <Link to="/billing">upgrade to Pro</Link>.
+                </p>
+              )}
+              {plan.known && plan.features.watermark && !styleLocked && (
+                <p className="ed-help ed-pro-note">
+                  Free videos export in HD with a small සිංSub mark in the corner. <Link to="/billing">Pro</Link> exports up to 4K without it.
+                </p>
+              )}
+              <button type="button" className="ed-btn is-accent is-lg ed-export2-cta" onClick={exportVideo} disabled={!!mp4Blocked || styleLocked || captionCount === 0 || busy !== null}>
                 {busy === 'mp4' ? <Loader2 size={16} className="ed-spin" aria-hidden="true" /> : <Film size={16} aria-hidden="true" />} Export video
               </button>
 

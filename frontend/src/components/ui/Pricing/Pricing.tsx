@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import NumberFlow from '@number-flow/react';
-import { Check, Star } from 'lucide-react';
+import { Check, Star, X } from 'lucide-react';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { useReducedMotion } from '../../../hooks/useReducedMotion';
 import { PRICING_CURRENCY, YEARLY_SAVING_LABEL, type PricingPlan } from '../../../config/pricing';
@@ -88,7 +88,7 @@ export function Pricing({
       <div className="pricing-grid">
         {plans.map((plan, index) => {
           const side = index === 0 ? 'left' : index === plans.length - 1 ? 'right' : 'middle';
-          const amount = isMonthly ? plan.price : plan.yearlyPrice;
+          const amount = isMonthly ? plan.price : plan.yearlyTotal;
           const isFree = plan.price === 0;
           return (
             <motion.article
@@ -125,10 +125,14 @@ export function Pricing({
                     willChange
                   />
                 </span>
-                {!isFree && <span className="pricing-period">/ month</span>}
+                {!isFree && <span className="pricing-period">{isMonthly ? '/ month' : '/ year'}</span>}
               </div>
               <p className="pricing-billing">
-                {isFree ? 'free forever · no card needed' : isMonthly ? 'billed monthly' : `billed yearly · ${PRICING_CURRENCY} ${money(plan.yearlyPrice * 12)} / year`}
+                {isFree
+                  ? 'free forever · no card needed'
+                  : isMonthly
+                    ? 'paid monthly by bank transfer'
+                    : `about ${PRICING_CURRENCY} ${money(Math.round(plan.yearlyTotal / 12))} a month · paid once a year`}
               </p>
 
               <ul className="pricing-features">
@@ -136,6 +140,12 @@ export function Pricing({
                   <li key={feature}>
                     <Check size={16} className="pricing-check" aria-hidden="true" />
                     <span>{feature}</span>
+                  </li>
+                ))}
+                {plan.missing?.map((item) => (
+                  <li key={item} className="is-missing">
+                    <X size={16} className="pricing-cross" aria-hidden="true" />
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>

@@ -5,6 +5,7 @@ import { aiErrorMessage, aiService, type SpeechLanguage, type TextLanguage } fro
 import { generateSubtitles, toSrt, type SubtitleProgress } from '../ai/subtitles';
 import { clipEnd, fontCss, formatTime, type TextStyle } from '../model';
 import { downloadBlob, fileBase } from '../sources';
+import { usePlan } from '../../../hooks/usePlan';
 import { SUBTITLE_STYLE, useVideoEditorStore } from '../store';
 
 const SPEECH_LANGUAGES: { value: SpeechLanguage; label: string }[] = [
@@ -177,6 +178,8 @@ export function SubtitlesPanel() {
 
   const show = (id: string) => subtitleTracks.forEach((t) => (t.id === id) === t.hidden && toggleTrack(t.id, 'hidden'));
 
+  const plan = usePlan();
+  const translateLocked = plan.known && !plan.features.editor_ai;
   const translate = () => run('translate', async () => {
     const texts = await aiService.translate(lines.map((c) => c.text ?? ''), to);
     const label = TEXT_LANGUAGES.find((l) => l.value === to)!.label;
@@ -265,8 +268,9 @@ export function SubtitlesPanel() {
             <select className="ve-select" value={to} onChange={(e) => setTo(e.target.value as TextLanguage)} aria-label="Translate to">
               {TEXT_LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
             </select>
-            <button type="button" className="ve-secondary-btn" disabled={busy !== null || lines.length === 0} onClick={() => void translate()}>
+            <button type="button" className="ve-secondary-btn" disabled={busy !== null || lines.length === 0 || translateLocked} title={translateLocked ? 'Translation is part of Pro' : undefined} onClick={() => void translate()}>
               {busy === 'translate' ? <Loader2 size={14} className="ve-spin" aria-hidden="true" /> : <Languages size={14} aria-hidden="true" />} Translate
+              {translateLocked && <span className="ve-pro-badge">Pro</span>}
             </button>
           </div>
           <button type="button" className="ve-secondary-btn" disabled={busy !== null || lines.length === 0} onClick={() => void singlish()} title="For subtitles written in English letters">

@@ -1,3 +1,4 @@
+import type { PlanFeatures } from './auth';
 export type ProjectStatus =
   | 'draft'
   | 'uploaded'
@@ -128,7 +129,9 @@ export interface UsageMeter {
 }
 
 export interface UsageSummary {
-  plan: { key: string; label: string };
+  plan: { key: string; label: string; expires_at?: string | null };
+  /** What the plan includes; missing on servers older than the Pro split. */
+  features?: PlanFeatures;
   period: { start: string; end: string };
   caption_minutes: UsageMeter;
   ai_requests_today: UsageMeter;

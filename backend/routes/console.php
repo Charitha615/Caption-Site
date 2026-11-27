@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('uploads:prune')->hourly()->withoutOverlapping();
 Schedule::command('projects:reset-stuck')->everyTenMinutes();
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+Schedule::command('billing:pro-reminders')->dailyAt('09:00');
 Schedule::command('queue:prune-failed --hours=720')->daily();
 Schedule::command('queue:prune-batches --hours=48')->daily();
 Schedule::command('horizon:snapshot')->everyFiveMinutes()->when(fn () => config('queue.default') === 'redis');

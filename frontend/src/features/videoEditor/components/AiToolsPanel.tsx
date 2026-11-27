@@ -9,6 +9,8 @@ import { DEFAULT_SILENCE, SPEECH_RATE, findSilences, mixTimeline } from '../ai/t
 import { clipEnd, formatTime } from '../model';
 import { mergeRanges, totalDuration, useVideoEditorStore } from '../store';
 import { useImportFiles } from '../useImportFiles';
+import { Link } from 'react-router-dom';
+import { usePlan } from '../../../hooks/usePlan';
 import { ExpressionPicker, StylePicker, VoiceSelect } from './VoicePicker';
 
 const LANGUAGES: { value: TextLanguage; label: string }[] = [
@@ -422,31 +424,45 @@ function ImportFromLink() {
 
 type AiTool = 'link' | 'voice' | 'silence' | 'noise' | 'script' | 'titles' | 'highlights';
 
-const AI_TOOLS: { id: AiTool; label: string; title: string; Icon: typeof Link2 }[] = [
+/** `pro`: uses the AI service, which is part of Pro (the server checks it too). */
+const AI_TOOLS: { id: AiTool; label: string; title: string; Icon: typeof Link2; pro?: boolean }[] = [
   { id: 'link', label: 'Video link', title: 'Import from a link', Icon: Link2 },
-  { id: 'voice', label: 'Voice-over', title: 'AI voice-over', Icon: Mic2 },
+  { id: 'voice', label: 'Voice-over', title: 'AI voice-over', Icon: Mic2, pro: true },
   { id: 'silence', label: 'Silences', title: 'Remove silences', Icon: Scissors },
   { id: 'noise', label: 'Noise', title: 'Remove noise', Icon: Wand2 },
-  { id: 'script', label: 'Script', title: 'Script writer', Icon: Type },
-  { id: 'titles', label: 'Titles', title: 'Title ideas', Icon: Sparkles },
-  { id: 'highlights', label: 'Highlights', title: 'Highlights', Icon: Star },
+  { id: 'script', label: 'Script', title: 'Script writer', Icon: Type, pro: true },
+  { id: 'titles', label: 'Titles', title: 'Title ideas', Icon: Sparkles, pro: true },
+  { id: 'highlights', label: 'Highlights', title: 'Highlights', Icon: Star, pro: true },
 ];
+
+/** Shown instead of a Pro tool on the Free plan. */
+function ProToolNotice({ title }: { title: string }) {
+  return (
+    <div className="ve-pro-tool">
+      <p><strong>{title}</strong> is part of Pro, with voice-over, translation, the script writer, title ideas and highlights.</p>
+      <Link to="/billing" className="ve-export">Upgrade to Pro</Link>
+    </div>
+  );
+}
 
 export function AiToolsPanel() {
   const [tool, setTool] = useState<AiTool>('link');
   const [voiceText, setVoiceText] = useState('');
   const current = AI_TOOLS.find((t) => t.id === tool)!;
+  const plan = usePlan();
+  const locked = (t: { pro?: boolean }) => Boolean(t.pro) && plan.known && !plan.features.editor_ai;
   return (
     <div className="ve-panel">
       <div className="ve-tool-grid" role="group" aria-label="AI tools">
-        {AI_TOOLS.map(({ id, label, Icon }) => (
-          <button key={id} type="button" className={tool === id ? 'is-on' : ''} aria-pressed={tool === id} onClick={() => setTool(id)}>
-            <Icon size={18} aria-hidden="true" />
-            <span>{label}</span>
+        {AI_TOOLS.map((t) => (
+          <button key={t.id} type="button" className={tool === t.id ? 'is-on' : ''} aria-pressed={tool === t.id} onClick={() => setTool(t.id)}>
+            <t.Icon size={18} aria-hidden="true" />
+            <span>{t.label}{locked(t) && <span className="ve-pro-badge">Pro</span>}</span>
           </button>
         ))}
       </div>
       <h2 className="ve-panel-title">{current.title}</h2>
+      {locked(current) ? <ProToolNotice title={current.title} /> : <>
       {tool === 'link' && <ImportFromLink />}
       {tool === 'voice' && <VoiceOver text={voiceText} setText={setVoiceText} />}
       {tool === 'silence' && <SilenceRemoval />}
@@ -461,6 +477,7 @@ export function AiToolsPanel() {
       )}
       {tool === 'titles' && <TitleIdeas />}
       {tool === 'highlights' && <Highlights />}
+      </>}
     </div>
   );
 }

@@ -44,6 +44,27 @@ export interface ExportJob {
   format: ExportFormat;
   onProgress: (done: number) => void;
   signal: AbortSignal;
+  /** Free plan: a small brand mark in the bottom-right corner of every frame (e.g. "සිංSub"). */
+  watermark?: string;
+}
+
+/** A small, semi-transparent mark in the bottom-right corner, like the server's free-plan renders. */
+export function drawWatermark(ctx: CanvasRenderingContext2D, width: number, height: number, text: string) {
+  const scale = Math.min(width, height) / 1080;
+  const size = Math.max(12, Math.round(30 * scale));
+  const margin = Math.max(10, Math.round(28 * scale));
+  ctx.save();
+  ctx.font = `700 ${size}px "Noto Sans Sinhala", "Inter", sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.globalAlpha = 0.66;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1.5, 2 * scale);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.strokeText(text, width - margin, height - margin);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, width - margin, height - margin);
+  ctx.restore();
 }
 
 interface Voice {
@@ -86,7 +107,7 @@ async function prepareElement(clip: Clip, url: string): Promise<HTMLMediaElement
 }
 
 export async function exportVideo(job: ExportJob): Promise<Blob> {
-  const { aspect, quality, fps, tracks, clips, media, format, onProgress, signal } = job;
+  const { aspect, quality, fps, tracks, clips, media, format, onProgress, signal, watermark } = job;
   const total = clips.reduce((max, c) => Math.max(max, clipEnd(c)), 0);
   if (total <= 0) throw new Error('Add something to the timeline before exporting.');
 
@@ -162,6 +183,7 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
     });
 
     drawFrame(ctx, width, height, 0, scene, lookup);
+    if (watermark) drawWatermark(ctx, width, height, watermark);
     await audio.resume();
     recorder.start(500);
     const t0 = performance.now();
@@ -191,6 +213,7 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
           }
         }
         drawFrame(ctx, width, height, t, scene, lookup);
+        if (watermark) drawWatermark(ctx, width, height, watermark);
         onProgress(t / total);
         if (t >= total) {
           signal.removeEventListener('abort', onAbort);

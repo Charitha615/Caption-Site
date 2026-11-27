@@ -386,3 +386,6 @@
     display: inline-flex;
   }
 }
+
+.pro-upgrade-btn { width: 100%; justify-content: center; gap: 6px; margin-top: 10px; padding: 8px 10px; border-radius: 9px; background: #F97316; color: #fff; font-size: 0.8rem; }
+.pro-upgrade-btn:hover { filter: brightness(1.05); }

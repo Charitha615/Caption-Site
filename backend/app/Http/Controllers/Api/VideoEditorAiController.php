@@ -104,6 +104,10 @@ class VideoEditorAiController extends Controller
     {
         $task = $request->validate(['task' => ['required', Rule::in(['singlish', 'translate', 'script', 'titles', 'highlights'])]])['task'];
         $user = $request->user();
+        if ($task !== 'singlish') {
+            // Singlish → Sinhala is a typing aid for subtitles (free); the other writing tools are Pro.
+            $this->usage->ensureCanUseEditorAi($user);
+        }
 
         $validated = $request->validate(match ($task) {
             'singlish', 'translate' => [
@@ -166,6 +170,7 @@ class VideoEditorAiController extends Controller
         ]);
         /** @var User $user */
         $user = $request->user();
+        $this->usage->ensureCanUseEditorAi($user);
         $synth = $this->providers->speechForUser($user);
         $this->usage->ensureCanRequestAI($user);
         $wav = $synth->speak($validated['text'], $validated['voice'], (string) ($validated['style'] ?? ''));

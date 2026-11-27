@@ -46,7 +46,8 @@ class UsageService
 
     /**
      * @return array{
-     *     plan: array{key: string, label: string},
+     *     plan: array{key: string, label: string, expires_at: ?string},
+     *     features: array{max_export_height: int, watermark: bool, premium_styles: bool, editor_ai: bool, priority_support: bool},
      *     period: array{start: string, end: string},
      *     caption_minutes: array{used: float, limit: ?int},
      *     ai_requests_today: array{used: int, limit: ?int},
@@ -78,7 +79,12 @@ class UsageService
                 ->count();
 
             return [
-                'plan' => ['key' => $user->planKey(), 'label' => $limits['label']],
+                'plan' => [
+                    'key' => $user->planKey(),
+                    'label' => $limits['label'],
+                    'expires_at' => $user->planKey() !== config('plans.default') ? $user->plan_expires_at?->toISOString() : null,
+                ],
+                'features' => $limits['features'],
                 'period' => ['start' => $monthStart->toDateString(), 'end' => $monthStart->copy()->endOfMonth()->toDateString()],
                 'caption_minutes' => [
                     'used' => round(((float) ($monthly[UsageRecord::ACTION_CAPTION_GENERATION]->total ?? 0)) / 60, 1),
@@ -133,6 +139,34 @@ class UsageService
         if ($used >= $limit || $used + $seconds / 60 > $limit) {
             throw new UsageLimitExceededException("This would exceed your {$limit} caption minutes for this month.", 'caption_minutes_per_month');
         }
+    }
+
+    /**
+     * Pro features. Each throws a 402 the app shows as "available on Pro".
+     *
+     * @param  array<int, string>  $animations  caption animations used by the export
+     */
+    public function ensureCanUseStyles(User $user, array $animations): void
+    {
+        if ($user->hasFeature('premium_styles')) {
+            return;
+        }
+        if (array_intersect($animations, config('plans.premium_animations'))) {
+            throw new UsageLimitExceededException('Word-by-word highlight styles (Spotlight, Hormozi, Word Box, TikTok) are part of Pro. Pick another style, or upgrade to Pro.', 'premium_styles');
+        }
+    }
+
+    public function ensureCanUseEditorAi(User $user): void
+    {
+        if (! $user->hasFeature('editor_ai')) {
+            throw new UsageLimitExceededException('AI tools in the video editor are part of Pro.', 'editor_ai');
+        }
+    }
+
+    /** Tallest MP4 the plan may export (short side in px). */
+    public function maxExportHeight(User $user): int
+    {
+        return (int) $user->planFeatures()['max_export_height'];
     }
 
     public function ensureCanRequestAI(User $user): void

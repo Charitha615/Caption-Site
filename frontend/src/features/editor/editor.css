@@ -2667,3 +2667,10 @@ select.ed-input {
 }
 
 
+
+/* Pro locks */
+.ed-pro-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; vertical-align: middle;
+  background: #F97316; color: #fff; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.02em; line-height: 1.5;
+}
+.ed-pro-note a { color: #F97316; font-weight: 700; }

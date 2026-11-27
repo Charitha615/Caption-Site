@@ -5,9 +5,13 @@ import { useEditorStore } from '../../../../stores/editor/editorStore';
 import { useSelectedCaption } from '../../../../stores/editor/selectors';
 import { ANIMATIONS, LAYOUT_TEMPLATES } from '../../model/presets';
 import { resolveStyle } from '../../utils/captionStyle';
+import { usePlan } from '../../../../hooks/usePlan';
+import { PRO_ANIMATIONS } from '../../../../config/pricing';
 
 export const TemplatesPanel = memo(function TemplatesPanel() {
   const globalStyle = useCaptionStore((s) => s.style);
+  const plan = usePlan();
+  const proLocked = plan.known && !plan.features.premium_styles;
   const scope = useEditorStore((s) => s.styleScope);
   const selected = useSelectedCaption();
   const target = scope === 'caption' && selected ? selected.id : null;
@@ -39,6 +43,7 @@ export const TemplatesPanel = memo(function TemplatesPanel() {
               <span className="ed-template-name">
                 {a.label}
                 {a.timed && <span className="ed-badge">word-timed</span>}
+                {proLocked && PRO_ANIMATIONS.includes(a.id) && <span className="ed-pro-badge" title="Exporting this motion needs Pro">Pro</span>}
               </span>
               <span className="ed-template-desc">{a.description}</span>
             </span>

@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\AiKeyController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\CaptionController;
 use App\Http\Controllers\Api\CaptionTemplateController;
@@ -73,6 +75,18 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::delete('/me/review', [ReviewController::class, 'destroy']);
 
     // Admin: approve reviews before they are shown publicly.
+    // Pro by bank transfer
+    Route::get('/billing', [BillingController::class, 'show']);
+    Route::post('/billing/payments', [BillingController::class, 'store'])->middleware('throttle:20,60');
+    Route::post('/billing/payments/{payment}/slip', [BillingController::class, 'attachSlip'])->middleware('throttle:20,60');
+    Route::get('/billing/payments/{payment}/slip', [BillingController::class, 'slip']);
+
+    Route::middleware('can:manage-payments')->prefix('admin')->group(function () {
+        Route::get('/payments', [AdminPaymentController::class, 'index']);
+        Route::post('/payments/{payment}/approve', [AdminPaymentController::class, 'approve']);
+        Route::post('/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
+    });
+
     Route::middleware('can:moderate-reviews')->prefix('admin')->group(function () {
         Route::get('/reviews', [ReviewController::class, 'adminIndex']);
         Route::patch('/reviews/{review}', [ReviewController::class, 'moderate']);

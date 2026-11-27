@@ -1,5 +1,6 @@
 import React, { useId, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { safeNextPath } from '../../utils/navigation';
 import { UserRoundPlus } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -22,7 +23,9 @@ export const RegisterPage: React.FC = () => {
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
-  const goToDashboard = () => navigate('/dashboard', { replace: true });
+  const [params] = useSearchParams();
+  // "Get Pro" sends people here with ?next=/billing.
+  const goToDashboard = () => navigate(safeNextPath(params.get('next')), { replace: true });
   const google = useGoogleSignIn(goToDashboard);
 
   const pwProblem = password ? passwordProblem(password) : null;
@@ -107,7 +110,7 @@ export const RegisterPage: React.FC = () => {
 
       <p className="auth-switch">
         <span>Already a member?</span>
-        <Link to="/login" className="auth-link">Sign in</Link>
+        <Link to={params.get('next') ? `/login?next=${encodeURIComponent(params.get('next')!)}` : '/login'} className="auth-link">Sign in</Link>
       </p>
     </div>
   );

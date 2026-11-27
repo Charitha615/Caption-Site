@@ -67,7 +67,7 @@ class VideoEditorAiTest extends TestCase
 
     public function test_text_tools_keep_lines_one_to_one_and_return_highlights(): void
     {
-        [, $headers] = $this->userWithToken();
+        [, $headers] = $this->userWithToken(['plan' => 'pro', 'plan_expires_at' => now()->addMonth()]);
         $text = fn (array $data) => $this->withHeaders($headers)->postJson('/api/video-editor/ai/text', $data);
 
         $text(['task' => 'singlish', 'lines' => ['kohomada', '', 'oyata']])
@@ -83,7 +83,7 @@ class VideoEditorAiTest extends TestCase
 
     public function test_speech_comes_back_as_a_wav_file(): void
     {
-        [, $headers] = $this->userWithToken();
+        [, $headers] = $this->userWithToken(['plan' => 'pro', 'plan_expires_at' => now()->addMonth()]);
 
         $response = $this->withHeaders($headers)->post('/api/video-editor/ai/speech', ['text' => 'ආයුබෝවන්', 'voice' => 'Kore'], ['Accept' => 'application/json']);
 

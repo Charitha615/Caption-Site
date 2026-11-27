@@ -41,7 +41,7 @@ export const SI_CONTENT_PAGES: ContentPageData[] = [
             { title: 'Video එක upload කරන්න', text: 'MP4, MOV, WEBM හෝ MKV. Connection එක කැඩුනත් ලොකු uploads නැවතුණු තැන ඉඳන්ම ආයෙ පටන් ගන්නවා.' },
             { title: 'Subtitles ලැබෙනවා', text: 'කතාව ස්වයංක්‍රීයව ලියවිලා, හැම වචනයකටම timing එක දාලා එනවා.' },
             { title: 'Edit කරලා style කරන්න', text: 'වැරදි වචනයක් හදන්න, timeline එකේ timing වෙනස් කරන්න, caption style එකක් සහ font එකක් තෝරන්න.' },
-            { title: 'Export කරන්න', text: 'SRT, VTT හෝ TXT download කරන්න. නැත්නම් captions burn කරපු MP4 එකක් 720p සිට 4K දක්වා render කරන්න.' },
+            { title: 'Export කරන්න', text: 'SRT, VTT හෝ TXT download කරන්න. නැත්නම් captions burn කරපු MP4 එකක් render කරන්න: Free එකේ HD, Pro එකේ 4K දක්වා.' },
           ] },
         ],
       },
@@ -53,7 +53,7 @@ export const SI_CONTENT_PAGES: ContentPageData[] = [
       },
     ],
     faq: [
-      { q: 'සිංහල subtitle generator එක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 120ක්, හැම caption style එකක්ම, SRT, VTT සහ MP4 export තියෙනවා.' },
+      { q: 'සිංහල subtitle generator එක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 30ක්, caption styles 6ක්, SRT, VTT, TXT සහ HD (720p) MP4 export තියෙනවා. Pro (මාසෙට රු. 490) එකේ minutes 600ක්, 4K, හැම style එකක්ම සහ AI tools තියෙනවා.' },
       { q: 'සිංහල එක්ක English මිශ්‍ර කතාවට වැඩ කරනවද?', a: 'ඔව්. ලංකාවේ ගොඩක් අය කතා කරන්නේ එහෙමයි. සිංහල කතාව ඇතුළේ තියෙන English වචන ස්වයංක්‍රීයව English අකුරින්ම ලියවෙනවා.' },
       { q: 'Download කරන්න පුළුවන් subtitle formats මොනවද?', a: 'SRT, VTT සහ plain text. නැත්නම් captions burn කරපු MP4 video එකක්.' },
     ],
@@ -122,7 +122,7 @@ export const SI_CONTENT_PAGES: ContentPageData[] = [
         ],
       },
       {
-        heading: 'AI tools',
+        heading: 'AI tools (Pro)',
         blocks: [
           { kind: 'list', items: [
             'කතාවෙන් සිංහල සහ English subtitles.',
@@ -178,7 +178,7 @@ export const SI_CONTENT_PAGES: ContentPageData[] = [
           { kind: 'p', text: 'Burn කරපු captions හැම වෙලාවෙම පේනවා, ඔබේ style එකත් (font, පාට, highlight) එහෙමම තියෙනවා. Shorts වලටයි, Facebook හෝ WhatsApp වලත් share කරන videos වලටයි මේක හොඳම ක්‍රමය.' },
           { kind: 'steps', items: [
             { title: 'Caption style එකක් තෝරන්න', text: 'Editor එකේ style එකක් සහ font එකක් තෝරන්න.' },
-            { title: 'MP4 export කරන්න', text: 'Video එක 720p, 1080p හෝ 4K දක්වා render කරන්න.' },
+            { title: 'MP4 export කරන්න', text: 'Video එක HD (720p) වලින්, නැත්නම් Pro එකේ 1080p සිට 4K දක්වා render කරන්න.' },
             { title: 'අලුත් video එක upload කරන්න', text: 'Export කරපු MP4 එක YouTube එකට upload කරන්න.' },
           ] },
         ],

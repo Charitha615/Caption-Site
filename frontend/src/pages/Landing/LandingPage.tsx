@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Check, ChevronDown, Download, FileText, Languages, Lock, MousePointerClick, Palette, Sparkles, Type, UploadCloud, Wand2, X } from 'lucide-react';
 import { BRAND } from '../../config/brand';
-import { PRICING_PLANS } from '../../config/pricing';
+import { PAYMENT_NOTE, PRICING_PLANS } from '../../config/pricing';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { BrandLogo } from '../../components/BrandLogo/BrandLogo';
@@ -149,7 +149,7 @@ export const LandingPage: React.FC = () => {
                 <a href="#difference" className="sx-btn sx-btn-quiet sx-btn-lg">See the difference</a>
               </div>
               <ul className="sx-proof">
-                <li><Check size={15} aria-hidden="true" /> 120 free minutes every month</li>
+                <li><Check size={15} aria-hidden="true" /> 30 free minutes every month</li>
                 <li><Check size={15} aria-hidden="true" /> No card needed</li>
                 <li><Check size={15} aria-hidden="true" /> Works on your phone</li>
               </ul>
@@ -238,13 +238,13 @@ export const LandingPage: React.FC = () => {
             <Pricing
               plans={PRICING_PLANS}
               title="Simple pricing"
-              highlight="120 caption minutes free every month."
+              highlight="30 caption minutes free every month."
               description="Start free. Upgrade only when you post more."
               footnote={
-                <span lang="si">
-                  Pro වෙන්න <a href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a> එකට message එකක් දාන්න.
-                  Payment confirm වුනු ගමන් account එක upgrade වෙනවා. (Card payments coming soon.)
-                </span>
+                <>
+                  {PAYMENT_NOTE}{' '}
+                  <span lang="si">Bank transfer එකක් කරලා slip එක upload කරන්න, නැත්නම් WhatsApp කරන්න.</span>
+                </>
               }
             />
           </div>

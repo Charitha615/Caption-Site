@@ -582,3 +582,14 @@
   height: 44px; border: 1px solid var(--ve-line); border-radius: 10px; background: none;
   color: var(--editor-text); font: inherit; font-weight: 600; cursor: pointer;
 }
+
+/* Pro locks */
+.ve-pro-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; vertical-align: middle;
+  background: #F97316; color: #fff; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.02em; line-height: 1.5;
+}
+.ve-quality label.is-locked { opacity: 0.55; cursor: not-allowed; }
+.ve-pro-note a { color: #FDBA74; font-weight: 700; }
+.ve-pro-tool { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid rgba(249, 115, 22, 0.45); border-radius: 12px; background: rgba(249, 115, 22, 0.08); }
+.ve-pro-tool p { margin: 0; font-size: 0.85rem; line-height: 1.5; }
+.ve-pro-tool .ve-export { justify-content: center; text-decoration: none; }
