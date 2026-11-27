@@ -7,7 +7,6 @@ import {
   Settings,
   User,
   LogOut,
-  Sparkles,
   Sun,
   Moon,
   ArrowUpRight,
@@ -49,9 +48,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     <aside className={`app-sidebar ${isOpen ? 'app-sidebar-open' : ''}`} aria-label="Main navigation">
       <div className="sidebar-header">
         <NavLink to="/dashboard" className="sidebar-brand-wrapper" aria-label={`${brand.name} dashboard`}>
-          <div className="sidebar-logo-icon" aria-hidden="true">
-            <Sparkles size={20} />
-          </div>
           <div className="sidebar-brand-text">
             <span className="sidebar-brand-title"><BrandLogo /></span>
             <span className="sidebar-brand-tagline">{brand.tagline}</span>

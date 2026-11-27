@@ -9,6 +9,8 @@ use Illuminate\Validation\ValidationException;
 
 class LoginUserAction
 {
+    public function __construct(protected IssueAccessToken $issueToken) {}
+
     /**
      * Authenticate user credentials and create token.
      *
@@ -31,8 +33,7 @@ class LoginUserAction
         }
 
         AppLog::info('auth.login', ['user' => $user->uuid, 'ip' => request()->ip()]);
-        $deviceName = $credentials['device_name'] ?? 'web-app';
-        $token = $user->createToken($deviceName)->plainTextToken;
+        $token = $this->issueToken->execute($user, 'password', $credentials['device_name'] ?? null);
 
         return [
             'user' => $user,

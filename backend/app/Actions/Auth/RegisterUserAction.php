@@ -8,6 +8,8 @@ use Illuminate\Support\Str;
 
 class RegisterUserAction
 {
+    public function __construct(protected IssueAccessToken $issueToken) {}
+
     /**
      * Create a new user and generate a Sanctum personal access token.
      *
@@ -24,7 +26,7 @@ class RegisterUserAction
         ]);
         $user->forceFill(['plan' => config('plans.default')])->save();
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = $this->issueToken->execute($user, 'register');
 
         return [
             'user' => $user,

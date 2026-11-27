@@ -46,7 +46,7 @@ function pageHtml({ html, head, lang }, assets) {
     ...assets.js.map((f) => `<link rel="modulepreload" href="/${f}">`),
   ].join('\n    ');
   return shell
-    .replace(/<html lang="[^"]*">/, `<html lang="${lang}">`)
+    .replace(/<html lang="[^"]*"/, `<html lang="${lang}"`)
     .replace('</head>', `    ${extra}\n  </head>`)
     .replace('<div id="root"></div>', `<div id="root">${html}</div>`);
 }

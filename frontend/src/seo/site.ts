@@ -18,7 +18,7 @@ export interface SeoMeta {
   noindex?: boolean;
   /** Language versions of this page, for hreflang. */
   alternates?: { lang: 'en' | 'si' | 'x-default'; path: string }[];
-  /** Full title as written (home pages); otherwise "<title> | Sinsub". */
+  /** Full title as written (home pages); otherwise "<title> | සිංSub" (BRAND.titleName). */
   fullTitle?: boolean;
   /** schema.org objects for this page. */
   jsonLd?: object[];
@@ -26,7 +26,7 @@ export interface SeoMeta {
   type?: 'website' | 'article';
 }
 
-export const pageTitle = (meta: SeoMeta) => (meta.fullTitle ? meta.title : `${meta.title} | ${BRAND.name}`);
+export const pageTitle = (meta: SeoMeta) => (meta.fullTitle ? meta.title : `${meta.title} | ${BRAND.titleName}`);
 
 /** The head tags for a page, as plain data (used by the prerender and by the browser). */
 export function headTags(meta: SeoMeta) {

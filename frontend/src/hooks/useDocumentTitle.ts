@@ -7,6 +7,6 @@ export function useDocumentTitle(title?: string): void {
   useEffect(() => {
     if (typeof window !== 'undefined' && seoFor(window.location.pathname)) return;
     document.documentElement.lang = 'en';
-    document.title = title ? `${title} • ${BRAND.name}` : `${BRAND.name} — ${BRAND.tagline}`;
+    document.title = title ? `${title} • ${BRAND.titleName}` : `${BRAND.titleName} — ${BRAND.tagline}`;
   }, [title]);
 }

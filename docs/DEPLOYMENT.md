@@ -177,6 +177,8 @@ Set `VITE_SITE_URL=https://sinsub.cc` (the one public address: canonical URLs, s
 
 Apache / Hostinger: `public/.htaccess` (copied into `dist/`) does all of this, plus the domain redirect below. Netlify / Cloudflare Pages: `public/_redirects` sets the fallback.
 
+**Icons and share image.** The tab icon (white සිං on orange), phone home-screen icons and the 1200×630 share image are made from the templates in `frontend/scripts/brand/`: change the HTML, then run `node scripts/brand/icons.mjs` or `node scripts/brand/og-image.mjs` (needs Google Chrome).
+
 **One domain.** Today the main domain is `https://sinsub.cc`; `www.sinsub.cc` 301s to it (in `.htaccess`; on Nginx use a separate `server` block with `return 301 https://sinsub.cc$request_uri;`).
 
 **After the first deploy:** add `https://sinsub.cc` in Google Search Console and Bing Webmaster Tools, submit `https://sinsub.cc/sitemap.xml`, and use URL inspection on the home page to check Google sees the content. Check link previews with the Facebook Sharing Debugger.
@@ -190,7 +192,7 @@ Once `sinsub.lk` is bought, keep `sinsub.cc` too; both work, and `.cc` sends vis
 3. `frontend/public/.htaccess`: swap the "NOW" redirect for the "LATER" one (all hosts → `https://sinsub.lk`, path kept, 301).
 4. Backend `.env`: `FRONTEND_URL=https://sinsub.lk`, `BRAND_DOMAIN=sinsub.lk`, `BRAND_SUPPORT_EMAIL=support@sinsub.lk`; then `php artisan config:cache`.
 5. Google OAuth client (if used): add `https://sinsub.lk` to Authorized JavaScript origins.
-6. `npm run build` and upload `dist/`. Check `curl -I https://sinsub.cc/guides` returns `301` to `https://sinsub.lk/guides`.
+6. Share image: `node scripts/brand/og-image.mjs sinsub.lk` (from `frontend/`; it prints the domain on the image). Then `npm run build` and upload `dist/`. Check `curl -I https://sinsub.cc/guides` returns `301` to `https://sinsub.lk/guides`.
 7. Search Console: add `https://sinsub.lk`, submit its sitemap, then use **Change of Address** on the `sinsub.cc` property so rankings move over. Keep `sinsub.cc` renewed for at least a year or two.
 
 Nginx (app):

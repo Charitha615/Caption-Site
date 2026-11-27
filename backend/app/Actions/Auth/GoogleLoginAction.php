@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
  */
 class GoogleLoginAction
 {
-    public function __construct(protected GoogleTokenVerifier $verifier) {}
+    public function __construct(protected GoogleTokenVerifier $verifier, protected IssueAccessToken $issueToken) {}
 
     /**
      * @return array{user: User, token: string, created: bool}
@@ -48,6 +48,6 @@ class GoogleLoginAction
 
         AppLog::info($created ? 'auth.google_registered' : 'auth.google_login', ['user' => $user->uuid, 'ip' => request()->ip()]);
 
-        return ['user' => $user, 'token' => $user->createToken('web-app')->plainTextToken, 'created' => $created];
+        return ['user' => $user, 'token' => $this->issueToken->execute($user, 'google'), 'created' => $created];
     }
 }

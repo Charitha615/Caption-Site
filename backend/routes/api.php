@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\MediaStreamController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UploadSessionController;
 use App\Http\Controllers\Api\UsageController;
@@ -64,6 +65,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::patch('/me', [AccountController::class, 'update']);
     Route::put('/me/password', [AccountController::class, 'updatePassword'])->middleware('throttle:login');
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/me/sessions', [SessionController::class, 'index']);
+    Route::delete('/me/sessions', [SessionController::class, 'destroyOthers'])->middleware('throttle:login');
+    Route::delete('/me/sessions/{session}', [SessionController::class, 'destroy'])->whereNumber('session');
     Route::get('/me/review', [ReviewController::class, 'mine']);
     Route::put('/me/review', [ReviewController::class, 'save'])->middleware('throttle:20,60');
     Route::delete('/me/review', [ReviewController::class, 'destroy']);

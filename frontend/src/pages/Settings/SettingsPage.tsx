@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Palette, Film, Info } from 'lucide-react';
+import { Palette, Film, Info, MonitorSmartphone } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -9,6 +9,7 @@ import { LoadingState } from '../../components/LoadingState/LoadingState';
 import { RetryState } from '../../components/RetryState/RetryState';
 import { toAppError } from '../../services/errors';
 import type { UserSettings } from '../../types/auth';
+import { SignedInDevices } from './SignedInDevices';
 import './SettingsPage.css';
 
 const Section: React.FC<{ icon: React.ReactNode; title: string; description: string; children: React.ReactNode }> = ({ icon, title, description, children }) => {
@@ -96,7 +97,7 @@ export const SettingsPage: React.FC = () => {
           name="theme"
           label="Theme"
           value={theme}
-          options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]}
+          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
           onChange={setTheme}
         />
       </Section>
@@ -137,6 +138,10 @@ export const SettingsPage: React.FC = () => {
           </Section>
         </>
       )}
+
+      <Section icon={<MonitorSmartphone size={20} />} title="Signed-in devices" description="Where your account is signed in, with when each device was last used.">
+        <SignedInDevices />
+      </Section>
 
       <Section icon={<Info size={20} />} title="About" description={`${brand.name} · version ${brand.version}`}>
         <p className="settings-about">

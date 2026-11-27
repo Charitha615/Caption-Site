@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  Source of the site icon (browser tab, Google results, phone home screens): white "සිං" on orange.
+  Rendered to PNG by scripts/brand/icons.mjs. Query: ?size=<px>&shape=round|square|maskable
+    round    – rounded corners on a transparent background (tab icons, Android "any" icons)
+    square   – fills the whole square (iPhone home screen: iOS rounds the corners itself)
+    maskable – fills the square, letters kept inside the middle 80% (Android may crop to a circle)
+-->
+<html lang="si">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@900&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: transparent; }
+  .icon { display: grid; place-items: center; background: #F97316; overflow: hidden; }
+  .icon span {
+    font-family: 'Noto Sans Sinhala', sans-serif; font-weight: 900; line-height: 1; color: #fff;
+    letter-spacing: -0.04em;
+    /* Optical centring: the glyphs sit a little low in their line box. */
+    transform: translateY(-3%);
+  }
+</style>
+</head>
+<body>
+  <div class="icon" id="icon"><span id="text">සිං</span></div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const size = Number(q.get('size') || 512);
+    const shape = q.get('shape') || 'round';
+    const icon = document.getElementById('icon');
+    icon.style.width = icon.style.height = `${size}px`;
+    // Rounded square (about the same corner as iOS), none when the platform rounds it.
+    icon.style.borderRadius = shape === 'round' ? `${size * 0.22}px` : '0';
+    // Tiny tab icons get relatively bigger, bolder letters so they stay readable.
+    const scale = shape === 'maskable' ? 0.4 : size <= 16 ? 0.62 : size <= 32 ? 0.56 : 0.5;
+    document.getElementById('text').style.fontSize = `${size * scale}px`;
+  </script>
+</body>
+</html>

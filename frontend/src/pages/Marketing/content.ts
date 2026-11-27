@@ -5,6 +5,7 @@
  * Adding a page: add an entry here (Sinhala pages in content.si.ts, at /si + the English path).
  * Routes, the sitemap, hreflang, the language switch, the footer and the guides list pick it up.
  */
+import { BRAND } from '../../config/brand';
 import { SI_CONTENT_PAGES } from './content.si';
 
 export type Block =
@@ -326,7 +327,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
     lang: 'si',
     kind: 'home',
     linkLabel: 'සිංහලෙන්',
-    title: 'සිංහල Subtitles සහ Captions ස්වයංක්‍රීයව – Sinsub',
+    title: `සිංහල Subtitles සහ Captions ස්වයංක්‍රීයව – ${BRAND.titleName}`,
     description: 'ඔබේ video එකට සිංහල සහ English captions ස්වයංක්‍රීයව හදන්න. වචනයෙන් වචනයට timing, ලස්සන styles, SRT සහ MP4 export. නොමිලේ පටන් ගන්න.',
     eyebrow: 'සිංහල creators ලා වෙනුවෙන්',
     h1: 'ඔබේ video වලට සිංහල subtitles ස්වයංක්‍රීයව',

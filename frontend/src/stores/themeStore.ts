@@ -10,9 +10,12 @@ interface ThemeState {
   toggleTheme: () => void;
 }
 
+/** The theme the person chose with the toggle; light until they choose. */
+export const DEFAULT_THEME: ThemeMode = 'light';
+
 export const getInitialTheme = (): ThemeMode => {
   const saved = safeStorage.get(STORAGE_KEYS.THEME);
-  return saved === 'light' || saved === 'dark' ? saved : 'dark';
+  return saved === 'light' || saved === 'dark' ? saved : DEFAULT_THEME;
 };
 
 export const useThemeStore = create<ThemeState>((set, get) => ({

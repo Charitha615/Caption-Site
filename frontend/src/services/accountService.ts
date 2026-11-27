@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 import type { ApiResponse } from '../types/api';
-import type { AiKeyStatus, AiKeyVerification, User, UserSettings } from '../types/auth';
+import type { AiKeyStatus, AiKeyVerification, SignedInDevice, User, UserSettings } from '../types/auth';
 import type { UsageSummary } from '../types/project';
 
 export const accountService = {
@@ -42,6 +42,21 @@ export const accountService = {
   async removeAiKey(): Promise<AiKeyStatus> {
     const res = await apiClient.delete<ApiResponse<{ ai_key: AiKeyStatus }>>('/me/ai-key');
     return res.data.data.ai_key;
+  },
+
+  async getSessions(): Promise<SignedInDevice[]> {
+    const res = await apiClient.get<ApiResponse<{ sessions: SignedInDevice[] }>>('/me/sessions');
+    return res.data.data.sessions;
+  },
+
+  async signOutDevice(id: number): Promise<void> {
+    await apiClient.delete(`/me/sessions/${id}`);
+  },
+
+  /** Signs out every device except this one; returns how many were signed out. */
+  async signOutOtherDevices(): Promise<number> {
+    const res = await apiClient.delete<ApiResponse<{ signed_out: number }>>('/me/sessions');
+    return res.data.data.signed_out;
   },
 
   async getUsage(): Promise<UsageSummary> {

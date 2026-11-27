@@ -62,7 +62,6 @@
 .sx-nav { position: sticky; top: 0; z-index: 30; background: rgba(251, 247, 242, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--sx-line); }
 .sx-nav-inner { display: flex; align-items: center; gap: 28px; min-height: 66px; }
 .sx-brand { text-decoration: none; font-size: 1.4rem; color: var(--sx-ink); }
-.sx-brand .brand-logo-en, .sx-footer .brand-logo-en { color: var(--sx-orange); }
 .sx-nav-links { display: flex; gap: 24px; margin-left: auto; }
 .sx-nav-links a { text-decoration: none; color: var(--sx-ink-2); font-size: 0.93rem; font-weight: 500; }
 .sx-nav-links a:hover { color: var(--sx-purple); }

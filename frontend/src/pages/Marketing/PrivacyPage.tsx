@@ -40,6 +40,7 @@ export function PrivacyPage() {
                 <li><strong>Your Gemini API key</strong>, if you add one. It is stored encrypted and used only to caption your own videos.</li>
                 <li><strong>Usage records:</strong> caption minutes and AI requests used, to apply plan limits.</li>
                 <li><strong>Technical logs:</strong> IP address, browser and request details, kept to keep the service secure and to fix errors.</li>
+                <li><strong>Signed-in devices:</strong> for each sign-in, the browser and device type, the IP address and the time, so you can see and sign out your devices in Settings. They are deleted when that device signs out or its sign-in expires.</li>
               </ul>
             </section>
 

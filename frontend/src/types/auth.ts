@@ -51,3 +51,19 @@ export interface AiKeyVerification {
   result: 'valid' | 'invalid' | 'unreachable';
   message: string;
 }
+
+/** A device the user is signed in on (GET /me/sessions). */
+export interface SignedInDevice {
+  id: number;
+  browser: string;
+  os: string;
+  device: 'desktop' | 'mobile' | 'tablet';
+  /** False for sign-ins saved before devices were recorded. */
+  known: boolean;
+  ip_address: string | null;
+  sign_in_method: 'password' | 'google' | 'register' | null;
+  signed_in_at: string;
+  last_active_at: string;
+  /** The device this page is open on. */
+  current: boolean;
+}

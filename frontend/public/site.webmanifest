@@ -1,6 +1,6 @@
 {
-  "name": "Sinsub – Sinhala & English video captions",
-  "short_name": "Sinsub",
+  "name": "සිංSub – Sinhala & English video captions",
+  "short_name": "සිංSub",
   "description": "Automatic Sinhala and English captions and subtitles for your videos.",
   "start_url": "/",
   "display": "standalone",
@@ -8,8 +8,23 @@
   "theme_color": "#5B21B6",
   "lang": "en",
   "icons": [
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

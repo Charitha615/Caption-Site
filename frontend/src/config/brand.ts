@@ -1,6 +1,8 @@
 export interface BrandConfig {
   name: string;
   shortName: string;
+  /** Name in browser tabs and search-result titles, e.g. "සිංSub" (Sinhala + English). */
+  titleName: string;
   /** Logo wordmark, e.g. "සිංසබ්". */
   logoText: string;
   domain: string;
@@ -36,6 +38,7 @@ const name = env.VITE_BRAND_NAME?.trim() || 'Sinsub';
 export const BRAND: BrandConfig = {
   name,
   shortName: env.VITE_BRAND_SHORT_NAME?.trim() || name,
+  titleName: env.VITE_BRAND_TITLE_NAME?.trim() || 'සිංSub',
   logoText: env.VITE_BRAND_LOGO_TEXT?.trim() || 'සිංසබ්',
   domain: env.VITE_BRAND_DOMAIN?.trim() || 'sinsub.lk',
   tagline: env.VITE_BRAND_TAGLINE?.trim() || 'Sinhala & English video captions',

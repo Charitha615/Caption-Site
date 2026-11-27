@@ -1,19 +1,30 @@
+/* The logo: orange "සිං" box + "Sub". Sizes are in em, so it follows the font size where it is used. */
 .brand-logo {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 0.18em;
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: 1;
   font-weight: 800;
 }
-.brand-logo-si {
-  font-family: 'Noto Sans Sinhala', 'Iskoola Pota', var(--font-family, sans-serif);
-  letter-spacing: 0;
+.brand-logo-mark {
+  display: inline-grid;
+  place-items: center;
+  height: 1.5em;
+  padding: 0 0.32em;
+  border-radius: 0.34em;
+  background: #F97316;
+  color: #fff;
+  font-family: 'Noto Sans Sinhala', 'Iskoola Pota', sans-serif;
+  font-weight: 800;
+  font-size: 0.95em;
+  letter-spacing: -0.04em;
+  /* Sinhala glyphs sit a little low in their line box. */
+  padding-bottom: 0.06em;
 }
-.brand-logo-en {
-  font-family: 'Poppins', 'Inter', sans-serif;
-  font-size: 0.82em;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--brand-accent, #F97316);
-  margin-left: 0.02em;
+.brand-logo-word {
+  font-family: 'Inter', 'Poppins', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: inherit;
 }
