@@ -2,10 +2,12 @@
 
 namespace App\Services\Billing;
 
+use App\Jobs\SendAdminWhatsApp;
 use App\Models\Payment;
 use App\Models\User;
 use App\Notifications\PaymentReceived;
 use App\Notifications\PaymentReviewed;
+use App\Services\Notifications\AdminWhatsApp;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
 use Illuminate\Http\UploadedFile;
@@ -82,6 +84,7 @@ class BillingService
 
         AppLog::info('billing.payment_submitted', ['user' => $user->uuid, 'payment' => $payment->uuid, 'period' => $period, 'slip' => (bool) $slip]);
         Notification::send(User::where('role', 'admin')->get(), new PaymentReceived($payment));
+        $this->alertAdminOnWhatsApp($payment);
 
         return $payment;
     }
@@ -98,8 +101,17 @@ class BillingService
         if ($old) {
             Storage::disk(self::SLIP_DISK)->delete($old);
         }
+        $this->alertAdminOnWhatsApp($payment, slipAdded: true);
 
         return $payment;
+    }
+
+    /** A WhatsApp message to the admin's phone (CallMeBot), when that is set up. */
+    private function alertAdminOnWhatsApp(Payment $payment, bool $slipAdded = false): void
+    {
+        if (app(AdminWhatsApp::class)->enabled()) {
+            SendAdminWhatsApp::dispatch(AdminWhatsApp::paymentMessage($payment->loadMissing('user'), $slipAdded));
+        }
     }
 
     /**

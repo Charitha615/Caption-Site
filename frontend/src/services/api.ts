@@ -25,6 +25,11 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // File uploads: with the default JSON content type, axios would turn FormData into JSON and drop
+  // the files. Without it, the browser sends multipart/form-data with the right boundary.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.delete('Content-Type');
+  }
   return config;
 });
 

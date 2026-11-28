@@ -38,4 +38,13 @@ return [
 
     /** Days before the end date when the "Pro is ending" reminder is sent. */
     'reminder_days' => 5,
+
+    /**
+     * WhatsApp alert to the admin when someone requests Pro or uploads a slip, sent with CallMeBot.
+     * Off until CALLMEBOT_APIKEY is set. The phone defaults to the WhatsApp number above.
+     */
+    'admin_whatsapp' => [
+        'callmebot_apikey' => env('CALLMEBOT_APIKEY', ''),
+        'phone' => env('CALLMEBOT_PHONE', ''),
+    ],
 ];
