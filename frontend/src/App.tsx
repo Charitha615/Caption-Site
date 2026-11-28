@@ -47,6 +47,8 @@ const AdminReviewsPage = named(() => import('./pages/Admin/AdminReviewsPage'), '
 const AdminPaymentsPage = named(() => import('./pages/Admin/AdminPaymentsPage'), 'AdminPaymentsPage');
 const AdminSignupsPage = named(() => import('./pages/Admin/AdminSignupsPage'), 'AdminSignupsPage');
 const AdminUsersPage = named(() => import('./pages/Admin/AdminUsersPage'), 'AdminUsersPage');
+const AdminNotificationsPage = named(() => import('./pages/Admin/AdminNotificationsPage'), 'AdminNotificationsPage');
+const NotificationsPage = named(() => import('./pages/Notifications/NotificationsPage'), 'NotificationsPage');
 const BillingPage = named(() => import('./pages/Billing/BillingPage'), 'BillingPage');
 const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFoundPage');
 const VideoEditorPage = named(() => import('./pages/VideoEditor/VideoEditorPage'), 'VideoEditorPage');
@@ -108,6 +110,8 @@ const RoutedApp: React.FC = () => {
               <Route path="/admin/payments" element={<AdminPaymentsPage />} />
               <Route path="/admin/signups" element={<AdminSignupsPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/billing" element={<BillingPage />} />
             </Route>
             {/* Full-screen multi-track video editor */}

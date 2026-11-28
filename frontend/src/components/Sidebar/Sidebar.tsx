@@ -16,6 +16,7 @@ import {
   Crown,
   Banknote,
   Users,
+  Megaphone,
   TrendingUp,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
@@ -64,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         </button>
       </div>
 
-      <div className="sidebar-cta">
+      <div className="sidebar-cta" data-tour="new-project">
         <Button variant="primary" fullWidth size="md" startIcon={<PlusCircle size={18} aria-hidden="true" />} onClick={() => navigate('/projects/create')}>
           New project
         </Button>
@@ -76,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <LayoutDashboard size={18} aria-hidden="true" />
           <span>Dashboard</span>
         </NavLink>
-        <NavLink to="/projects" end={false} className={linkClass}>
+        <NavLink to="/projects" end={false} className={linkClass} data-tour="projects">
           <FolderKanban size={18} aria-hidden="true" />
           <span>Projects</span>
         </NavLink>
@@ -88,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <User size={18} aria-hidden="true" />
           <span>Account &amp; usage</span>
         </NavLink>
-        <NavLink to="/billing" className={linkClass}>
+        <NavLink to="/billing" className={linkClass} data-tour="upgrade">
           <Crown size={18} aria-hidden="true" />
           <span>{isPro ? `${usage?.plan.label ?? 'Pro'} plan` : 'Upgrade to Pro'}</span>
         </NavLink>
@@ -107,6 +108,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
               <TrendingUp size={18} aria-hidden="true" />
               <span>Sign-ups</span>
             </NavLink>
+            <NavLink to="/admin/notifications" className={linkClass}>
+              <Megaphone size={18} aria-hidden="true" />
+              <span>Send notifications</span>
+            </NavLink>
             <NavLink to="/admin/users" className={linkClass}>
               <Users size={18} aria-hidden="true" />
               <span>Users</span>
@@ -116,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-pro-card">
+        <div className="sidebar-pro-card" data-tour="usage">
           <div className="pro-card-header">
             <div className="pro-card-badge">
               <Gauge size={13} aria-hidden="true" />

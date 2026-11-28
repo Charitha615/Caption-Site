@@ -8,6 +8,12 @@ export interface User {
   plan?: string;
   /** When a paid plan ends (null on Free). */
   plan_expires_at?: string | null;
+  /** International digits, e.g. 94771234567. */
+  whatsapp_number?: string | null;
+  /** Agreed to updates on WhatsApp. */
+  whatsapp_opt_in?: boolean;
+  /** Wants update emails from the team (on by default). */
+  email_updates?: boolean;
   ai_key?: Pick<AiKeyStatus, 'configured' | 'hint' | 'status' | 'checked_at'>;
   created_at: string;
   updated_at: string;
@@ -28,12 +34,17 @@ export interface RegisterCredentials {
   name: string;
   email: string;
   password: string;
+  /** Optional; only used for WhatsApp messages when `whatsapp_opt_in` is true. */
+  whatsapp_number?: string;
+  whatsapp_opt_in?: boolean;
 }
 
 export interface UserSettings {
   default_language: 'si' | 'en' | 'auto';
   default_export_resolution: 'source' | '720' | '1080' | '1440' | '2160';
   default_export_quality: 'high' | 'standard' | 'small';
+  /** Set for new accounts: show the app tour on the next visit. */
+  tour_pending?: boolean;
 }
 
 export interface AiKeyStatus {

@@ -1,0 +1,26 @@
+.tour-root { position: fixed; inset: 0; z-index: 1000; }
+.tour-backdrop { position: fixed; inset: 0; background: rgba(15, 15, 25, 0.55); }
+.tour-spotlight {
+  position: fixed; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(15, 15, 25, 0.55), 0 0 0 3px var(--brand-primary);
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+.tour-card {
+  position: fixed; width: min(340px, calc(100vw - 24px)); padding: 18px 18px 14px; border-radius: 16px;
+  background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); outline: none;
+  transition: top 0.25s ease, left 0.25s ease;
+}
+.tour-close { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: var(--text-muted); cursor: pointer; display: grid; place-items: center; }
+.tour-close:hover { background: var(--bg-muted); }
+.tour-step { margin: 0 0 6px; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; color: var(--brand-primary); text-transform: uppercase; }
+.tour-title { margin: 0 24px 6px 0; font-size: 1.05rem; font-weight: 800; }
+.tour-body { margin: 0; font-size: 0.9rem; line-height: 1.55; color: var(--text-muted); font-family: 'Inter', 'Noto Sans Sinhala', system-ui, sans-serif; }
+.tour-dots { display: flex; gap: 5px; margin: 14px 0 12px; }
+.tour-dots span { width: 6px; height: 6px; border-radius: 999px; background: var(--border-color); transition: width 0.2s; }
+.tour-dots span.is-on { width: 18px; background: var(--brand-primary); }
+.tour-actions { display: flex; justify-content: space-between; gap: 8px; }
+.tour-btn { padding: 8px 16px; border: 0; border-radius: 10px; background: var(--brand-primary); color: #fff; font: inherit; font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+.tour-btn.is-ghost { background: none; color: var(--text-muted); padding-left: 4px; }
+.tour-btn:focus-visible, .tour-close:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .tour-spotlight, .tour-card { transition: none; } }

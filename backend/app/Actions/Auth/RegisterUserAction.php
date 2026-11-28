@@ -3,6 +3,7 @@
 namespace App\Actions\Auth;
 
 use App\Models\User;
+use App\Support\PhoneNumber;
 use App\Support\SignupAttribution;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -25,7 +26,14 @@ class RegisterUserAction
             'email' => strtolower(trim($data['email'])),
             'password' => Hash::make($data['password']),
         ]);
-        $user->forceFill(['plan' => config('plans.default'), ...SignupAttribution::toColumns($data['attribution'] ?? null)])->save();
+        $whatsApp = PhoneNumber::normalize($data['whatsapp_number'] ?? null);
+        $user->forceFill([
+            'plan' => config('plans.default'),
+            'whatsapp_number' => $whatsApp,
+            'whatsapp_opt_in' => $whatsApp !== null && ! empty($data['whatsapp_opt_in']),
+            ...SignupAttribution::toColumns($data['attribution'] ?? null),
+        ])->save();
+        app(WelcomeNewUser::class)->execute($user);
 
         $token = $this->issueToken->execute($user, 'register');
 

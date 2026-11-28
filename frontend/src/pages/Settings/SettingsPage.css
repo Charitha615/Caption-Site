@@ -116,3 +116,11 @@
 @media (max-width: 600px) {
   .settings-option { flex: 1 1 100%; }
 }
+.contact-prefs { display: flex; flex-direction: column; gap: 16px; }
+.contact-pref-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.contact-pref-row input { margin-top: 4px; accent-color: var(--brand-primary); }
+.contact-pref-row strong { display: block; font-size: 0.92rem; }
+.contact-pref-row small { display: block; color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; margin-top: 2px; }
+.contact-pref-whatsapp { display: flex; flex-direction: column; gap: 8px; }
+.contact-pref-inline { display: flex; gap: 8px; max-width: 360px; }
+.contact-pref-inline .input-field { flex: 1; }

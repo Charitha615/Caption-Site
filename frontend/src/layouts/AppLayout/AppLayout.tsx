@@ -3,6 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/Sidebar/Sidebar';
 import { Navbar } from '../../components/Navbar/Navbar';
 import { ShortcutsDialog } from '../../components/ShortcutsDialog/ShortcutsDialog';
+import { AppTour } from '../../components/Tour/AppTour';
+import { useTourStore } from '../../stores/tourStore';
 import { useUsageStore } from '../../stores/usageStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import './AppLayout.css';
@@ -13,6 +15,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/projects/, 'Projects'],
   [/^\/settings/, 'Settings'],
   [/^\/profile/, 'Account'],
+  [/^\/notifications/, 'Notifications'],
 ];
 
 export const AppLayout: React.FC = () => {
@@ -27,6 +30,14 @@ export const AppLayout: React.FC = () => {
     void loadUsage().catch(() => undefined);
     void loadSettings().catch(() => undefined);
   }, [loadUsage, loadSettings]);
+
+  // New accounts get the tour once, after the page has drawn.
+  const tourPending = useSettingsStore((s) => s.settings?.tour_pending === true);
+  useEffect(() => {
+    if (!tourPending) return;
+    const timer = window.setTimeout(() => useTourStore.getState().start(), 600);
+    return () => window.clearTimeout(timer);
+  }, [tourPending]);
 
   // Close the mobile drawer whenever the route changes.
   const [lastPath, setLastPath] = useState(location.pathname);
@@ -60,6 +71,7 @@ export const AppLayout: React.FC = () => {
         </main>
       </div>
       <ShortcutsDialog isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <AppTour />
     </div>
   );
 };

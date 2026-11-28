@@ -7,6 +7,8 @@ export const STORAGE_KEYS = {
   THEME: 'samplecap_theme',
   UPLOAD_SESSIONS: 'samplecap_upload_sessions',
   SIGNUP_ATTRIBUTION: 'samplecap_signup_attribution',
+  /** This browser's own id, kept across sign-outs (see utils/deviceId). */
+  DEVICE_ID: 'samplecap_device_id',
 } as const;
 
 export const DEFAULT_PAGINATION = {

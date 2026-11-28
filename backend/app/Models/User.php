@@ -6,6 +6,7 @@ use App\Notifications\ResetPasswordNotification;
 use App\Support\AppLog;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -70,6 +71,8 @@ class User extends Authenticatable
             'plan_expires_at' => 'datetime',
             'plan_reminded_at' => 'datetime',
             'usage_reset_at' => 'datetime',
+            'whatsapp_opt_in' => 'boolean',
+            'email_updates' => 'boolean',
         ];
     }
 
@@ -129,6 +132,39 @@ class User extends Authenticatable
             'plan_expires_at' => $expiresAt,
             'plan_reminded_at' => null,
         ])->save();
+    }
+
+    /**
+     * Users whose plan in force now is `$plan` (a paid plan past its end date counts as the default plan).
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeOnPlan(Builder $query, string $plan): void
+    {
+        $default = config('plans.default');
+        $query->where(function (Builder $q) use ($plan, $default) {
+            if ($plan === $default) {
+                $q->where('plan', $default)->orWhereNull('plan')
+                    ->orWhere(fn (Builder $e) => $e->whereNotNull('plan_expires_at')->where('plan_expires_at', '<=', now()));
+            } else {
+                $q->where('plan', $plan)->where(fn (Builder $e) => $e->whereNull('plan_expires_at')->orWhere('plan_expires_at', '>', now()));
+            }
+        });
+    }
+
+    /**
+     * Pro users who pay `$period` ('monthly' or 'yearly'): on Pro now, and their latest approved payment
+     * was for that period. Pro given by an admin without a payment is in neither.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeOnBillingPeriod(Builder $query, string $period): void
+    {
+        $query->onPlan('pro')->where(
+            Payment::query()->select('period')->whereColumn('payments.user_id', 'users.id')
+                ->where('status', Payment::STATUS_APPROVED)->latest('id')->limit(1),
+            $period,
+        );
     }
 
     /** The plan in force now: a paid plan whose end date has passed counts as the default plan. */

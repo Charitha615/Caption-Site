@@ -10,9 +10,10 @@ import {
   Moon,
   Search,
   HelpCircle,
-  Gauge,
-} from 'lucide-react';
+  Gauge, Compass } from 'lucide-react';
 import { MOD } from '../../features/editor/shortcuts';
+import { NotificationBell } from '../Notifications/NotificationBell';
+import { useTourStore } from '../../stores/tourStore';
 import { useUsageStore } from '../../stores/usageStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -64,6 +65,12 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard', onMenuClick
       onClick: () => navigate('/settings'),
     },
     {
+      key: 'tour',
+      label: 'Take the tour',
+      icon: <Compass size={16} />,
+      onClick: () => useTourStore.getState().start(),
+    },
+    {
       key: 'divider-1',
       label: '',
       divider: true,
@@ -88,6 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard', onMenuClick
         <form
           role="search"
           className="navbar-search-box"
+          data-tour="search"
           onSubmit={(e) => {
             e.preventDefault();
             const q = query.trim();
@@ -123,7 +131,9 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Dashboard', onMenuClick
           {theme === 'dark' ? <Sun size={18} className="theme-icon sun-icon" aria-hidden="true" /> : <Moon size={18} className="theme-icon moon-icon" aria-hidden="true" />}
         </button>
 
-        <button type="button" className="navbar-action-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" onClick={onHelpClick}>
+        <NotificationBell />
+
+        <button type="button" className="navbar-action-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" onClick={onHelpClick} data-tour="help">
           <HelpCircle size={18} aria-hidden="true" />
         </button>
 

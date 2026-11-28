@@ -4,7 +4,7 @@ import type { AiKeyStatus, AiKeyVerification, SignedInDevice, User, UserSettings
 import type { UsageSummary } from '../types/project';
 
 export const accountService = {
-  async updateProfile(payload: { name?: string; email?: string }): Promise<User> {
+  async updateProfile(payload: { name?: string; email?: string; whatsapp_number?: string | null; whatsapp_opt_in?: boolean; email_updates?: boolean }): Promise<User> {
     const res = await apiClient.patch<ApiResponse<{ user: User }>>('/me', payload, { silent: true });
     return res.data.data.user;
   },

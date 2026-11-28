@@ -1,0 +1,47 @@
+.notif-bell { position: relative; }
+.notif-bell-btn { position: relative; }
+.notif-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: #ef4444; color: #fff; font-size: 0.68rem; font-weight: 700;
+  display: grid; place-items: center; border: 2px solid var(--bg-surface); line-height: 1;
+}
+.notif-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(380px, calc(100vw - 24px));
+  background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18); overflow: hidden;
+}
+.notif-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border-color); }
+.notif-link-btn { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; color: var(--brand-primary); font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.notif-list { list-style: none; margin: 0; padding: 4px; max-height: min(420px, 60vh); overflow-y: auto; }
+.notif-empty { padding: 22px 14px; text-align: center; color: var(--text-muted); font-size: 0.88rem; }
+.notif-item {
+  display: flex; gap: 10px; width: 100%; padding: 10px; border: 0; border-radius: 10px; background: none;
+  text-align: left; font: inherit; color: inherit; cursor: pointer; align-items: flex-start;
+}
+.notif-item:hover, .notif-item:focus-visible { background: var(--bg-muted); outline: none; }
+.notif-item.is-unread { background: color-mix(in srgb, var(--brand-primary) 6%, transparent); }
+.notif-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--bg-muted); color: var(--text-muted); }
+.notif-icon.is-brand { background: color-mix(in srgb, var(--brand-primary) 14%, transparent); color: var(--brand-primary); }
+.notif-icon.is-accent { background: color-mix(in srgb, #f97316 16%, transparent); color: #ea580c; }
+.notif-icon.is-good { background: color-mix(in srgb, #22c55e 16%, transparent); color: #16a34a; }
+.notif-icon.is-bad { background: color-mix(in srgb, #ef4444 14%, transparent); color: #dc2626; }
+.notif-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.notif-title { font-weight: 700; font-size: 0.88rem; }
+.notif-body { font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-family: 'Inter', 'Noto Sans Sinhala', system-ui, sans-serif; }
+.notif-time { font-size: 0.74rem; color: var(--text-muted); }
+.notif-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--brand-primary); }
+.notif-panel-foot { display: block; width: 100%; padding: 11px; border: 0; border-top: 1px solid var(--border-color); background: none; color: var(--brand-primary); font: inherit; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
+.notif-panel-foot:hover { background: var(--bg-muted); }
+
+/* Full page */
+.notif-page { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.notif-page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.notif-page .notif-list { max-height: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.notif-page .notif-row { display: flex; align-items: flex-start; gap: 4px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-surface); }
+.notif-page .notif-item { flex: 1; }
+.notif-page .notif-body { -webkit-line-clamp: unset; display: block; }
+.notif-remove { flex: none; margin: 8px; width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--text-muted); cursor: pointer; display: grid; place-items: center; }
+.notif-remove:hover { background: var(--bg-muted); color: #dc2626; }
+.notif-icon.is-offer { background: color-mix(in srgb, #ec4899 15%, transparent); color: #db2777; }
+.notif-icon.is-tip { background: color-mix(in srgb, #eab308 18%, transparent); color: #a16207; }
+.notif-cta { align-self: flex-start; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--brand-primary); color: #fff; font-size: 0.76rem; font-weight: 700; }

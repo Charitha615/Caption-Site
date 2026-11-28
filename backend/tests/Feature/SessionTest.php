@@ -46,6 +46,41 @@ class SessionTest extends TestCase
         $this->assertArrayNotHasKey('token', $phone);
     }
 
+    public function test_signing_in_again_on_the_same_device_replaces_its_old_session(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('password123')]);
+        $login = fn (string $device, string $ip = '198.51.100.20') => $this->withHeaders(['User-Agent' => self::CHROME_WINDOWS])
+            ->withServerVariables(['REMOTE_ADDR' => $ip])
+            ->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password123', 'device_id' => $device])
+            ->assertOk()->json('data.token');
+
+        $first = $login('browser-aaaaaaaaaaaaaaaa');
+        $this->travel(5)->minutes();
+        $again = $login('browser-aaaaaaaaaaaaaaaa', '203.0.113.99'); // same browser, new network
+        $login('browser-bbbbbbbbbbbbbbbb');                          // a second browser, same model and network
+
+        $this->assertSame(2, $user->tokens()->count());
+        $this->app['auth']->forgetGuards();
+        $this->withToken($first)->getJson('/api/me')->assertUnauthorized();
+        $this->app['auth']->forgetGuards();
+        $sessions = $this->withToken($again)->getJson('/api/me/sessions')->assertOk()->json('data.sessions');
+        $this->assertSame('203.0.113.99', collect($sessions)->firstWhere('current', true)['ip_address']);
+    }
+
+    public function test_sessions_from_before_device_ids_are_matched_by_browser_and_ip(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('password123')]);
+        $this->signIn($user, self::CHROME_WINDOWS, '198.51.100.20');
+        $this->signIn($user, self::SAFARI_IPHONE, '198.51.100.20');
+
+        $this->withHeaders(['User-Agent' => self::CHROME_WINDOWS])->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password123', 'device_id' => 'browser-cccccccccccccccc'])->assertOk();
+
+        $this->assertSame(2, $user->tokens()->count());
+        $this->assertSame(['browser-cccccccccccccccc', null], $user->tokens()->orderBy('device_id', 'desc')->pluck('device_id')->all());
+        $this->assertSame(1, $user->tokens()->where('user_agent', self::SAFARI_IPHONE)->count());
+    }
+
     public function test_signing_out_one_device_ends_only_that_sign_in(): void
     {
         $user = User::factory()->create(['password' => Hash::make('password123')]);

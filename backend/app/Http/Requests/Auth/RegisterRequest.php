@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Support\PhoneNumber;
 use App\Support\SignupAttribution;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
@@ -19,6 +20,8 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'max:255', Password::min(8)->letters()->numbers()],
+            'whatsapp_number' => PhoneNumber::rules(),
+            'whatsapp_opt_in' => ['nullable', 'boolean'],
             ...SignupAttribution::rules(),
         ];
     }

@@ -7,7 +7,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { fieldError, toAppError, type AppError } from '../../services/errors';
 import { passwordProblem } from '../../utils/validation';
 import { FancyButton } from '../../components/ui/FancyButton/FancyButton';
-import { AuthDivider, AuthField, AuthHeader, GoogleIcon, PasswordField, SocialButton } from '../../components/ui/AuthForm/AuthForm';
+import { AuthCheckbox, AuthDivider, AuthField, AuthHeader, GoogleIcon, PasswordField, SocialButton } from '../../components/ui/AuthForm/AuthForm';
 import { useGoogleSignIn } from '../../features/auth/useGoogleSignIn';
 
 export const RegisterPage: React.FC = () => {
@@ -20,6 +20,8 @@ export const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
@@ -37,7 +39,7 @@ export const RegisterPage: React.FC = () => {
     setError(null);
     if (!name.trim() || !email.trim() || pwProblem || mismatch || !password) return;
     try {
-      await register({ name: name.trim(), email: email.trim(), password });
+      await register({ name: name.trim(), email: email.trim(), password, ...(whatsapp.trim() ? { whatsapp_number: whatsapp.trim(), whatsapp_opt_in: whatsappOptIn } : {}) });
       goToDashboard();
     } catch (err) {
       setError(toAppError(err, 'Registration failed. Please check your details.'));
@@ -96,6 +98,21 @@ export const RegisterPage: React.FC = () => {
           error={mismatch ? 'Passwords do not match.' : undefined}
           required
         />
+        <AuthField
+          id={`${id}-whatsapp`}
+          label="WhatsApp number (optional)"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="077 123 4567"
+          value={whatsapp}
+          onChange={(e) => setWhatsapp(e.target.value)}
+          error={fieldError(error, 'whatsapp_number')}
+          hint="For news and offers. You can change this any time in Settings."
+        />
+        {whatsapp.trim() && (
+          <AuthCheckbox id={`${id}-whatsapp-ok`} label="Send me updates and offers on WhatsApp" checked={whatsappOptIn} onChange={setWhatsappOptIn} />
+        )}
 
         <FancyButton type="submit" size="lg" fullWidth isLoading={isLoading && !google.busy}>
           Create account

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminMarketingLinkController;
+use App\Http\Controllers\Api\AdminMessageController;
 use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\AdminSignupController;
 use App\Http\Controllers\Api\AdminUserController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Api\CaptionTemplateController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\MediaStreamController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ReviewController;
@@ -98,6 +100,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     Route::middleware('can:manage-users')->prefix('admin')->group(function () {
         Route::get('/users', [AdminUserController::class, 'index']);
+        Route::get('/messages', [AdminMessageController::class, 'index']);
+        Route::post('/messages', [AdminMessageController::class, 'store'])->middleware('throttle:20,1');
+        Route::get('/messages/{message}/whatsapp', [AdminMessageController::class, 'whatsapp']);
         Route::get('/users/{user:uuid}', [AdminUserController::class, 'show']);
         Route::put('/users/{user:uuid}/plan', [AdminUserController::class, 'updatePlan']);
         Route::put('/users/{user:uuid}/password', [AdminUserController::class, 'resetPassword']);
@@ -110,6 +115,12 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::get('/reviews', [ReviewController::class, 'adminIndex']);
         Route::patch('/reviews/{review}', [ReviewController::class, 'moderate']);
     });
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->whereUuid('id');
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->whereUuid('id');
+
     Route::get('/settings', [SettingsController::class, 'show']);
     Route::put('/settings', [SettingsController::class, 'update']);
     Route::get('/usage', [UsageController::class, 'show']);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Support\AppLog;
+use App\Support\PhoneNumber;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,12 +25,28 @@ class AccountController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['sometimes', 'required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'whatsapp_number' => ['sometimes', ...PhoneNumber::rules()],
+            'whatsapp_opt_in' => ['sometimes', 'boolean'],
+            'email_updates' => ['sometimes', 'boolean'],
         ]);
         if (isset($validated['email'])) {
             $validated['email'] = strtolower(trim($validated['email']));
         }
 
-        $user->update($validated);
+        $user->update(array_intersect_key($validated, array_flip(['name', 'email'])));
+        // Contact preferences for messages from the team (not mass-assignable).
+        $contact = [];
+        if (array_key_exists('whatsapp_number', $validated)) {
+            $contact['whatsapp_number'] = PhoneNumber::normalize($validated['whatsapp_number']);
+        }
+        foreach (['whatsapp_opt_in', 'email_updates'] as $flag) {
+            if (array_key_exists($flag, $validated)) {
+                $contact[$flag] = (bool) $validated[$flag];
+            }
+        }
+        if ($contact) {
+            $user->forceFill($contact)->save();
+        }
 
         return $this->successResponse(['user' => new UserResource($user->fresh())], 'Profile updated');
     }

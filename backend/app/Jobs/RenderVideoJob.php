@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Export;
 use App\Models\UsageRecord;
+use App\Notifications\InApp\RenderFinished;
 use App\Services\Export\ExportService;
 use App\Services\Media\MediaStorage;
 use App\Services\Rendering\AssCaptionRenderer;
@@ -153,6 +154,7 @@ class RenderVideoJob implements ShouldQueue
                 'height' => $height,
             ]);
             AppLog::info('render.completed', ['export' => $export->uuid, 'project' => $project->uuid, 'bytes' => $export->file_size]);
+            $project->user?->notify(new RenderFinished($export, succeeded: true));
         } catch (RenderException $e) {
             if ($e->cancelled) {
                 AppLog::info('render.cancelled', ['export' => $export->uuid]);
@@ -183,5 +185,6 @@ class RenderVideoJob implements ShouldQueue
     protected function markFailed(Export $export, string $message): void
     {
         $export->update(['status' => Export::STATUS_FAILED, 'error_message' => $message, 'completed_at' => now()]);
+        $export->project?->user?->notify(new RenderFinished($export, succeeded: false, reason: $message));
     }
 }

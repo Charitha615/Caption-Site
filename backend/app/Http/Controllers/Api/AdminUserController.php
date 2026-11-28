@@ -6,6 +6,7 @@ use App\Actions\Projects\DeleteProjectAction;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\User;
+use App\Notifications\InApp\PlanChanged;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
 use App\Traits\ApiResponseTrait;
@@ -41,18 +42,7 @@ class AdminUserController extends Controller
                 $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('signup_source', $search)->orWhere('signup_campaign', $search));
             })
-            ->when($filters['plan'] ?? null, function ($query, string $plan) {
-                $default = config('plans.default');
-                $query->where(function ($q) use ($plan, $default) {
-                    if ($plan === $default) {
-                        // Free also covers paid plans whose end date has passed.
-                        $q->where('plan', $default)->orWhereNull('plan')
-                            ->orWhere(fn ($e) => $e->whereNotNull('plan_expires_at')->where('plan_expires_at', '<=', now()));
-                    } else {
-                        $q->where('plan', $plan)->where(fn ($e) => $e->whereNull('plan_expires_at')->orWhere('plan_expires_at', '>', now()));
-                    }
-                });
-            })
+            ->when($filters['plan'] ?? null, fn ($query, string $plan) => $query->onPlan($plan))
             ->latest()
             ->paginate(30);
 
@@ -81,7 +71,11 @@ class AdminUserController extends Controller
         ]);
         $isDefault = $data['plan'] === config('plans.default');
 
+        $before = $user->planKey();
         $user->switchPlan($data['plan'], $isDefault || empty($data['expires_at']) ? null : Carbon::parse($data['expires_at'])->endOfDay());
+        if ($data['plan'] !== $before || ! $isDefault) {
+            $user->notify(new PlanChanged((string) config("plans.plans.{$data['plan']}.label"), $user->plan_expires_at));
+        }
         $this->usage->forget($user->id);
         AppLog::info('admin.user_plan_changed', ['admin' => $request->user()->uuid, 'user' => $user->uuid, 'plan' => $data['plan'], 'until' => $user->plan_expires_at?->toDateString()]);
 

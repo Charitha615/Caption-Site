@@ -39,6 +39,7 @@ class GoogleLoginAction
                 'avatar_url' => $google['picture'],
             ]);
             $user->forceFill(['plan' => config('plans.default'), ...SignupAttribution::toColumns($attribution)])->save();
+            app(WelcomeNewUser::class)->execute($user);
             $created = true;
         }
 

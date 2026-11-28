@@ -21,6 +21,8 @@ class SettingsController extends Controller
             'default_language' => config('brand.locale.default_language', 'si'),
             'default_export_resolution' => '1080',
             'default_export_quality' => 'standard',
+            // The app tour: set for new accounts (WelcomeNewUser), cleared when it is finished or skipped.
+            'tour_pending' => false,
         ];
     }
 
@@ -35,6 +37,7 @@ class SettingsController extends Controller
             'default_language' => ['sometimes', 'string', Rule::in(['si', 'en', 'auto'])],
             'default_export_resolution' => ['sometimes', 'string', Rule::in(['source', ...array_keys(config('captions.resolutions'))])],
             'default_export_quality' => ['sometimes', 'string', Rule::in(array_keys(config('captions.qualities')))],
+            'tour_pending' => ['sometimes', 'boolean'],
         ]);
 
         $userId = $request->user()->id;

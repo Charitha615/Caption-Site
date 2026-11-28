@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Palette, Film, Info, MonitorSmartphone } from 'lucide-react';
+import { Palette, Film, Info, MonitorSmartphone, BellRing } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -10,6 +10,7 @@ import { RetryState } from '../../components/RetryState/RetryState';
 import { toAppError } from '../../services/errors';
 import type { UserSettings } from '../../types/auth';
 import { SignedInDevices } from './SignedInDevices';
+import { ContactPreferences } from './ContactPreferences';
 import './SettingsPage.css';
 
 const Section: React.FC<{ icon: React.ReactNode; title: string; description: string; children: React.ReactNode }> = ({ icon, title, description, children }) => {
@@ -138,6 +139,10 @@ export const SettingsPage: React.FC = () => {
           </Section>
         </>
       )}
+
+      <Section icon={<BellRing size={20} />} title="Notifications" description="How we may reach you with news and offers. Notices about your videos and payments always appear under 🔔.">
+        <ContactPreferences />
+      </Section>
 
       <Section icon={<MonitorSmartphone size={20} />} title="Signed-in devices" description="Where your account is signed in, with when each device was last used.">
         <SignedInDevices />

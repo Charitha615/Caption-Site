@@ -1,22 +1,23 @@
 import { apiClient } from './api';
 import type { ApiResponse } from '../types/api';
 import { getAttribution } from '../utils/attribution';
+import { deviceId } from '../utils/deviceId';
 import type { AuthResponseData, LoginCredentials, RegisterCredentials, User } from '../types/auth';
 
 export const authService = {
   async register(credentials: RegisterCredentials): Promise<AuthResponseData> {
-    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/register', { ...credentials, attribution: getAttribution() });
+    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/register', { ...credentials, attribution: getAttribution(), device_id: deviceId() });
     return res.data.data;
   },
 
   async login(credentials: LoginCredentials): Promise<AuthResponseData> {
-    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/login', credentials);
+    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/login', { ...credentials, device_id: deviceId() });
     return res.data.data;
   },
 
   /** "Continue with Google": exchanges a Google access token for our API token. */
   async google(accessToken: string): Promise<AuthResponseData> {
-    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/google', { access_token: accessToken, attribution: getAttribution() });
+    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/google', { access_token: accessToken, attribution: getAttribution(), device_id: deviceId() });
     return res.data.data;
   },
 
