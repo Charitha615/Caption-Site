@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -169,6 +169,30 @@ describe('Video editor page', () => {
     await user.click(screen.getByRole('button', { name: /^Export/ }));
     const dialog = screen.getByRole('dialog', { name: 'Export video' });
     expect(dialog).toHaveTextContent(/can.t record video/);
+  });
+
+  it('shows the preview full screen, and fills the window where the browser has no full screen', async () => {
+    const user = userEvent.setup();
+    store().addTextClip('Hello');
+    const request = vi.fn().mockResolvedValue(undefined);
+    HTMLElement.prototype.requestFullscreen = request;
+    const { unmount } = render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+
+    // The timeline "fit" button is no longer the full screen one.
+    expect(screen.getByRole('button', { name: 'Fit the whole video in the timeline' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Full screen preview' }));
+    expect(request).toHaveBeenCalledTimes(1);
+    unmount();
+
+    // No element full screen (e.g. iPhone Safari): the preview fills the window, with its own controls.
+    // @ts-expect-error — simulate a browser without the API
+    delete HTMLElement.prototype.requestFullscreen;
+    store().addTextClip('Hello'); // leaving the editor reset the project
+    render(<MemoryRouter><VideoEditorPage /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Full screen preview' }));
+    expect(document.querySelector('.ve-center')).toHaveClass('is-window-filled');
+    await user.click(screen.getByRole('button', { name: 'Exit full screen' }));
+    expect(document.querySelector('.ve-center')).not.toHaveClass('is-window-filled');
   });
 });
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, AlignHorizontalJustifyStart, ArrowLeft, Check, CloudOff, FilePlus2, Loader2, AudioLines, Bot, Captions, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
-  Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, UploadCloud, ZoomIn, ZoomOut, Eraser, RotateCcw, Cloud,
+  Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, UploadCloud, ZoomIn, ZoomOut, Eraser, RotateCcw, Cloud, ArrowLeftRight, Minimize2,
 } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { Modal } from '../../components/Modal/Modal';
@@ -125,6 +125,8 @@ function useShortcuts() {
         event.preventDefault();
         const stepBy = event.shiftKey ? 1 : 1 / 30;
         s.setPlayhead(s.playhead + (event.key === 'ArrowLeft' ? -stepBy : stepBy));
+      } else if (event.key === 'f' || event.key === 'F') {
+        window.dispatchEvent(new Event(TOGGLE_FULLSCREEN));
       } else if (event.key === 'Home') {
         s.setPlayhead(0);
       } else if (event.key === 'Escape') {
@@ -237,6 +239,56 @@ function CloudBadge({ status, onClick }: { status: CloudStatus; onClick: () => v
   return <button type="button" className={`ve-save ve-cloud is-${status}`} title={title} onClick={onClick}>{icon} {text}</button>;
 }
 
+/** Asks the editor to show the preview full screen (or leave it); sent by the F shortcut. */
+const TOGGLE_FULLSCREEN = 've-toggle-fullscreen';
+
+/**
+ * Full screen preview: the browser's real full screen when it allows it, otherwise the preview fills
+ * the window (e.g. iPhone Safari, which has no element full screen).
+ */
+function usePreviewFullscreen() {
+  const ref = useRef<HTMLElement>(null);
+  const [native, setNative] = useState(false);
+  const [filled, setFilled] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setNative(!!ref.current && document.fullscreenElement === ref.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggle = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    if (filled) {
+      setFilled(false);
+      return;
+    }
+    const el = ref.current;
+    if (el && typeof el.requestFullscreen === 'function') {
+      el.requestFullscreen().catch(() => setFilled(true));
+    } else {
+      setFilled(true);
+    }
+  };
+
+  useEffect(() => {
+    const onToggle = () => toggle();
+    window.addEventListener(TOGGLE_FULLSCREEN, onToggle);
+    // Esc leaves the window-filling fallback (the real full screen handles Esc itself).
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFilled(false);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener(TOGGLE_FULLSCREEN, onToggle);
+      window.removeEventListener('keydown', onKey);
+    };
+  });
+
+  return { ref, active: native || filled, filled, toggle };
+}
+
 function togglePlay() {
   const s = useVideoEditorStore.getState();
   const end = totalDuration(s.clips);
@@ -252,6 +304,7 @@ function Editor() {
   const { status: saveStatus, ready, startNew, openProject } = useEditorAutosave();
   const cloud = useCloudSync(ready && autosaveSupported());
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const fullscreen = usePreviewFullscreen();
   const addToast = useToastStore((st) => st.addToast);
   const openOnline = async (uuid: string) => {
     const project = await videoProjectService.get(uuid);
@@ -391,8 +444,17 @@ function Editor() {
           {tab === 'elements' && <ElementsPanel />}
           {tab === 'filters' && <FiltersPanel />}
         </section>
-        <main className="ve-center">
+        <main ref={fullscreen.ref} className={`ve-center ${fullscreen.active ? 'is-fullscreen' : ''} ${fullscreen.filled ? 'is-window-filled' : ''}`}>
           <Preview />
+          {fullscreen.active && (
+            <div className="ve-fs-bar">
+              <button type="button" className="ve-play" onClick={togglePlay} disabled={total === 0} aria-label={playing ? 'Pause' : 'Play'} title="Play / pause (Space)">
+                {playing ? <Pause size={18} /> : <Play size={18} />}
+              </button>
+              <span className="ve-time"><strong>{formatTime(playhead)}</strong> / {formatTime(total)}</span>
+              <button type="button" className="ve-icon-btn" onClick={fullscreen.toggle} aria-label="Exit full screen" title="Exit full screen (Esc)"><Minimize2 size={16} /></button>
+            </div>
+          )}
         </main>
         <Inspector />
       </div>
@@ -418,7 +480,9 @@ function Editor() {
           <button type="button" className="ve-icon-btn" onClick={() => setZoom(zoom / 1.4)} aria-label="Zoom out"><ZoomOut size={16} /></button>
           <input type="range" className="ve-zoom" min={4} max={400} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="Timeline zoom" />
           <button type="button" className="ve-icon-btn" onClick={() => setZoom(zoom * 1.4)} aria-label="Zoom in"><ZoomIn size={16} /></button>
-          <button type="button" className="ve-icon-btn" onClick={zoomToFit} aria-label="Fit timeline to the window" title="Fit timeline"><Maximize2 size={16} /></button>
+          <button type="button" className="ve-icon-btn" onClick={zoomToFit} aria-label="Fit the whole video in the timeline" title="Fit timeline (show all clips)"><ArrowLeftRight size={16} /></button>
+          <span className="ve-divider" aria-hidden="true" />
+          <button type="button" className="ve-icon-btn" onClick={fullscreen.toggle} disabled={total === 0} aria-label="Full screen preview" title="Full screen preview (F)"><Maximize2 size={16} /></button>
         </div>
       </div>
 
