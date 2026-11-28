@@ -12,7 +12,8 @@ const organization = {
   '@type': 'Organization',
   '@id': `${SITE_URL}/#organization`,
   name: BRAND.name,
-  alternateName: [...new Set([BRAND.titleName, BRAND.logoText])],
+  // The ways people write the name when they search for it.
+  alternateName: [...new Set([BRAND.titleName, BRAND.logoText, 'SinSub', 'Sin Sub', 'Sinsub.cc'])],
   url: `${SITE_URL}/`,
   logo: `${SITE_URL}/apple-touch-icon.png`,
   email: BRAND.supportEmail,
@@ -24,6 +25,7 @@ const website = {
   '@type': 'WebSite',
   '@id': `${SITE_URL}/#website`,
   name: BRAND.name,
+  alternateName: [BRAND.titleName, 'Sin Sub', 'Sinhala subtitle generator'],
   url: `${SITE_URL}/`,
   inLanguage: ['en', 'si'],
   publisher: { '@id': `${SITE_URL}/#organization` },
@@ -128,9 +130,9 @@ function guidesIndexMeta(lang: Lang, title: string, description: string): SeoMet
 /** Every public, indexable page. */
 export const PUBLIC_PAGES: SeoMeta[] = [
   {
-    title: `${BRAND.titleName} – Sinhala & English Video Captions and Subtitles`,
+    title: `${BRAND.name} (${BRAND.titleName}) – Sinhala Subtitle & Caption Generator`,
     fullTitle: true,
-    description: 'Automatic Sinhala and English captions for your videos, with word-by-word timing, beautiful styles and SRT, VTT or MP4 export. Free to start.',
+    description: `${BRAND.name}: automatic Sinhala (සිංහල) and English captions and subtitles for videos. Word-by-word timing, styles, SRT/VTT/MP4 export. Free to start.`,
     path: '/',
     lang: 'en',
     alternates: alternatesFor('/', 'en'),

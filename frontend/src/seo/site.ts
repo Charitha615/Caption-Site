@@ -1,7 +1,7 @@
 import { BRAND } from '../config/brand';
 
-/** The one public address of the site. Other domains (sinsub.cc, www.) redirect here. */
-export const SITE_URL = (import.meta.env.VITE_SITE_URL?.trim() || 'https://sinsub.lk').replace(/\/+$/, '');
+/** The one public address of the site (sinsub.cc now; sinsub.lk later). Other addresses (www.) redirect here. */
+export const SITE_URL = (import.meta.env.VITE_SITE_URL?.trim() || 'https://sinsub.cc').replace(/\/+$/, '');
 
 export const absoluteUrl = (path: string) => `${SITE_URL}${path === '/' ? '/' : path}`;
 

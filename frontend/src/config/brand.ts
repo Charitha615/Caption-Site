@@ -42,7 +42,7 @@ export const BRAND: BrandConfig = {
   shortName: env.VITE_BRAND_SHORT_NAME?.trim() || name,
   titleName: env.VITE_BRAND_TITLE_NAME?.trim() || 'සිංSub',
   logoText: env.VITE_BRAND_LOGO_TEXT?.trim() || 'සිංසබ්',
-  domain: env.VITE_BRAND_DOMAIN?.trim() || 'sinsub.lk',
+  domain: env.VITE_BRAND_DOMAIN?.trim() || 'sinsub.cc',
   tagline: env.VITE_BRAND_TAGLINE?.trim() || 'Sinhala & English video captions',
   description: env.VITE_BRAND_DESCRIPTION?.trim() || 'Create, edit and export Sinhala and English captions for your videos.',
   supportEmail: env.VITE_BRAND_SUPPORT_EMAIL?.trim() || 'support@sinsub.lk',

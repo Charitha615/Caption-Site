@@ -29,8 +29,8 @@ describe('SEO data', () => {
 
   it('writes canonical, share and structured-data tags, escaped', () => {
     const html = headHtml(seoFor('/si')!);
-    expect(html).toContain('<link rel="canonical" href="https://sinsub.lk/si" data-seo>');
-    expect(html).toContain('hreflang="en" href="https://sinsub.lk/"');
+    expect(html).toContain('<link rel="canonical" href="https://sinsub.cc/si" data-seo>');
+    expect(html).toContain('hreflang="en" href="https://sinsub.cc/"');
     expect(html).toContain('property="og:locale" content="si_LK"');
     expect(html).toContain('"@type":"FAQPage"');
     expect(html).not.toMatch(/<\/script><script>/);
