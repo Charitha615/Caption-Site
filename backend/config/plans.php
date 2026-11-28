@@ -27,6 +27,12 @@ return [
     /** Caption animations that need `premium_styles` (the word-by-word highlight effects). */
     'premium_animations' => ['karaoke', 'highlight'],
 
+    /**
+     * Starting caption style of new projects on plans without `premium_styles` (a key in
+     * resources/captions/presets.json). The usual default, Spotlight, highlights words, which is Pro.
+     */
+    'free_default_preset' => 'bold',
+
     'plans' => [
         'free' => [
             'label' => 'Free',

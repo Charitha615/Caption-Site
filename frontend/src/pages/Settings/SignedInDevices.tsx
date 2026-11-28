@@ -30,14 +30,18 @@ export const SignedInDevices: React.FC = () => {
   const [confirmAll, setConfirmAll] = useState(false);
   const [signingOutAll, setSigningOutAll] = useState(false);
 
+  const fetchDevices = useCallback(
+    () => accountService.getSessions().then((list) => { setDevices(list); setError(null); }).catch((err) => setError(toAppError(err).message)),
+    [],
+  );
   const load = useCallback(() => {
     setError(null);
-    return accountService.getSessions().then(setDevices).catch((err) => setError(toAppError(err).message));
-  }, []);
+    return fetchDevices();
+  }, [fetchDevices]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void fetchDevices();
+  }, [fetchDevices]);
 
   const signOut = async (device: SignedInDevice) => {
     setBusyId(device.id);

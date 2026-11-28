@@ -61,6 +61,15 @@ class CaptionTemplate extends Model
         return $query->where(fn (Builder $q) => $q->where('is_system', true)->orWhere('user_id', $userId));
     }
 
+    /** One built-in preset's style from resources/captions/presets.json, normalised; null if unknown. */
+    public static function presetStyle(string $key): ?array
+    {
+        $data = json_decode((string) file_get_contents(config('captions.presets_path')), true, flags: JSON_THROW_ON_ERROR);
+        $preset = collect($data['presets'])->firstWhere('key', $key);
+
+        return $preset ? app(CaptionStyleNormalizer::class)->normalize(['preset' => $key] + $preset['style']) : null;
+    }
+
     /**
      * Create/update system templates from resources/captions/presets.json — the same
      * structured configuration the editor bundles. Idempotent; safe on every deploy.

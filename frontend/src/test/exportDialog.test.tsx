@@ -14,6 +14,9 @@ import { useUIStore } from '../stores/editor/uiStore';
 import { useEditorProjectStore } from '../stores/editor/editorProjectStore';
 import { EMPTY_DOCUMENT, useCaptionStore } from '../stores/editor/captionStore';
 import type { ExportItem } from '../types/export';
+import { useUsageStore } from '../stores/usageStore';
+import { MemoryRouter } from 'react-router-dom';
+import type { UsageSummary } from '../types/project';
 
 const item = (over: Partial<ExportItem>): ExportItem => ({
   uuid: 'e1', type: 'srt', status: 'completed', progress: 100, file_size: 120, error_message: null, options: {},
@@ -24,7 +27,7 @@ function setup(width = 720, height = 1280) {
   useCaptionStore.getState().load({ ...EMPTY_DOCUMENT, captions: [{ id: 'c', start: 0, end: 1, text: 'ආයුබෝවන්', language: 'si' }] });
   useEditorProjectStore.getState().setLoaded({ uuid: 'p1', name: 'P', duration: 10, settings: {}, isDemo: false, sourceWidth: width, sourceHeight: height, hasServerVideo: true });
   useUIStore.getState().setExportOpen(true);
-  return render(<ExportDialog />);
+  return render(<MemoryRouter><ExportDialog /></MemoryRouter>);
 }
 
 describe('Export dialog', () => {
@@ -32,6 +35,29 @@ describe('Export dialog', () => {
     Object.values(exports).forEach((m) => m.mockReset());
     exports.list.mockResolvedValue([]);
     exports.download.mockResolvedValue(undefined);
+  });
+
+  it('on Free, offers HD only, explains the watermark, and blocks Pro highlight styles', async () => {
+    const meter = { used: 0, limit: null };
+    useUsageStore.getState().set({
+      plan: { key: 'free', label: 'Free', expires_at: null },
+      features: { max_export_height: 720, watermark: true, premium_styles: false, editor_ai: false, priority_support: false },
+      period: { start: '', end: '' }, caption_minutes: meter, ai_requests_today: meter, exports: meter, renders: meter, storage_mb: meter,
+      max_upload_mb: 500, max_video_minutes: 10,
+    } as UsageSummary);
+    try {
+      setup(1920, 1080);
+      useCaptionStore.getState().updateStyle({ animation: 'pop' }, null);
+      expect(screen.getByRole('radio', { name: /720p/ })).toBeChecked();
+      expect(screen.getByRole('radio', { name: '1080p, available on Pro' })).toBeDisabled();
+      expect(await screen.findByText(/small සිංSub mark/)).toBeInTheDocument();
+
+      useCaptionStore.getState().updateStyle({ animation: 'highlight' }, null);
+      expect(await screen.findByText(/which is part of Pro/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Export video/ })).toBeDisabled();
+    } finally {
+      useUsageStore.setState({ usage: null, loadedAt: 0 });
+    }
   });
 
   it('shows the original aspect ratio and only the resolutions the source supports', async () => {

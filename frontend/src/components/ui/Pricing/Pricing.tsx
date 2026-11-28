@@ -99,8 +99,9 @@ export function Pricing({
                   ? {
                       y: plan.isPopular ? -20 : 0,
                       opacity: 1,
-                      x: side === 'right' ? -30 : side === 'left' ? 30 : 0,
-                      scale: side === 'middle' ? 1 : 0.94,
+                      // With three cards the outer ones tuck in behind the middle; two cards stay side by side.
+                      x: plans.length > 2 ? (side === 'right' ? -30 : side === 'left' ? 30 : 0) : 0,
+                      scale: plans.length > 2 && side !== 'middle' ? 0.94 : 1,
                     }
                   : { y: 0, opacity: 1 }
               }

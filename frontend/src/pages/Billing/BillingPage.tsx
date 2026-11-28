@@ -64,14 +64,18 @@ export const BillingPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const slipId = useId();
 
+  const fetchInfo = useCallback(
+    () => billingService.get().then((data) => { setInfo(data); setError(null); }).catch((err) => setError(toAppError(err).message)),
+    [],
+  );
   const load = useCallback(() => {
     setError(null);
-    return billingService.get().then(setInfo).catch((err) => setError(toAppError(err).message));
-  }, []);
+    return fetchInfo();
+  }, [fetchInfo]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void fetchInfo();
+  }, [fetchInfo]);
 
   // Pro is on (e.g. just approved): refresh the plan's limits used elsewhere in the app.
   const planKey = info?.plan.key;

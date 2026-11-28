@@ -82,4 +82,19 @@ class ProFeaturesTest extends TestCase
         $this->assertStringContainsString('Style: Watermark,', $ass);
         $this->assertStringNotContainsString('Watermark,,', app(AssCaptionRenderer::class)->render([['start' => 0, 'end' => 2, 'text' => 'Hi']], [], 1280, 720));
     }
+
+    public function test_new_projects_on_free_start_with_a_style_free_can_export(): void
+    {
+        [, $headers] = $this->userWithToken();
+        $pro = User::factory()->pro()->create();
+
+        $free = $this->withHeaders($headers)->postJson('/api/projects', ['name' => 'Reel'])->assertCreated()->json('data.project.uuid');
+        $style = Project::where('uuid', $free)->first()->settings['editor']['style'];
+        $this->assertSame('bold', $style['preset']);
+        $this->assertNotContains($style['animation'], config('plans.premium_animations'));
+
+        $this->app['auth']->forgetGuards();
+        $proProject = $this->withToken($pro->createToken('t')->plainTextToken)->postJson('/api/projects', ['name' => 'Long video'])->assertCreated()->json('data.project.uuid');
+        $this->assertArrayNotHasKey('editor', Project::where('uuid', $proProject)->first()->settings ?? []);
+    }
 }

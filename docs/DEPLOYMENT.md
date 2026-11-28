@@ -213,7 +213,20 @@ server {
 
 Adjust the CSP hosts to your API and bucket domains.
 
-## 7. Deploying a new version
+## 6b. Pro plan and bank-transfer payments
+
+Free and Pro are defined in `backend/config/plans.php` (limits and features) and `backend/config/billing.php` (prices, bank details). The pricing cards in `frontend/src/config/pricing.ts` mirror them: change both together.
+
+1. In the backend `.env`, fill in the account people pay into (shown on `/billing` exactly as written):
+   `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_BRANCH`. Prices: `PRO_PRICE_MONTHLY=490`, `PRO_PRICE_YEARLY=3990`. WhatsApp for slips: `BILLING_WHATSAPP="075 517 3298"`.
+   Until the account number and name are set, the payment page asks people to WhatsApp you instead.
+2. `php artisan migrate --force` (adds `payments`, and `plan_expires_at` on users) and `php artisan config:cache`.
+3. Make yourself an admin if you aren't: `php artisan users:make-admin you@example.com`. Admins get an email for every new payment (mail must be configured) and see **Payments** in the sidebar.
+4. The scheduler (section 4) must be running: it emails "Pro ends soon" reminders daily at 09:00 (`billing:pro-reminders`).
+
+**How a payment works:** the user opens **Upgrade to Pro** (`/billing`), picks monthly or yearly, transfers the amount with their reference (e.g. `SS-7KQ2PX`, the same every time) in the remarks, then uploads the slip or sends it on WhatsApp. On **Admin → Payments** you find the transfer in the bank by reference and amount, then **Approve** (Pro is on until the end of the paid month/year; paying early adds the time after the current end date) or **Reject** with a reason (emailed to them). When the end date passes the account is Free again; projects are kept.
+
+
 
 ```bash
 cd /var/www/samplecap && git pull

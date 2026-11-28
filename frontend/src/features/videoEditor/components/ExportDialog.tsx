@@ -30,11 +30,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const format = useMemo(() => pickExportFormat(), []);
   const plan = usePlan();
   const proOnly = (q: ExportQuality) => plan.known && q > plan.features.max_export_height;
-  const [quality, setQuality] = useState<ExportQuality>(1080);
+  const [chosen, setQuality] = useState<ExportQuality>(1080);
   // Free plan: 720p at most (once the plan is known).
-  useEffect(() => {
-    if (plan.known && quality > plan.features.max_export_height) setQuality(720);
-  }, [plan.known, plan.features.max_export_height, quality]);
+  const quality: ExportQuality = proOnly(chosen) ? 720 : chosen;
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' });
   const abortRef = useRef<AbortController | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
