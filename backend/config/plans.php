@@ -14,8 +14,9 @@
 |   max_export_height  tallest MP4 export (short side, px): 720 = HD, 2160 = 4K
 |   watermark          a small brand mark on exported videos
 |   premium_styles     word-by-word highlight caption styles (Spotlight, Hormozi, Word Box, TikTok)
+|                      and the Pro presets in `premium_presets` (Cinema, YouTube)
 |   editor_ai          AI tools in the video editor (voice-over, clean-up, script writer…)
-|   priority_support   WhatsApp support
+|   priority_support   priority WhatsApp support (everyone can message us; Pro is answered first)
 |
 | Prices are in config/billing.php. The pricing cards (frontend/src/config/pricing.ts) mirror this file.
 |
@@ -28,6 +29,12 @@ return [
     'premium_animations' => ['karaoke', 'highlight'],
 
     /**
+     * Built-in presets (keys in resources/captions/presets.json) that need `premium_styles` even
+     * without a highlight animation. Free keeps 4 basic styles: Bold, Modern, Minimal, Classic.
+     */
+    'premium_presets' => ['spotlight', 'hormozi', 'wordbox', 'tiktok', 'cinema', 'youtube'],
+
+    /**
      * Starting caption style of new projects on plans without `premium_styles` (a key in
      * resources/captions/presets.json). The usual default, Spotlight, highlights words, which is Pro.
      */
@@ -36,14 +43,14 @@ return [
     'plans' => [
         'free' => [
             'label' => 'Free',
-            'caption_minutes_per_month' => (int) env('FREE_CAPTION_MINUTES', 30),
-            'ai_requests_per_day' => (int) env('FREE_AI_REQUESTS_PER_DAY', 30),
-            'exports_per_month' => 300,
-            'renders_per_month' => 30,
-            'storage_mb' => (int) env('FREE_STORAGE_MB', 2048),
-            'max_upload_mb' => (int) env('MAX_UPLOAD_MB', 500),
-            'max_video_minutes' => (int) env('FREE_MAX_VIDEO_MINUTES', 10),
-            'concurrent_renders' => 2,
+            'caption_minutes_per_month' => (int) env('FREE_CAPTION_MINUTES', 15),
+            'ai_requests_per_day' => (int) env('FREE_AI_REQUESTS_PER_DAY', 10),
+            'exports_per_month' => 50,
+            'renders_per_month' => 5,
+            'storage_mb' => (int) env('FREE_STORAGE_MB', 1024),
+            'max_upload_mb' => (int) env('MAX_UPLOAD_MB', 200),
+            'max_video_minutes' => (int) env('FREE_MAX_VIDEO_MINUTES', 3),
+            'concurrent_renders' => 1,
             'features' => [
                 'max_export_height' => 720,
                 'watermark' => true,

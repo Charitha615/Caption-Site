@@ -65,6 +65,24 @@ class ProFeaturesTest extends TestCase
             ->assertStatus(402)->assertJsonPath('code', 'usage_limit_exceeded')->assertJsonFragment(['message' => 'Word-by-word highlight styles (Spotlight, Hormozi, Word Box, TikTok) are part of Pro. Pick another style, or upgrade to Pro.']);
     }
 
+    public function test_free_keeps_four_basic_presets_and_the_rest_need_pro(): void
+    {
+        Queue::fake();
+        [$user, $headers] = $this->userWithToken();
+
+        foreach (['cinema' => 402, 'youtube' => 402, 'classic' => 201] as $preset => $status) {
+            $project = $this->projectWithVideo($user, 'none');
+            $project->update(['settings' => ['editor' => ['version' => 2, 'style' => ['preset' => $preset, 'animation' => 'none']]]]);
+            $this->withHeaders($headers)->postJson("/api/projects/{$project->uuid}/exports", ['type' => 'mp4'])->assertStatus($status);
+        }
+
+        Export::query()->delete(); // Free renders one video at a time.
+        $project = $this->projectWithVideo($user, 'none');
+        $project->captions()->first()->update(['style_override' => ['preset' => 'cinema']]);
+        $this->withHeaders($headers)->postJson("/api/projects/{$project->uuid}/exports", ['type' => 'mp4'])
+            ->assertStatus(402)->assertJsonPath('code', 'usage_limit_exceeded');
+    }
+
     public function test_editor_ai_tools_need_pro_but_singlish_typing_is_free(): void
     {
         [, $headers] = $this->userWithToken();

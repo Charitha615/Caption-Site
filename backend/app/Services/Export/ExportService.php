@@ -98,7 +98,7 @@ class ExportService
         }
 
         $style = $this->styleFor($project, $template);
-        $this->usage->ensureCanUseStyles($user, $this->animationsUsed($project, $style));
+        $this->usage->ensureCanUseStyles($user, $this->animationsUsed($project, $style), $this->presetsUsed($project, $template));
 
         $export = Export::create([
             'project_id' => $project->id,
@@ -194,6 +194,22 @@ class ExportService
             ->filter();
 
         return $overrides->push($style['animation'] ?? 'none')->unique()->values()->all();
+    }
+
+    /**
+     * Built-in presets an export would use: the chosen template's (or else the project's), plus
+     * per-caption overrides. Read from the saved settings, not the normalised style, whose default
+     * preset would otherwise count for projects that never picked one.
+     *
+     * @return array<int, string>
+     */
+    public function presetsUsed(Project $project, ?CaptionTemplate $template = null): array
+    {
+        $main = $template ? ($template->style['preset'] ?? null) : ($this->editorSettings($project)['style']['preset'] ?? null);
+        $overrides = $project->captions()->whereNotNull('style_override')->pluck('style_override')
+            ->map(fn ($o) => is_array($o) ? ($o['preset'] ?? null) : null);
+
+        return $overrides->push($main)->filter(fn ($p) => is_string($p))->unique()->values()->all();
     }
 
     /** Style used for rendering: a chosen template, else the project's editor style. */

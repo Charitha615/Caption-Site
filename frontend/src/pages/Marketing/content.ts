@@ -84,7 +84,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
       },
     ],
     faq: [
-      { q: 'Is the Sinhala subtitle generator free?', a: 'Yes. The free plan includes 30 caption minutes every month, 6 caption styles, SRT, VTT and TXT files and HD (720p) MP4 export. Pro (LKR 490 a month) adds 600 minutes, 4K, every style and the AI tools.' },
+      { q: 'Is the Sinhala subtitle generator free?', a: 'Yes. The free plan includes 15 caption minutes every month, 4 basic caption styles, SRT, VTT and TXT files and HD (720p) MP4 export. Pro (LKR 490 a month) adds 600 minutes, 4K, every style and the AI tools.' },
       { q: 'Can it handle Sinhala mixed with English?', a: 'Yes. Mixed speech is common in Sri Lanka, so English words inside Sinhala speech are written in English letters automatically.' },
       { q: 'Which subtitle formats can I download?', a: 'SRT, VTT and plain text, or an MP4 video with the captions burned in.' },
     ],
@@ -363,7 +363,7 @@ export const CONTENT_PAGES: ContentPageData[] = [
       },
     ],
     faq: [
-      { q: 'මේක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 30ක්, caption styles 6ක්, SRT සහ HD (720p) MP4 export තියෙනවා. Pro (මාසෙට රු. 490) එකේ minutes 600ක්, 4K, හැම style එකක්ම සහ AI tools තියෙනවා.' },
+      { q: 'මේක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 15ක්, basic caption styles 4ක්, SRT සහ HD (720p) MP4 export තියෙනවා. Pro (මාසෙට රු. 490) එකේ minutes 600ක්, 4K, හැම style එකක්ම සහ AI tools තියෙනවා.' },
       { q: 'සිංහල සහ English මිශ්‍ර කතාවට වැඩ කරනවද?', a: 'ඔව්. සිංහල කතාව ඇතුළේ තියෙන English වචන English අකුරින්ම ලියවෙනවා.' },
       { q: 'මගේ videos ආරක්ෂිතද?', a: 'ඔව්. Files private විදියට තියාගන්නවා. Project එකක් delete කළොත් ඒකේ files ත් මැකෙනවා.' },
     ],
