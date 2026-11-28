@@ -39,6 +39,12 @@ DirectoryIndex index.html
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
 
+    # A missing build file or asset is a real 404, never the app page: browsers would otherwise keep
+    # the HTML as that script for a year ("Expected a JavaScript module… MIME type text/html"),
+    # e.g. for a visitor who loads the site in the middle of a deploy.
+    RewriteRule ^assets/ - [R=404,L]
+    RewriteRule \.(js|mjs|css|map|json|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|wasm|tflite|xml|txt|webmanifest)$ - [R=404,L]
+
     # Every app route (/dashboard, /projects/…/editor, /video-editor …) → the app shell
     RewriteRule ^ app.html [L]
 </IfModule>
@@ -78,4 +84,5 @@ DirectoryIndex index.html
     AddType application/javascript .js .mjs
     AddType font/woff2 .woff2
     AddType application/manifest+json .webmanifest
+    AddType application/wasm .wasm
 </IfModule>

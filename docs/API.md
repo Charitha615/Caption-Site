@@ -1,6 +1,8 @@
 # API reference
 
-Base URL: `{APP_URL}/api` (local: `http://localhost:8000/api`). All bodies are JSON (UTF-8) unless noted.
+Base URL: `{APP_URL}/api` (local: `http://localhost:8000/api`; live: `https://captionapi.cloudshift.lk/api`). All bodies are JSON (UTF-8) unless noted.
+
+*Last updated: 28 November 2026.* The behaviour behind these endpoints (plans, scenarios, rules) is specified in [SRS.md](SRS.md).
 
 ## Conventions
 
@@ -35,7 +37,7 @@ Errors:
 
 Every response has an `X-Request-Id` header. Identifiers in URLs are UUIDs.
 
-**Rate limits** (per user unless noted): API 240/min · login 5/min per email+IP · register 10/h per IP · uploads 60/h · chunks 600/min · AI generation 20/h · exports 20/min · autosave 120/min · status polling 120/min.
+**Rate limits** (per user unless noted): API 240/min · login 5/min per email+IP · register 10/h per IP · uploads 60/h · chunks 600/min · AI generation 20/h · exports 20/min (also subject-mask uploads) · autosave 120/min · status polling 120/min · AI key 10/min · billing payments 20/h · trial 10/h · video projects 60 creates / 120 saves per min · admin messages 20/min.
 
 ---
 
@@ -44,8 +46,14 @@ Every response has an `X-Request-Id` header. Identifiers in URLs are UUIDs.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/brand` | Product name, tagline, colours, supported languages |
-| POST | `/auth/register` | `{name, email, password}` → `201 {user, token}`. Password: ≥ 8 chars, letters + numbers |
-| POST | `/auth/login` | `{email, password, device_name?}` → `{user, token}` |
+| GET | `/reviews` | Approved user reviews (landing page) |
+| POST | `/auth/register` | `{name, email, password, whatsapp_number?, whatsapp_opt_in?, attribution?, device_id?}` → `201 {user, token}`. Password: ≥ 8 chars, letters + numbers. `attribution = {source?, medium?, campaign?, referrer?}` |
+| POST | `/auth/login` | `{email, password, device_name?, device_id?}` → `{user, token}` |
+| POST | `/auth/google` | `{access_token, attribution?, device_id?}` → `{user, token, created}` — links an existing account with the same email |
+| POST | `/auth/forgot-password` | `{email}` → same answer whether or not the account exists |
+| POST | `/auth/reset-password` | `{token, email, password, password_confirmation}` |
+
+`device_id` is a random 16–64 character id the browser keeps; signing in again with the same id replaces that device's previous session.
 
 Signed (no token — the URL itself is the credential, issued only to the owner):
 
@@ -59,12 +67,16 @@ Signed (no token — the URL itself is the credential, issued only to the owner)
 
 | Method | Path | Body / notes |
 |---|---|---|
-| GET | `/me` | `{user}` — `uuid, name, email, role, plan, created_at` |
-| PATCH | `/me` | `{name?, email?}` |
+| GET | `/me` | `{user}` — `uuid, name, email, role, plan, plan_expires_at, whatsapp_number, whatsapp_opt_in, email_updates, ai_key, created_at` |
+| PATCH | `/me` | `{name?, email?, whatsapp_number?, whatsapp_opt_in?, email_updates?}` — numbers are stored as international digits (`077 123 4567` → `94771234567`) |
 | PUT | `/me/password` | `{current_password, password, password_confirmation}` — revokes other tokens |
 | POST | `/auth/logout` | Revokes the current token |
-| GET | `/settings` | `{settings: {default_language, default_export_resolution, default_export_quality}}` |
-| PUT | `/settings` | Any subset of the above |
+| GET | `/settings` | `{settings: {default_language, tour_pending}}` |
+| PUT | `/settings` | Any subset of the above (`tour_pending: false` after the app tour) |
+| GET | `/me/sessions` | Signed-in devices: browser, OS, device type, IP, sign-in method, signed-in and last-active times, `current` |
+| DELETE | `/me/sessions/{session}` | Sign out one device |
+| DELETE | `/me/sessions` | Sign out every other device |
+| GET / PUT / DELETE | `/me/review` | Your review `{rating 1–5, body (10–300 chars), role? (≤ 80)}`; saved reviews wait for admin approval |
 | GET | `/usage` | See below |
 | GET | `/me/ai-key` | `{ai_key: {configured, hint (last 4), status: valid\|unverified\|invalid, checked_at, required, can_caption, help_url}}` — the key itself is never returned |
 | PUT | `/me/ai-key` | `{api_key}` → checked with Google, then stored encrypted. `422` on `api_key` if Google rejects it. Saved as `unverified` if Google is unreachable. 10/min |
@@ -76,17 +88,19 @@ Signed (no token — the URL itself is the credential, issued only to the owner)
 
 ```json
 { "usage": {
-  "plan": { "key": "free", "label": "Free" },
-  "period": { "start": "2026-11-01", "end": "2026-11-30" },
-  "caption_minutes": { "used": 12.5, "limit": 120 },
-  "ai_requests_today": { "used": 3, "limit": 30 },
-  "exports": { "used": 8, "limit": 300 },
-  "renders": { "used": 1, "limit": 30 },
-  "storage_mb": { "used": 412.3, "limit": 5120 },
-  "max_upload_mb": 500, "max_video_minutes": 30 } }
+  "plan": { "key": "free", "label": "Free", "expires_at": null },
+  "features": { "max_export_height": 720, "watermark": true, "premium_styles": false, "editor_ai": false, "priority_support": false },
+  "period": { "start": "2026-11-10", "end": "2026-12-10", "resets_at": "2026-12-10T09:00:00.000000Z" },
+  "caption_minutes": { "used": 12.5, "limit": 15 },
+  "ai_requests_today": { "used": 3, "limit": 10 },
+  "exports": { "used": 8, "limit": 50 },
+  "renders": { "used": 1, "limit": 5 },
+  "storage_mb": { "used": 412.3, "limit": 1024 },
+  "max_upload_mb": 200, "max_video_minutes": 3,
+  "trial": { "days": 7, "eligible": true, "active": false, "used": false, "ends_at": null } } }
 ```
 
-`limit: null` means unlimited.
+`limit: null` means unlimited. `period` is the current **30-day usage cycle** (from sign-up or the start of the current plan), not a calendar month.
 
 ## Projects
 
@@ -148,11 +162,18 @@ Caption: `uuid, sequence, start_time, end_time, text (≤ 2000), language, style
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/projects/{project}/exports` | Latest 50 |
-| POST | `/projects/{project}/exports` | `{type: srt\|vtt\|txt\|json\|mp4, resolution?: 720\|1080\|2160\|source, quality?: high\|standard\|small, template?: uuid}` |
+| POST | `/projects/{project}/exports` | `{type: srt\|vtt\|txt\|json\|mp4, resolution?: 720\|1080\|1440\|2160\|source, quality?: high\|standard\|small, template?: uuid}`. MP4 checks plan resolution, Pro styles, concurrent renders and (for captions behind the person) that the person outline was uploaded |
 | GET | `/exports/{export}` | Status/progress; `download_url` (signed, 30 min) when completed |
 | DELETE | `/exports/{export}` | Deletes file; cancels a running render |
 
 Text formats complete in the request (`status: completed`). MP4 returns `status: queued`; poll `GET /exports/{export}` (`processing`, `progress` 0–100) until `completed` or `failed` (`error_message` is user-safe).
+
+## Captions behind the person (Pro)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/projects/{project}/subject-mask` | `{ready}` — an outline exists for the project's current video |
+| PUT | `/projects/{project}/subject-mask` | Raw body (`application/octet-stream`, ≤ 40 MB): `"SSM1"`, width, height (uint16 LE), fps × 100, frame count (uint32 LE), then per frame a uint32 byte length and uint16 run lengths of alternating background/person pixels. `402` on Free, `422` if malformed |
 
 ## Caption templates
 
@@ -175,3 +196,75 @@ for p in part_*; do
     --data-binary @"$p" $API/uploads/$U/chunks/$i >/dev/null; i=$((i+1)); done
 curl -s -X POST -H "Authorization: Bearer $TOKEN" $API/uploads/$U/complete
 ```
+
+---
+
+## Video editor
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/video-editor/ai/transcribe` | Multipart `audio` (WAV part), `language`, `part`, `lead_in` → `{lines}` (auto subtitles; free) |
+| POST | `/video-editor/ai/text` | `{task: translate\|script\|titles\|highlights\|singlish, …}` → `{lines}` or `{moments}`. All but `singlish` need Pro (`402`) |
+| GET | `/video-editor/ai/voices` | Voice list for voice-over |
+| POST | `/video-editor/ai/speech` | `{text, voice, style?}` → audio (Pro) |
+| POST | `/video-editor/import-link` | `{url, confirm_rights: true}` → the video file (size limited by plan) |
+
+### Saved video editor projects (layout only)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/video-projects` | `{projects: [{uuid, name, aspect, duration, clip_count, thumb, created_at, updated_at}], limit}` |
+| POST | `/video-projects` | `{name, aspect: 16:9\|9:16\|1:1\|4:5, data: {version: 1, tracks, clips, media, fonts?, zoom?, snap?}, thumb?}` → `201`. `402` when the plan's `video_projects` limit is reached; `data` ≤ 2 MB; `thumb` a `data:image/...;base64,` URL ≤ 80 KB |
+| GET | `/video-projects/{uuid}` | Summary + `data` |
+| PUT | `/video-projects/{uuid}` | Same body as POST |
+| DELETE | `/video-projects/{uuid}` | |
+
+Other users' projects return `404`. Media files are never sent; `.sinsub` project files are made and read entirely in the browser.
+
+## Billing and trial
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/billing` | `{plan, billing: {currency, plan, prices, bank, bank_ready, whatsapp, whatsapp_link, reference}, payments}` |
+| POST | `/billing/payments` | Multipart `{period: monthly\|yearly, slip?: jpg/png/webp/heic/pdf ≤ 5 MB, note?}` → `201 {payment}`. One pending payment at a time. Alerts admins (email, and WhatsApp when CallMeBot is set up) |
+| POST | `/billing/payments/{payment}/slip` | Multipart `{slip}` — add a slip to your pending payment |
+| GET | `/billing/payments/{payment}/slip` | The slip file (owner or admin) |
+| POST | `/billing/trial` | Starts the free Pro trial → `201 {ends_at, days}`. `422` (`errors.trial`) if already used, not on Free, paid before, or the email already had a trial |
+
+Payment: `uuid, plan, period, amount, currency, reference (SS-XXXXXX), status (pending|approved|rejected), has_slip, note, admin_note, created_at, reviewed_at, period_start, period_end`.
+
+## Notifications
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/notifications?page=&per_page=` | `{notifications: [{id, kind, title, body, link, category, button_label, read, created_at}], unread, meta}` |
+| GET | `/notifications/unread` | `{unread}` — for polling |
+| POST | `/notifications/{id}/read` | Mark one read |
+| POST | `/notifications/read-all` | Mark all read |
+| DELETE | `/notifications/{id}` | Remove one |
+
+`kind`: `welcome`, `payment`, `payment_rejected`, `plan`, `render`, `render_failed`, `admin`. `link` is an app path (`/billing`) or an `https://` address.
+
+## Admin (role `admin`; others get `403`)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/payments?status=pending\|approved\|rejected` | Payments with the user, and counts per status |
+| POST | `/admin/payments/{payment}/approve` | `{note?}` — turns Pro on (time added after any remaining Pro) |
+| POST | `/admin/payments/{payment}/reject` | `{reason}` — emailed to the user |
+| GET | `/admin/reviews?status=pending\|approved\|rejected` | Reviews and counts per status |
+| PATCH | `/admin/reviews/{review}` | `{status: approved\|rejected}` |
+| GET | `/admin/users?search=&plan=&page=` | Users with plan, trial, projects, last active, sign-up source; `plans` list |
+| GET | `/admin/users/{uuid}` | One user + usage |
+| PUT | `/admin/users/{uuid}/plan` | `{plan: free\|pro\|unlimited, expires_at?}` — no date = no end |
+| PUT | `/admin/users/{uuid}/password` | `{password}` — signs the user out everywhere |
+| POST | `/admin/users/{uuid}/usage-reset` | Fresh cycle (records kept) |
+| POST | `/admin/users/{uuid}/sign-out` | Ends every session |
+| DELETE | `/admin/users/{uuid}/projects` | Deletes all their caption projects |
+| GET | `/admin/signups?days=7\|30\|90\|0` | Totals and sign-ups by source/medium/campaign (with campaign-link names) |
+| GET / POST | `/admin/marketing-links` | Campaign links with sign-ups and Pro conversions / create `{name, source, medium?, campaign?, path?, notes?}` |
+| PUT / DELETE | `/admin/marketing-links/{uuid}` | Update / delete |
+| GET | `/admin/messages` | Sent messages and `reach[audience][in_app\|email\|whatsapp]` |
+| POST | `/admin/messages` | `{title, body, category?: announcement\|update\|offer\|tip\|important, link?, button_label?, audience: everyone\|free\|pro\|pro_monthly\|pro_yearly\|unlimited\|user, email? (for user), channels: [in_app, email, whatsapp]}` → `201` |
+| GET | `/admin/messages/{id}/whatsapp` | Click-to-send list `[{name, email, phone, link (wa.me with the message)}]` |
+

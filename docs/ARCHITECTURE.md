@@ -1,6 +1,8 @@
 # Architecture
 
-How SampleCap is put together, why, and where to extend it. For setup see [SETUP.md](SETUP.md); for the HTTP contract see [API.md](API.md).
+How Sinsub (සිංSub; earlier working name *SampleCap*) is put together, why, and where to extend it. For setup see [SETUP.md](SETUP.md); for the HTTP contract see [API.md](API.md); for what the system must do (features, scenarios, plans) see [SRS.md](SRS.md).
+
+*Last updated: 28 November 2026.*
 
 ---
 
@@ -17,6 +19,9 @@ graph TD
     Gemini[Google Gemini API]
     FFmpeg[FFmpeg + libass]
     Store[Private storage<br/>local disk or S3/R2]
+    Mail[SMTP email]
+    CMB[CallMeBot<br/>admin WhatsApp alerts]
+    Browser[In the browser:<br/>video editor · IndexedDB<br/>MediaPipe person detection]
 
     SPA -- JSON + chunked uploads --> API
     SPA -- signed URLs: stream, thumbnail, download --> API
@@ -27,11 +32,15 @@ graph TD
     Pipeline -- one transcription request --> Gemini
     Renders -- burn captions --> FFmpeg
     API & Pipeline & Renders <--> Store
+    Redis -- notifications, admin messages --> Mail & CMB
+    SPA --- Browser
 ```
 
 **Request path:** the SPA talks only to `/api/*` with `Authorization: Bearer <token>`. Media never leaves private storage directly — the API issues short-lived signed URLs that `<video>`, `<img>` and `<a download>` can use without a token.
 
-**Background work:** everything slow (FFmpeg, Gemini, MP4 encoding) runs on queues. Two Horizon supervisors keep long renders from blocking captioning.
+**Background work:** everything slow (FFmpeg, Gemini, MP4 encoding, emails, bulk admin messages, WhatsApp alerts) runs on queues. Two Horizon supervisors keep long renders from blocking captioning. Production on Hostinger uses the **database** queue driven by the scheduler/worker (see [DEPLOYMENT.md](DEPLOYMENT.md)); Redis + Horizon is supported.
+
+**In the browser:** the multi-track **video editor** (§16) previews and exports entirely client-side and keeps its media in IndexedDB; **person detection** for "captions behind the person" (§19) runs with MediaPipe WebAssembly. The server only stores video editor *layouts* and person outlines.
 
 ---
 
@@ -53,29 +62,42 @@ Controllers are thin: they authorise, validate and delegate.
 
 ```text
 app/
-├── Actions/                 single-purpose use cases (register, login, create/update/delete project)
-├── Console/Commands/        captions:install-fonts, captions:sync-templates, uploads:prune, media:make-private
+├── Actions/                 single-purpose use cases: Auth (register, login, Google, IssueAccessToken,
+│                            WelcomeNewUser), Projects (create/update/delete)
+├── Console/Commands/        captions:install-fonts, captions:sync-templates, captions:repair-sinhala,
+│                            uploads:prune, projects:reset-stuck, media:make-private,
+│                            billing:pro-reminders, users:make-admin
 ├── Exceptions/              UserFacingException (+ AIProvider, VideoProcessing, UsageLimitExceeded)
 ├── Http/
-│   ├── Controllers/Api/     Auth, Account, Settings, Usage, Dashboard, Project, VideoUpload,
-│   │                        UploadSession, Caption, CaptionTemplate, Export, MediaStream, Brand
+│   ├── Controllers/Api/     Auth, Account, Session, Settings, Usage, Dashboard, Project, VideoUpload,
+│   │                        UploadSession, Caption, CaptionTemplate, Export, SubjectMask, MediaStream,
+│   │                        Brand, AiKey, Review, Billing, Notification, VideoProject,
+│   │                        VideoEditorAi, VideoEditorImport,
+│   │                        Admin{Payment,User,Signup,MarketingLink,Message}
 │   ├── Middleware/          AssignRequestId, SecurityHeaders, HorizonBasicAuth
 │   ├── Requests/            FormRequests (auth, projects, exports)
 │   └── Resources/           JSON shapes — never expose storage paths
-├── Jobs/                    ProcessUploadedVideoJob (pipeline), RenderVideoJob (MP4)
-├── Models/                  User, Project, MediaFile, Transcript, Caption, CaptionTemplate,
-│                            Export, UploadSession, UsageRecord, Setting
+├── Jobs/                    ProcessUploadedVideoJob (pipeline), RenderVideoJob (MP4),
+│                            SendAdminMessage (bulk), SendAdminWhatsApp (CallMeBot)
+├── Models/                  User, Project, MediaFile, Transcript, Caption, CaptionTemplate, Export,
+│                            UploadSession, UsageRecord, Setting, Payment, Review, AdminMessage,
+│                            MarketingLink, VideoProject
+├── Notifications/           mail: PaymentReceived, PaymentReviewed, ProEndingSoon, AdminMessageMail,
+│                            ResetPassword · InApp/ (database): Welcome, TrialStarted, PlanChanged,
+│                            RenderFinished, AdminMessage
 ├── Policies/                Project, Caption, Export, CaptionTemplate, UploadSession
 ├── Rules/JsonSize.php       caps JSON columns
 ├── Services/
 │   ├── AI/                  AIProviderInterface, GeminiAIProvider, FakeAIProvider, SegmentNormalizer, WordTimingEstimator
+│   ├── Billing/             BillingService (payments, approve/reject), TrialService (free Pro trial)
 │   ├── Caption/             SubtitleFormatterService, CaptionStyleNormalizer, SinhalaTextNormalizerService
 │   ├── Export/ExportService.php
 │   ├── Media/               MediaStorage (local/S3 abstraction), MediaIngestService
-│   ├── Rendering/           AssCaptionRenderer, VideoRendererService, FontRegistry, ProcessRunner, …
+│   ├── Notifications/       AdminWhatsApp (CallMeBot client + message text)
+│   ├── Rendering/           AssCaptionRenderer, VideoRendererService, SubjectMaskStore, FontRegistry, ProcessRunner, …
 │   ├── Usage/UsageService.php
 │   └── Video/FFmpegService.php
-└── Support/AppLog.php       structured JSON logging with redaction
+└── Support/                 AppLog (structured logging), PhoneNumber, SignupAttribution, UserAgent
 ```
 
 ### Response envelope
@@ -116,6 +138,15 @@ erDiagram
 | `exports` | `type`, `status`, `progress`, `file_path` (hidden), `metadata` (options + style snapshot) |
 | `upload_sessions` | `file_size`, `chunk_size`, `total_chunks`, `received_chunks`, `status`, `expires_at` |
 | `usage_records` | `action`, `quantity`, `unit`, `metadata` — an append-only ledger |
+| `users` (billing & contact) | `plan_started_at` (start of the 30-day usage cycle), `plan_expires_at`, `plan_reminded_at`, `usage_reset_at`, `trial_started_at`, `signup_source/medium/campaign/referrer`, `whatsapp_number`, `whatsapp_opt_in`, `email_updates` |
+| `personal_access_tokens` | + `ip_address`, `user_agent`, `sign_in_method`, `device_id` (one session per browser) |
+| `payments` | `uuid`, `plan`, `period` (monthly/yearly), `amount`, `currency`, `reference`, `status`, `slip_path`, `note`, `admin_note`, `reviewed_by`, `period_start/end` |
+| `trial_claims` | `email_hash` (unique sha256 of the normalised email), `user_id` |
+| `reviews` | `rating`, `body`, `role`, `status` (pending/approved/rejected) |
+| `notifications` | Laravel database notifications; `data` = `{kind, title, body, link, category?, button_label?}` |
+| `admin_messages` | `title`, `body`, `category`, `link`, `button_label`, `audience`, `channels`, `target_user_id`, per-channel reach |
+| `marketing_links` | `name`, `source`, `medium`, `campaign`, `path`, `notes` (unique tag combination) |
+| `video_projects` | `uuid`, `user_id`, `name`, `aspect`, `duration`, `clip_count`, `data` (layout JSON ≤ 2 MB), `thumb` |
 
 Indexes cover the hot queries: `(user_id, status)`, `(user_id, created_at)` on projects; `(project_id, sequence)` on captions; `(user_id, type, status)` on exports; `(user_id, action, created_at)` on usage.
 
@@ -152,21 +183,30 @@ The job works on a **local copy** (`MediaStorage::withLocalCopy`) so the media d
 ```text
 src/
 ├── App.tsx                  routes; every page is React.lazy (own chunk); global ToastContainer + ErrorBoundary
-├── config/                  brand.ts (env-driven), constants.ts
-├── components/              Button, Input, Modal (focus trap), ConfirmDialog, Dropdown (menu button),
-│                            Progress, LoadingState, EmptyState, ErrorState, RetryState, Tooltip, Toast,
-│                            ShortcutsDialog, ErrorBoundary, Skeleton, Badge
+├── entry-server.tsx         SSR entry used by scripts/prerender.mjs for the public pages
+├── config/                  brand.ts (env-driven, social links), constants.ts, pricing.ts, reviews.ts
+├── components/              Button, Input, Modal (focus trap), ConfirmDialog, Dropdown, Progress, Loading/
+│                            Empty/Error/RetryState, Tooltip, Toast, ShortcutsDialog, ErrorBoundary, Skeleton,
+│                            Badge, Sidebar, Navbar, Notifications/ (bell, icons), Tour/ (AppTour)
 ├── features/
-│   ├── editor/              studio editor (see §8)
-│   └── projects/            ProjectCard, ProcessingSteps
-├── hooks/                   useBrand, useDocumentTitle, useProjectStatus (polling with backoff)
-├── layouts/                 AppLayout (sidebar drawer on ≤900px, skip link, "?" help), AuthLayout
-├── pages/                   Landing, Login, Register, Dashboard, Projects, CreateProject,
-│                            ProjectDetails, Settings, Profile, NotFound, Editor
-├── services/                api (axios + global error policy), errors (toAppError), uploadService
-│                            (ChunkedUpload), project/caption/export/account services
-├── stores/                  auth, project, usage, settings, toast, theme (+ editor stores)
-└── utils/                   formatters, storage (safe localStorage), video, validation, navigation
+│   ├── editor/              caption studio (§8)
+│   ├── videoEditor/         browser video editor (§16): model, store, render, exporter, autosave, ai/,
+│   │                        components/, projects/ (online layouts, .sinsub files, relink)
+│   ├── projects/            ProjectCard, ProcessingSteps, games/ (waiting arcade)
+│   ├── billing/             TrialNotice
+│   ├── account/             AiKeyNotice
+│   └── auth/                useGoogleSignIn
+├── hooks/                   useBrand, useDocumentTitle, usePlan, useProjectStatus (polling with backoff)
+├── layouts/                 AppLayout (sidebar drawer, skip link, "?" help, tour), AuthLayout
+├── pages/                   Landing, Marketing (feature pages, guides, privacy), Login, Register, PasswordReset,
+│                            Dashboard, Projects, CreateProject, ProjectDetails, Editor, VideoEditor, Billing,
+│                            Settings, Profile, Notifications, Admin/ (Payments, Users, Reviews, Signups +
+│                            CampaignLinks, Notifications), NotFound
+├── seo/                     site.ts (SITE_URL), pages.ts (titles, JSON-LD, sitemap data), SeoManager
+├── services/                api (axios + error policy), errors, uploadService (ChunkedUpload), project/caption/
+│                            export/account/billing/notification/adminUser/adminSignup services
+├── stores/                  auth, project, usage, settings, toast, theme, notification, tour (+ editor stores)
+└── utils/                   formatters, storage, attribution, deviceId, subjectMask (MediaPipe), video, navigation
 ```
 
 **Error policy (`services/api.ts`):** 401 → clear session, redirect to `/login?next=…` once; 422 → left to forms (inline field errors via `toAppError().fieldErrors`); everything else → one friendly toast (deduplicated). Requests that show their own UI pass `{ silent: true }` (autosave, uploads, status polling). 5xx messages are replaced by friendly copy plus a short request reference.
@@ -228,7 +268,7 @@ Text is NFC-normalised (ZWJ/ZWNJ preserved). `splitGraphemes()` keeps Sinhala sy
 
 ### Style model & presets
 - One style object (see §8) is shared by the editor preview, saved templates and the MP4 renderer. The backend validates it with `App\Services\Caption\CaptionStyleNormalizer` (twin of the editor's `sanitizeStyle`).
-- The 8 built-in presets (Spotlight — the default: white text with the spoken word highlighted yellow via `karaoke` + `highlightColor` — Modern, Bold, Minimal, Cinema, YouTube, TikTok, Classic) are structured configuration in **`presets.json`**, kept in two identical copies: `frontend/src/features/editor/model/presets.json` (editor) and `backend/resources/captions/presets.json` (system templates). A backend test fails if they drift.
+- The 10 built-in presets (Spotlight — the default: white text with the spoken word highlighted yellow via `karaoke` + `highlightColor` — Hormozi, Word Box, Modern, Bold, Minimal, Cinema, YouTube, TikTok, Classic) are structured configuration in **`presets.json`**. Free keeps Bold, Modern, Minimal and Classic; the rest are Pro (`plans.premium_animations` and `plans.premium_presets`, mirrored in `config/pricing.ts`). Free users can try them in the editor; the export dialog and `ExportService` block the MP4, kept in two identical copies: `frontend/src/features/editor/model/presets.json` (editor) and `backend/resources/captions/presets.json` (system templates). A backend test fails if they drift.
 
 ### Templates (`caption_templates`)
 | Column | Notes |
@@ -252,7 +292,7 @@ API: `GET/POST /api/caption-templates`, `DELETE /api/caption-templates/{uuid}`. 
 | `GET /api/exports/{export}/download` | **Signed URL only** (30 min); never exposes storage paths |
 
 - Text formats are generated immediately by `SubtitleFormatterService` (UTF-8, NFC; SRT skips empty cues and never prints `,1000` ms; VTT escapes `& < >`).
-- MP4: `ExportService` snapshots the style and queues **`RenderVideoJob`** (never rendered in the HTTP request). Pipeline: captions → `AssCaptionRenderer` (ASS script) → `VideoRendererService` (FFmpeg + libass) → private disk → export record. Max 2 active renders per user. 4K is only offered when the source's short side ≥ 2160.
+- MP4: `ExportService` snapshots the style and queues **`RenderVideoJob`** (never rendered in the HTTP request). Pipeline: captions → `AssCaptionRenderer` (ASS script) → `VideoRendererService` (FFmpeg + libass) → private disk → export record. Active renders per user follow the plan (`concurrent_renders`: Free 1, Pro 3, Unlimited 6). 4K is only offered when the source's short side ≥ 2160. Quality (High / Standard / Small) is chosen in the export dialog and remembered per device.
 - Files live on the **private** `local` disk (`exports/{project}/{export}.{ext}`); downloads use `URL::temporarySignedRoute`.
 - The editor's source video is also served through a signed, Range-capable stream (`GET /api/media/{uuid}/stream`), so seeking works even on `php artisan serve` (which cannot serve byte ranges).
 
@@ -305,10 +345,11 @@ DELETE /uploads/{u}                                     → cancel
 ## 12. Usage tracking & limits (AI cost control)
 
 - **Ledger:** `UsageService::record()` appends `usage_records`: `ai_request` (count + provider/model/tokens), `caption_generation` (seconds), `export` (count + type), `video_render` (seconds), `upload` (bytes). Storage is computed live from media + export sizes.
-- **Plans:** `config/plans.php` (`free`, `pro`, `unlimited`; `null` = unlimited). `users.plan` selects one. Limits: caption minutes/month, AI requests/day, exports/month, renders/month, storage, max upload size, max video length, concurrent renders.
+- **Plans:** `config/plans.php` (`free`, `pro`, `unlimited`; `null` = unlimited). `users.plan` selects one; a paid plan past `plan_expires_at` counts as Free. Limits: caption minutes, AI requests/day, exports, renders, storage, max upload size, max video length, concurrent renders, video editor projects saved online. The values are listed in [SRS.md §3](SRS.md#3-plans-limits-and-pricing).
+- **Cycles:** "monthly" limits run in **30-day cycles** from sign-up or from `plan_started_at` (`User::usageCycleStart()`); `User::switchPlan()` starts a new cycle only when the plan actually changes. An admin "usage reset" sets `usage_reset_at`; earlier records stop counting but stay in the ledger. `GET /usage` returns the cycle and `resets_at`.
 - **Enforcement points:** upload start (size, storage, minutes left), pipeline after probing (video length, minutes), before the AI call (daily requests), regenerate, export create. Violations throw `UsageLimitExceededException` → HTTP **402** with `code: usage_limit_exceeded`.
 - **Reporting:** `GET /api/usage`; also embedded in `GET /api/dashboard`. Summaries are cached 5 minutes per user and invalidated on every write.
-- **Subscriptions later:** a billing integration only sets `users.plan` (e.g. from a webhook) — no other code changes.
+- **Billing:** Pro is sold by bank transfer and switched on by an admin (§18); a future card gateway would only call `User::switchPlan()`.
 
 ## 13. Errors & logging
 
@@ -328,11 +369,58 @@ DELETE /uploads/{u}                                     → cancel
 
 | Future feature | Where it plugs in |
 |---|---|
-| Subscriptions / payments | set `users.plan`; add plans in `config/plans.php`; read `GET /usage` |
+| Card payments | a gateway webhook calls `User::switchPlan()` (bank-transfer billing already does) |
 | More AI / transcription providers | implement `AIProviderInterface`, choose via `AI_PROVIDER` in `AppServiceProvider` |
 | Caption translation / AI rewriting | new methods on a provider + a job that writes captions through the same transaction as the pipeline |
 | Cloud storage | set `MEDIA_DISK`/`EXPORT_DISK` to an S3-compatible disk (already supported) |
 | Team collaboration | add `team_id` to projects; widen the policies (they are the only ownership checks) |
 | Caption templates / social presets | `caption_templates` + `presets.json`; canvas aspect presets already exist |
-| Admin dashboard / analytics | `users.role = admin`, `usage_records` ledger, structured event log |
+| WhatsApp to users automatically | replace the click-to-send list (§18) with the WhatsApp Cloud API; numbers and consent are already stored |
 | Mobile app | the API is token-based and versionable; signed media URLs work in native players |
+
+---
+
+## 16. Video editor (browser)
+
+Route `/video-editor`; code in `frontend/src/features/videoEditor/`.
+
+- **Model & store** (`model.ts`, `store.ts`): media items, tracks, clips (video/audio/image/text/colour) with transforms, keyframes, transitions, filters, chroma key, stabilisation, denoise; undo/redo snapshots. Missing media (`missing: true`, empty URL) are placeholders until relinked.
+- **Rendering** (`render.ts`): one `drawFrame()` draws a frame on a canvas for both preview and export, so they cannot drift. Text with `behindSubject` is drawn through `drawBehindSubject()` (§19).
+- **Export** (`exporter.ts`): `MediaRecorder` records the canvas plus a Web Audio mix in real time (MP4 where supported, else WebM; 480/720/1080p). Exports with missing media are refused.
+- **AI** (`ai/`): auto subtitles via `POST /video-editor/ai/transcribe`; translation, script, titles, highlights and Singlish via `/video-editor/ai/text`; voice-over via `/video-editor/ai/speech` (Pro, except subtitles and Singlish); silence/noise removal and stabilisation run locally.
+- **Autosave** (`autosave.ts`): IndexedDB holds the project and its media/font files; `restore()` reopens it; `load()` replaces it (keeping files the new project shares); `clear()` for *Start over*.
+
+## 17. Video editor projects (account + project files)
+
+- **Online layouts:** `useCloudSync` saves `currentLayout()` (tracks, clips, media names/sizes — no URLs, previews or waveforms) to `/api/video-projects` 2.5 s after a change; the first save creates the record and stores its uuid in the project (`projectUuid`). 402 = plan limit (`video_projects`), 404 = deleted elsewhere → saved as new.
+- **Opening:** `toSavedProject()` → `autosave.load()` with no files → media become placeholders; `MissingFilesBar` + `relink.matchFiles()` pair picked files by name+size, then name, then the only file of a kind.
+- **Project files (`.sinsub`):** `projectFile.ts` packs `"SINSUBVP"` + uint32 header length + JSON header `{format, version, project, files[{key,size,type}]}` + the file bytes; `unpackProjectFile()` validates and slices them back. Nothing goes to the server.
+
+## 18. Billing, trial, notifications
+
+- **Payments** (`BillingService`): `submit()` (one pending at a time, optional slip ≤ 5 MB on the private disk), `approve()` (period added after any remaining Pro; `switchPlan`), `reject()` (reason). Reference `SS-XXXXXX` is derived from the user uuid. The WhatsApp request flow is frontend-only (wa.me link + `submit()` with note "Requested on WhatsApp").
+- **Admin alerts:** `PaymentReceived` email to admins; `SendAdminWhatsApp` job → `AdminWhatsApp` (CallMeBot `GET api.callmebot.com/whatsapp.php`, success detected from the body text; 3 tries). Off until `CALLMEBOT_APIKEY` is set.
+- **Trial** (`TrialService`): eligibility (Free, never paid, never trialled, email hash not in `trial_claims`), `start()` inserts the claim (unique index = once per email, race-safe) and switches to Pro for `plans.trial.days`. `isOnTrial()` = Pro whose end equals the trial end. Reminders for trials come the day before the end (`billing:pro-reminders`).
+- **In-app notifications:** Laravel `database` channel; classes in `Notifications/InApp` share the `InAppMessage` trait (`{kind,title,body,link}`). `PaymentReviewed` and `ProEndingSoon` send mail + database. The SPA polls `GET /notifications/unread` every minute and on tab focus.
+- **Admin messages:** `AdminMessage::recipients($channel)` resolves the audience (everyone, plan via `User::onPlan`, Pro monthly/yearly via `User::onBillingPeriod` = latest approved payment's period, one user) and channel filters (email: `email_updates`; WhatsApp: opted-in with a number). `SendAdminMessage` sends in-app with `sendNow` in chunks of 500 and email as queued `AdminMessageMail` per person. WhatsApp is a click-to-send list of wa.me links (`GET /admin/messages/{m}/whatsapp`).
+- **Onboarding:** `WelcomeNewUser` (called for email and Google sign-ups) sends `Welcome` and sets the `tour_pending` setting; the SPA's `AppTour` reads it and clears it when finished.
+
+## 19. Captions behind the person
+
+- **Detection:** `utils/subjectMask.ts` lazily loads `@mediapipe/tasks-vision` (WASM bundled by Vite) with the self-hosted `public/models/selfie_segmenter.tflite` (GPU, CPU fallback, IMAGE mode). `subjectMaskOf()` returns a 0–255 person mask; `drawSubjectCutout()` composites the source masked by it.
+- **Video editor:** `drawBehindSubject()` snapshots the frame, draws the text, segments the snapshot and draws the person back on top.
+- **Caption editor preview:** `SubjectOverlay` (a canvas above `CaptionOverlay`) redraws the person from the `<video>` (loaded with `crossOrigin="anonymous"` when the effect is on; the API's CORS allows the frontend origin).
+- **Caption editor MP4:** the export dialog runs `analyzeVideoSubject()` (seek-and-segment at ≤ 10 fps, ≤ 3,000 frames), packs masks as run-length frames (`"SSM1"` format) and `PUT`s them to `/projects/{p}/subject-mask`. `SubjectMaskStore` validates and stores them (tied to the current media id). `RenderVideoJob` writes PGM frames and `VideoRendererService::buildBehindSubjectCommand()` runs: fit/pad → split → `ass` (captions) on one branch, mask scaled to the source then fitted and blurred → `alphamerge` on the other → `overlay` → `ass` (watermark).
+- **Gating:** `premium_styles`; `UsageService::ensureCanUseStyles(..., behindSubject: true)`.
+
+## 20. Admin
+
+All admin routes sit behind gates (`manage-payments`, `manage-users`, `moderate-reviews`; all = `role === 'admin'`). Users (`AdminUserController`: list with plan/trial/source, plan changes incl. Unlimited, password reset, usage reset, sign-out, delete projects), Payments, Reviews, Sign-ups + campaign links (`AdminSignupController`, `AdminMarketingLinkController`), and messages (`AdminMessageController`). `php artisan users:make-admin {email}` grants the role.
+
+## 21. Sessions, attribution, SEO and hosting
+
+- **Sessions:** `IssueAccessToken` records IP, user agent, sign-in method and the browser's `device_id`; it deletes that device's previous token first (fallback: same user agent + IP for tokens without a device id).
+- **Attribution:** `utils/attribution.ts` keeps first-touch UTM/ref/referrer for 90 days; `SignupAttribution` normalises it on sign-up.
+- **SEO:** `npm run build` also builds `entry-server.tsx` and runs `scripts/prerender.mjs`, writing `dist/<page>/index.html` for every public page, `dist/app.html` (the shell), `sitemap.xml` and `robots.txt` from `VITE_SITE_URL`. `seo/pages.ts` holds titles, descriptions and JSON-LD.
+- **Hosting (`frontend/public/.htaccess`, Apache/Hostinger):** `/` → `index.html`; `/page` → `page/index.html` when it exists; real files as they are; **missing assets or files with an extension → 404** (never the app shell, which browsers would cache as a script for a year); everything else → `app.html` (`noindex`). HTTPS, `www` and trailing-slash redirects; long cache for `/assets/`; `application/wasm` type.
+
