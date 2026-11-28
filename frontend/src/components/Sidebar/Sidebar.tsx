@@ -15,6 +15,8 @@ import {
   MessageSquareHeart,
   Crown,
   Banknote,
+  Users,
+  TrendingUp,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import { formatDate } from '../../utils/formatters';
@@ -88,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         </NavLink>
         <NavLink to="/billing" className={linkClass}>
           <Crown size={18} aria-hidden="true" />
-          <span>{isPro ? 'Pro plan' : 'Upgrade to Pro'}</span>
+          <span>{isPro ? `${usage?.plan.label ?? 'Pro'} plan` : 'Upgrade to Pro'}</span>
         </NavLink>
         {user?.role === 'admin' && (
           <>
@@ -100,6 +102,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
             <NavLink to="/admin/payments" className={linkClass}>
               <Banknote size={18} aria-hidden="true" />
               <span>Payments</span>
+            </NavLink>
+            <NavLink to="/admin/signups" className={linkClass}>
+              <TrendingUp size={18} aria-hidden="true" />
+              <span>Sign-ups</span>
+            </NavLink>
+            <NavLink to="/admin/users" className={linkClass}>
+              <Users size={18} aria-hidden="true" />
+              <span>Users</span>
             </NavLink>
           </>
         )}

@@ -89,6 +89,8 @@ export const BillingPage: React.FC = () => {
   const { billing, plan, payments } = info;
   const pending = payments.find((p) => p.status === 'pending');
   const isPro = plan.key !== 'free';
+  /** Given by an admin, never sold: nothing to pay or renew. */
+  const isUnlimited = plan.key === 'unlimited';
   const amount = billing.prices[period];
   const proPlan = PRICING_PLANS.find((p) => p.key === 'pro');
   const whatsappText = (p?: Payment) =>
@@ -129,15 +131,17 @@ export const BillingPage: React.FC = () => {
   return (
     <div className="billing">
       <div>
-        <h2 className="page-heading">{isPro ? 'Your Pro plan' : 'Upgrade to Pro'}</h2>
+        <h2 className="page-heading">{isUnlimited ? 'Your Unlimited plan' : isPro ? 'Your Pro plan' : 'Upgrade to Pro'}</h2>
         <p className="page-subheading">
-          {isPro && plan.expires_at
+          {isUnlimited
+            ? <>Every feature with no limits, from the සිංSub team{plan.expires_at ? <>, until <strong>{formatDate(plan.expires_at)}</strong></> : ''}. There is nothing to pay.</>
+            : isPro && plan.expires_at
             ? <>Pro is active until <strong>{formatDate(plan.expires_at)}</strong>. Renew any time: the new time is added after this date.</>
             : 'Pay by bank transfer. Pro turns on as soon as we confirm your payment.'}
         </p>
       </div>
 
-      {pending ? (
+      {isUnlimited ? null : pending ? (
         <section className="billing-card billing-pending" aria-labelledby="pending-title">
           <h3 id="pending-title"><Clock size={20} aria-hidden="true" /> We are checking your payment</h3>
           <p>

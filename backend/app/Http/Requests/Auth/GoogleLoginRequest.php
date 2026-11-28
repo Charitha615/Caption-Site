@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Support\SignupAttribution;
 use Illuminate\Foundation\Http\FormRequest;
 
 class GoogleLoginRequest extends FormRequest
@@ -16,6 +17,7 @@ class GoogleLoginRequest extends FormRequest
     {
         return [
             'access_token' => ['required', 'string', 'min:20', 'max:4096'],
+            ...SignupAttribution::rules(),
         ];
     }
 }

@@ -24,3 +24,42 @@
 .admin-payment-noslip { font-size: 0.82rem; color: var(--text-muted); align-self: center; }
 .admin-slip { display: block; width: 100%; max-height: 75vh; object-fit: contain; border: 0; border-radius: 8px; background: var(--bg-surface); }
 iframe.admin-slip { height: 75vh; }
+
+/* Users */
+.admin-user-filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.admin-user-search {
+  display: flex; align-items: center; gap: 8px; flex: 1 1 260px; padding: 0 12px; height: 40px;
+  border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-surface); color: var(--text-muted);
+}
+.admin-user-search input { flex: 1; border: 0; background: none; color: var(--text-primary); font: inherit; outline: none; }
+.admin-user-search:focus-within { border-color: var(--brand-primary); }
+.admin-user-select { width: auto; min-width: 140px; height: 40px; }
+.admin-user-total { font-size: 0.85rem; color: var(--text-muted); align-self: center; }
+.admin-user-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.admin-user-main { flex: 1 1 220px; min-width: 0; }
+.admin-user-main .admin-review-name { display: flex; align-items: center; gap: 8px; }
+.admin-user-main p { overflow-wrap: anywhere; }
+.admin-user-plan { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-transform: capitalize; }
+.admin-user-manage { display: flex; flex-direction: column; gap: 20px; }
+.admin-user-h { margin: 0 0 10px; font-size: 0.95rem; font-weight: 700; }
+.admin-user-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.admin-user-form .input-label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; }
+.admin-user-form + p { margin-top: 8px; }
+.admin-user-usage { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 0; }
+.admin-user-usage div { padding: 10px 12px; border-radius: 10px; background: var(--bg-muted); }
+.admin-user-usage dt { font-size: 0.78rem; color: var(--text-muted); }
+.admin-user-usage dd { margin: 2px 0 0; font-weight: 700; }
+@media (max-width: 600px) { .admin-user-plan { align-items: flex-start; } }
+
+/* Sign-ups */
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.admin-stat { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: var(--radius-lg, 14px); border: 1px solid var(--border-color); background: var(--bg-surface); }
+.admin-stat-value { font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.admin-stat-label { font-size: 0.82rem; color: var(--text-muted); }
+.admin-table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-lg, 14px); background: var(--bg-surface); }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.admin-table th, .admin-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.admin-table th { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+.admin-table td:nth-child(n+4), .admin-table th:nth-child(n+4) { text-align: right; font-variant-numeric: tabular-nums; }
+.admin-table tbody tr:last-child td { border-bottom: 0; }
+.admin-muted { color: var(--text-muted); }

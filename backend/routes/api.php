@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminPaymentController;
+use App\Http\Controllers\Api\AdminSignupController;
+use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AiKeyController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
@@ -85,6 +87,17 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::get('/payments', [AdminPaymentController::class, 'index']);
         Route::post('/payments/{payment}/approve', [AdminPaymentController::class, 'approve']);
         Route::post('/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
+        Route::get('/signups', [AdminSignupController::class, 'index']);
+    });
+
+    Route::middleware('can:manage-users')->prefix('admin')->group(function () {
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::get('/users/{user:uuid}', [AdminUserController::class, 'show']);
+        Route::put('/users/{user:uuid}/plan', [AdminUserController::class, 'updatePlan']);
+        Route::put('/users/{user:uuid}/password', [AdminUserController::class, 'resetPassword']);
+        Route::post('/users/{user:uuid}/usage-reset', [AdminUserController::class, 'resetUsage']);
+        Route::post('/users/{user:uuid}/sign-out', [AdminUserController::class, 'signOutEverywhere']);
+        Route::delete('/users/{user:uuid}/projects', [AdminUserController::class, 'deleteProjects']);
     });
 
     Route::middleware('can:moderate-reviews')->prefix('admin')->group(function () {
