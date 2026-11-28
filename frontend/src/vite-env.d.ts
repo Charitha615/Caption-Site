@@ -9,7 +9,6 @@ interface ImportMetaEnv {
   readonly VITE_BRAND_TAGLINE?: string;
   readonly VITE_BRAND_DESCRIPTION?: string;
   readonly VITE_BRAND_SUPPORT_EMAIL?: string;
-  readonly VITE_SHOW_DEMO_LOGIN?: string;
   readonly VITE_BRAND_LOGO_TEXT?: string;
   readonly VITE_BRAND_DOMAIN?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
