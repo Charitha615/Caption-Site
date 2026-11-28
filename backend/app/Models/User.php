@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
@@ -65,6 +66,7 @@ class User extends Authenticatable
             // Encrypted at rest with APP_KEY. Never serialised (see $hidden).
             'gemini_api_key' => 'encrypted',
             'gemini_key_checked_at' => 'datetime',
+            'plan_started_at' => 'datetime',
             'plan_expires_at' => 'datetime',
             'plan_reminded_at' => 'datetime',
             'usage_reset_at' => 'datetime',
@@ -94,6 +96,39 @@ class User extends Authenticatable
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /** Length of one usage cycle: limits like "caption minutes per month" reset every this many days. */
+    public const USAGE_CYCLE_DAYS = 30;
+
+    /**
+     * Start of the current 30-day usage cycle. Cycles count from when the current plan was
+     * switched on, or from registration; after a paid plan ends, from its end date.
+     */
+    public function usageCycleStart(?Carbon $now = null): Carbon
+    {
+        $now ??= Carbon::now();
+        $lapsed = $this->plan && $this->plan !== config('plans.default') && $this->planKey() === config('plans.default');
+        $anchor = ($lapsed ? $this->plan_expires_at : ($this->plan_started_at ?? $this->created_at)) ?? $now;
+        if ($anchor->greaterThan($now)) {
+            return $now->copy();
+        }
+        $cycleSeconds = self::USAGE_CYCLE_DAYS * 86400;
+        $cycles = intdiv((int) $anchor->diffInSeconds($now, true), $cycleSeconds);
+
+        return $anchor->copy()->addSeconds($cycles * $cycleSeconds);
+    }
+
+    /** Switches to a plan. A new plan (not a renewal of the current one) starts a new usage cycle. */
+    public function switchPlan(string $plan, ?Carbon $expiresAt): void
+    {
+        $isNewPlan = $plan !== $this->planKey();
+        $this->forceFill([
+            'plan' => $plan,
+            'plan_started_at' => $isNewPlan ? Carbon::now() : ($this->plan_started_at ?? $this->created_at),
+            'plan_expires_at' => $expiresAt,
+            'plan_reminded_at' => null,
+        ])->save();
     }
 
     /** The plan in force now: a paid plan whose end date has passed counts as the default plan. */

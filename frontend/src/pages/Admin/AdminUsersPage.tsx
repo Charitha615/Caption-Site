@@ -164,7 +164,7 @@ export const AdminUsersPage: React.FC = () => {
       <div className="admin-user-filters">
         <label className="admin-user-search">
           <Search size={16} aria-hidden="true" />
-          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" aria-label="Search users" />
+          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, email, source or campaign" aria-label="Search users" />
         </label>
         <select className="input-field admin-user-select" value={planFilter} onChange={(e) => { setPlanFilter(e.target.value); setPage(1); }} aria-label="Filter by plan">
           <option value="">All plans</option>
@@ -190,6 +190,9 @@ export const AdminUsersPage: React.FC = () => {
                 {u.created_at && <> · joined {formatDate(u.created_at)}</>}
                 {u.last_active_at && <> · active {formatTimeAgo(u.last_active_at)}</>}
               </p>
+              {u.signup?.source && (
+                <p className="admin-review-role">Came from <strong>{[u.signup.source, u.signup.medium, u.signup.campaign].filter(Boolean).join(' · ')}</strong></p>
+              )}
             </div>
             <div className="admin-user-plan">
               <Badge variant={PLAN_BADGE[u.plan] ?? 'gray'} size="sm">{u.plan_label}</Badge>
@@ -242,7 +245,7 @@ export const AdminUsersPage: React.FC = () => {
             </section>
 
             <section aria-labelledby="usage-title">
-              <h3 id="usage-title" className="admin-user-h">This month</h3>
+              <h3 id="usage-title" className="admin-user-h">This 30-day cycle{usage?.period && <> · resets {formatDate(usage.period.resets_at ?? usage.period.end)}</>}</h3>
               <dl className="admin-user-usage">
                 <div><dt>Caption minutes</dt><dd>{meter(usage?.caption_minutes)}</dd></div>
                 <div><dt>Video renders</dt><dd>{meter(usage?.renders)}</dd></div>

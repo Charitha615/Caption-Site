@@ -63,3 +63,23 @@ iframe.admin-slip { height: 75vh; }
 .admin-table td:nth-child(n+4), .admin-table th:nth-child(n+4) { text-align: right; font-variant-numeric: tabular-nums; }
 .admin-table tbody tr:last-child td { border-bottom: 0; }
 .admin-muted { color: var(--text-muted); }
+
+/* Campaign links (Sign-ups page) */
+.admin-campaigns { display: flex; flex-direction: column; gap: 12px; }
+.admin-campaigns-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.admin-campaigns-head .admin-user-h { margin-bottom: 4px; }
+.admin-campaign { display: flex; flex-direction: column; gap: 10px; }
+.admin-campaign-top { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.admin-campaign-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 0.86rem; margin-left: auto; }
+.admin-campaign-notes { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--bg-muted); font-size: 0.88rem; line-height: 1.55; white-space: pre-wrap; }
+.admin-campaign-url { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-campaign-url code, .admin-campaign-preview code {
+  flex: 1 1 260px; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-color);
+  background: var(--bg-surface); font-size: 0.8rem; overflow-wrap: anywhere;
+}
+.admin-campaign-form { display: flex; flex-direction: column; gap: 14px; }
+.admin-campaign-form .input-label { display: flex; flex-direction: column; gap: 6px; }
+.admin-campaign-form textarea { resize: vertical; }
+.admin-campaign-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.admin-campaign-preview { display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 600px) { .admin-campaign-stats { align-items: flex-start; margin-left: 0; } }

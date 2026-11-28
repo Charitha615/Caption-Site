@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Film, Loader2 } from 'lucide-react';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useUIStore } from '../../../../stores/editor/uiStore';
@@ -9,6 +9,7 @@ import type { CanvasAspect } from '../../model/types';
 import { playback } from '../../services/playback';
 import { frameScale } from '../../utils/captionStyle';
 import { CaptionOverlay } from './CaptionOverlay';
+import { SubjectOverlay } from './SubjectOverlay';
 
 const ASPECT_VALUES: Record<Exclude<CanvasAspect, 'source'>, number> = {
   '16:9': 16 / 9,
@@ -29,13 +30,20 @@ export const VideoStage = memo(function VideoStage() {
   const mediaError = useVideoStore((s) => s.mediaError);
   const aspectSetting = useCaptionStore((s) => s.canvas.aspect);
   const showSafeArea = useUIStore((s) => s.showSafeArea);
+  // Captions behind the person read the video's pixels, which needs a CORS-enabled request.
+  const behindSubject = useCaptionStore((s) => !!s.style.behindSubject);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
     playback.attach(el);
-    return () => playback.detach(el);
-  }, [videoUrl]);
+    setVideoEl(el);
+    return () => {
+      playback.detach(el);
+      setVideoEl(null);
+    };
+  }, [videoUrl, behindSubject]);
 
   const aspect = aspectSetting === 'source'
     ? videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 9
@@ -59,9 +67,10 @@ export const VideoStage = memo(function VideoStage() {
       <div className="ed-frame" style={{ width: frame.width, height: frame.height }}>
         {videoUrl ? (
           <video
-            key={videoUrl}
+            key={`${videoUrl}|${behindSubject}`}
             ref={videoRef}
             src={videoUrl}
+            crossOrigin={behindSubject && !videoUrl.startsWith('blob:') ? 'anonymous' : undefined}
             className="ed-video"
             playsInline
             preload="auto"
@@ -81,6 +90,7 @@ export const VideoStage = memo(function VideoStage() {
           </div>
         )}
         <CaptionOverlay scale={scale} />
+        <SubjectOverlay video={videoEl} width={frame.width} height={frame.height} />
         {isBuffering && !mediaError && (
           <div className="ed-stage-status"><Loader2 className="ed-spin" size={22} /></div>
         )}

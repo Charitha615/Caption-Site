@@ -2,6 +2,7 @@ import { voiceChain } from './audio';
 import { clipEnd, fadeLevel, sourceTime, type AspectRatio, type Clip, type MediaItem, type Track } from './model';
 import { drawFrame, frameSize, type Scene } from './render';
 import { imageFor } from './sources';
+import { loadSubjectSegmenter } from '../../utils/subjectMask';
 
 /**
  * In-browser export: every frame is drawn on a canvas with the same renderer as the preview, while the
@@ -110,6 +111,12 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
   const { aspect, quality, fps, tracks, clips, media, format, onProgress, signal, watermark } = job;
   const total = clips.reduce((max, c) => Math.max(max, clipEnd(c)), 0);
   if (total <= 0) throw new Error('Add something to the timeline before exporting.');
+  if (clips.some((c) => c.style?.behindSubject)) {
+    // Text behind the person: the detector must be ready before the first frame is recorded.
+    await loadSubjectSegmenter().catch(() => {
+      throw new Error('Could not load person detection for the “behind the person” text. Try Chrome or Edge, or turn the effect off.');
+    });
+  }
 
   const { width, height } = frameSize(aspect, quality);
   const canvas = document.createElement('canvas');

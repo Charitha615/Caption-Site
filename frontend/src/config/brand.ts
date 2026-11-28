@@ -9,6 +9,8 @@ export interface BrandConfig {
   tagline: string;
   description: string;
   supportEmail: string;
+  /** Official social media pages, shown in the site footer and in search engines' data. */
+  social: Array<{ key: 'tiktok' | 'facebook'; label: string; handle: string; url: string }>;
   colors: {
     primary: string;
     accent: string;
@@ -44,6 +46,10 @@ export const BRAND: BrandConfig = {
   tagline: env.VITE_BRAND_TAGLINE?.trim() || 'Sinhala & English video captions',
   description: env.VITE_BRAND_DESCRIPTION?.trim() || 'Create, edit and export Sinhala and English captions for your videos.',
   supportEmail: env.VITE_BRAND_SUPPORT_EMAIL?.trim() || 'support@sinsub.lk',
+  social: [
+    { key: 'tiktok', label: 'TikTok', handle: '@sinsub_lk', url: 'https://www.tiktok.com/@sinsub_lk' },
+    { key: 'facebook', label: 'Facebook', handle: 'Sinsub', url: 'https://www.facebook.com/share/1Mjxp98NVv/' },
+  ],
   colors: {
     primary: '#5B21B6',
     accent: '#F97316',

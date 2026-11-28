@@ -18,6 +18,8 @@ export interface AdminUser {
   last_active_at: string | null;
   usage_reset_at: string | null;
   created_at: string | null;
+  /** Where they came from when they signed up (UTM tags or referring site). */
+  signup?: { source: string | null; medium: string | null; campaign: string | null };
   usage?: UsageSummary;
 }
 

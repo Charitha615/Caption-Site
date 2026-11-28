@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useId, useState } from 'react';
-import { Check, CheckCircle2, Clock, Copy, Crown, FileUp, MessageCircle, XCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Check, CheckCircle2, Clock, Crown, FileUp, MessageCircle, XCircle } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { billingService } from '../../services/billingService';
 import { toAppError } from '../../services/errors';
@@ -18,29 +18,6 @@ const money = (currency: string, amount: number) => `${currency} ${new Intl.Numb
 const PERIOD_LABEL: Record<BillingPeriod, string> = { monthly: 'Monthly', yearly: 'Yearly' };
 const SLIP_TYPES = 'image/jpeg,image/png,image/webp,image/heic,application/pdf';
 
-function CopyRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  const addToast = useToastStore((s) => s.addToast);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      addToast({ type: 'success', message: `${label} copied.`, duration: 1800 });
-    } catch {
-      /* clipboard blocked: the value is still on screen */
-    }
-  };
-  return (
-    <div className={`billing-row ${strong ? 'is-strong' : ''}`}>
-      <dt>{label}</dt>
-      <dd>
-        <span>{value}</span>
-        <button type="button" className="billing-copy" onClick={() => void copy()} aria-label={`Copy ${label.toLowerCase()}`} title="Copy">
-          <Copy size={14} aria-hidden="true" />
-        </button>
-      </dd>
-    </div>
-  );
-}
-
 function StatusBadge({ status }: { status: Payment['status'] }) {
   const map = {
     pending: { icon: <Clock size={14} aria-hidden="true" />, label: 'Checking' },
@@ -50,19 +27,21 @@ function StatusBadge({ status }: { status: Payment['status'] }) {
   return <span className={`billing-status is-${status}`}>{map[status].icon} {map[status].label}</span>;
 }
 
-/** Upgrade to Pro (or renew): pick monthly / yearly, transfer to the bank, send the slip. */
+/**
+ * Upgrade to Pro (or renew): pick monthly / yearly, then message us on WhatsApp with the account's
+ * email and the plan. We reply with the bank details; an admin approves the request once paid.
+ */
 export const BillingPage: React.FC = () => {
   useDocumentTitle('Upgrade to Pro');
   const addToast = useToastStore((s) => s.addToast);
   const loadUsage = useUsageStore((s) => s.load);
   const userName = useAuthStore((s) => s.user?.name);
+  const userEmail = useAuthStore((s) => s.user?.email);
   const [info, setInfo] = useState<BillingInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>('yearly');
-  const [slip, setSlip] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const slipId = useId();
 
   const fetchInfo = useCallback(
     () => billingService.get().then((data) => { setInfo(data); setError(null); }).catch((err) => setError(toAppError(err).message)),
@@ -91,24 +70,27 @@ export const BillingPage: React.FC = () => {
   const isPro = plan.key !== 'free';
   /** Given by an admin, never sold: nothing to pay or renew. */
   const isUnlimited = plan.key === 'unlimited';
-  const amount = billing.prices[period];
   const proPlan = PRICING_PLANS.find((p) => p.key === 'pro');
-  const whatsappText = (p?: Payment) =>
-    `Hi! Here is my Pro payment slip.\nReference: ${billing.reference}\nPlan: Pro ${PERIOD_LABEL[p?.period ?? period].toLowerCase()} (${money(billing.currency, p?.amount ?? amount)})${userName ? `\nName: ${userName}` : ''}`;
+  const whatsappText = (p?: Payment) => {
+    const chosen = p?.period ?? period;
+    return [
+      'Hi! I would like to upgrade to සිංSub Pro.',
+      `Email: ${userEmail ?? '-'}`,
+      ...(userName ? [`Name: ${userName}`] : []),
+      `Plan: Pro ${PERIOD_LABEL[chosen].toLowerCase()} (${money(billing.currency, p?.amount ?? billing.prices[chosen])})`,
+      `Reference: ${p?.reference ?? billing.reference}`,
+      'Please send me the bank details.',
+    ].join('\n');
+  };
   const whatsappUrl = (p?: Payment) => `${billing.whatsapp_link}?text=${encodeURIComponent(whatsappText(p))}`;
 
-  const submit = async (via: 'slip' | 'whatsapp') => {
+  /** Opens WhatsApp with the request, and saves it so an admin can approve it once paid. */
+  const requestOnWhatsApp = async () => {
     setFormError(null);
-    if (via === 'slip' && !slip) {
-      setFormError('Choose the photo or PDF of your bank slip first.');
-      return;
-    }
-    if (via === 'whatsapp') window.open(whatsappUrl(), '_blank', 'noopener');
+    window.open(whatsappUrl(), '_blank', 'noopener'); // before any await, or pop-up blockers stop it
     setSending(true);
     try {
-      await billingService.submit(period, via === 'slip' ? slip : null, via === 'whatsapp' ? 'Slip sent on WhatsApp' : undefined);
-      setSlip(null);
-      addToast({ type: 'success', message: 'Thank you! We will check your payment and switch Pro on soon.' });
+      await billingService.submit(period, null, 'Requested on WhatsApp');
       await load();
     } catch (err) {
       const e = toAppError(err);
@@ -137,20 +119,21 @@ export const BillingPage: React.FC = () => {
             ? <>Every feature with no limits, from the සිංSub team{plan.expires_at ? <>, until <strong>{formatDate(plan.expires_at)}</strong></> : ''}. There is nothing to pay.</>
             : isPro && plan.expires_at
             ? <>Pro is active until <strong>{formatDate(plan.expires_at)}</strong>. Renew any time: the new time is added after this date.</>
-            : 'Pay by bank transfer. Pro turns on as soon as we confirm your payment.'}
+            : 'Message us on WhatsApp. We send you the bank details, and Pro turns on as soon as we confirm your payment.'}
         </p>
       </div>
 
       {isUnlimited ? null : pending ? (
         <section className="billing-card billing-pending" aria-labelledby="pending-title">
-          <h3 id="pending-title"><Clock size={20} aria-hidden="true" /> We are checking your payment</h3>
+          <h3 id="pending-title"><Clock size={20} aria-hidden="true" /> We got your Pro request</h3>
           <p>
-            {money(pending.currency, pending.amount)} for Pro {PERIOD_LABEL[pending.period].toLowerCase()}, sent {formatDateTime(pending.created_at)}.
-            We will email you as soon as Pro is on — usually within a few hours.
+            {money(pending.currency, pending.amount)} for Pro {PERIOD_LABEL[pending.period].toLowerCase()}, requested {formatDateTime(pending.created_at)}.
+            We will reply on WhatsApp ({billing.whatsapp}) with the bank details. After you pay, send the slip and we switch Pro on —
+            usually within a few hours. We also email you when it&apos;s on.
           </p>
           {!pending.has_slip && (
             <div className="billing-pending-slip">
-              <p>Haven&apos;t sent the slip yet? Upload it here or send it on WhatsApp.</p>
+              <p>Paid already? Send the slip on WhatsApp, or upload it here.</p>
               <div className="billing-actions">
                 <label className="btn btn-outline btn-sm billing-file">
                   <FileUp size={15} aria-hidden="true" /> Upload slip
@@ -180,41 +163,16 @@ export const BillingPage: React.FC = () => {
           </section>
 
           <section className="billing-card" aria-labelledby="step-2">
-            <h3 id="step-2"><span className="billing-step">2</span> Transfer {money(billing.currency, amount)}</h3>
-            {billing.bank_ready ? (
-              <dl className="billing-bank">
-                <CopyRow label="Amount" value={String(amount)} strong />
-                {billing.bank.bank_name && <CopyRow label="Bank" value={billing.bank.bank_name} />}
-                <CopyRow label="Account name" value={billing.bank.account_name} />
-                <CopyRow label="Account number" value={billing.bank.account_number} strong />
-                {billing.bank.branch && <CopyRow label="Branch" value={billing.bank.branch} />}
-                <CopyRow label="Reference (write in the remarks)" value={billing.reference} strong />
-              </dl>
-            ) : (
-              <p className="billing-note">
-                Our bank details will appear here soon. For now, message us on WhatsApp at{' '}
-                <a href={whatsappUrl()} target="_blank" rel="noopener noreferrer">{billing.whatsapp}</a> and we&apos;ll send them.
-                Your reference is <strong>{billing.reference}</strong>.
-              </p>
-            )}
-            <p className="billing-note">Write the reference <strong>{billing.reference}</strong> in the transfer&apos;s remarks / description so we can find your payment quickly.</p>
-          </section>
-
-          <section className="billing-card" aria-labelledby="step-3">
-            <h3 id="step-3"><span className="billing-step">3</span> Send us the slip</h3>
-            <label htmlFor={slipId} className={`billing-drop ${slip ? 'has-file' : ''}`}>
-              <FileUp size={22} aria-hidden="true" />
-              <span>{slip ? slip.name : 'Choose a photo or PDF of the bank slip / receipt'}</span>
-              <input id={slipId} type="file" accept={SLIP_TYPES} onChange={(e) => setSlip(e.target.files?.[0] ?? null)} />
-            </label>
+            <h3 id="step-2"><span className="billing-step">2</span> Message us on WhatsApp</h3>
+            <p className="billing-note">
+              WhatsApp opens with your email (<strong>{userEmail}</strong>) and the plan you chose. We reply with the bank details.
+              After you pay, send the slip in the same chat and we switch your account to Pro.
+            </p>
+            <pre className="billing-message" aria-label="Message we will send">{whatsappText()}</pre>
             {formError && <div className="form-alert" role="alert">{formError}</div>}
             <div className="billing-actions">
-              <Button type="button" variant="primary" isLoading={sending} disabled={!slip} startIcon={<Check size={16} aria-hidden="true" />} onClick={() => void submit('slip')}>
-                Send for checking
-              </Button>
-              <span className="billing-or">or</span>
-              <Button type="button" variant="outline" disabled={sending} startIcon={<MessageCircle size={16} aria-hidden="true" />} onClick={() => void submit('whatsapp')}>
-                Send it on WhatsApp ({billing.whatsapp})
+              <Button type="button" variant="primary" isLoading={sending} startIcon={<MessageCircle size={16} aria-hidden="true" />} onClick={() => void requestOnWhatsApp()}>
+                Request Pro on WhatsApp ({billing.whatsapp})
               </Button>
             </div>
           </section>

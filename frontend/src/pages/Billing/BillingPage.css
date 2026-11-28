@@ -83,3 +83,7 @@
   .billing-periods, .billing-features { grid-template-columns: 1fr; }
   .billing-card { padding: 16px; }
 }
+.billing-message {
+  margin: 12px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--bg-muted); color: var(--text-primary);
+  font: 0.86rem/1.6 'Inter', 'Noto Sans Sinhala', system-ui, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere;
+}

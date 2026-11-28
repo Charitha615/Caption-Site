@@ -34,10 +34,10 @@ class VideoRendererService
         try {
             $result = $this->runner->run([$this->ffmpeg, '-hide_banner', '-filters'], timeout: 20);
         } catch (\Throwable $e) {
-            return $this->capabilities = ['available' => false, 'libass' => false, 'error' => 'FFmpeg could not be started: ' . $e->getMessage()];
+            return $this->capabilities = ['available' => false, 'libass' => false, 'error' => 'FFmpeg could not be started: '.$e->getMessage()];
         }
         if ($result['exitCode'] !== 0) {
-            return $this->capabilities = ['available' => false, 'libass' => false, 'error' => 'FFmpeg is not available at ' . $this->ffmpeg];
+            return $this->capabilities = ['available' => false, 'libass' => false, 'error' => 'FFmpeg is not available at '.$this->ffmpeg];
         }
         $libass = (bool) preg_match('/^\s*\S+\s+ass\s+V->V/m', $result['stdout']);
 
@@ -81,6 +81,9 @@ class VideoRendererService
     /** @return list<string> */
     public function buildCommand(RenderOptions $o): array
     {
+        if ($o->maskPattern !== null) {
+            return $this->buildBehindSubjectCommand($o);
+        }
         $filter = sprintf(
             'scale=%1$d:%2$d:force_original_aspect_ratio=decrease,pad=%1$d:%2$d:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,ass=filename=%3$s:fontsdir=%4$s:shaping=complex',
             $o->width,
@@ -94,7 +97,7 @@ class VideoRendererService
             '-hide_banner',
             '-nostdin',
             '-y',
-            '-i', 'file:' . $o->inputPath,
+            '-i', 'file:'.$o->inputPath,
             '-map', '0:v:0',
             '-map', '0:a:0?',
             '-vf', $filter,
@@ -107,22 +110,67 @@ class VideoRendererService
             '-movflags', '+faststart',
             '-progress', 'pipe:1',
             '-nostats',
-            'file:' . $o->outputPath,
+            'file:'.$o->outputPath,
         ];
     }
 
     /**
-     * @param callable(int $percent): void|null $onProgress
-     * @param callable(): bool|null $shouldCancel
+     * Captions behind the person: the captions are burned into the frame, then the person (the
+     * video cut out with the mask frames) is laid back on top, then the watermark.
+     *
+     * @return list<string>
+     */
+    public function buildBehindSubjectCommand(RenderOptions $o): array
+    {
+        $fit = sprintf('scale=%1$d:%2$d:force_original_aspect_ratio=decrease,pad=%1$d:%2$d:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1', $o->width, $o->height);
+        $ass = fn (string $path) => sprintf('ass=filename=%s:fontsdir=%s:shaping=complex', FilterEscaper::optionValue($path), FilterEscaper::optionValue($o->fontsDir));
+
+        $graph = [
+            "[0:v]{$fit},split=2[base][cut]",
+            // The mask covers the whole source picture: stretch it to the source, then fit it like the video.
+            sprintf('[1:v]format=gray,scale=%d:%d:flags=bicubic,%s,boxblur=2:1[mask]', $o->sourceWidth, $o->sourceHeight, $fit),
+            "[base]{$ass($o->subtitlePath)}[captioned]",
+            '[cut][mask]alphamerge[person]',
+            '[captioned][person]overlay=format=auto:eof_action=pass'.($o->frontSubtitlePath !== null ? '[layered];[layered]'.$ass($o->frontSubtitlePath) : '').'[out]',
+        ];
+
+        return [
+            $this->ffmpeg,
+            '-hide_banner',
+            '-nostdin',
+            '-y',
+            '-i', 'file:'.$o->inputPath,
+            '-framerate', rtrim(rtrim(number_format($o->maskFps, 3, '.', ''), '0'), '.'),
+            '-i', $o->maskPattern,
+            '-filter_complex', implode(';', $graph),
+            '-map', '[out]',
+            '-map', '0:a:0?',
+            '-c:v', 'libx264',
+            '-preset', $o->preset,
+            '-crf', (string) $o->crf,
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', $o->audioBitrate,
+            '-movflags', '+faststart',
+            '-progress', 'pipe:1',
+            '-nostats',
+            'file:'.$o->outputPath,
+        ];
+    }
+
+    /**
+     * @param  callable(int $percent): void|null  $onProgress
+     * @param  callable(): bool|null  $shouldCancel
+     *
      * @throws RenderException
      */
     public function render(RenderOptions $o, ?callable $onProgress = null, ?callable $shouldCancel = null): void
     {
         $caps = $this->capabilities();
-        if (!$caps['libass']) {
+        if (! $caps['libass']) {
             throw new RenderException($caps['error'] ?? 'FFmpeg is not available.');
         }
-        if (!is_file($o->inputPath)) {
+        if (! is_file($o->inputPath)) {
             throw new RenderException('The source video file is missing.');
         }
         @mkdir(dirname($o->outputPath), 0755, true);
@@ -151,7 +199,7 @@ class VideoRendererService
             @unlink($o->outputPath);
             throw new RenderException('Rendering was cancelled.', cancelled: true);
         }
-        if ($result['exitCode'] !== 0 || !is_file($o->outputPath) || filesize($o->outputPath) === 0) {
+        if ($result['exitCode'] !== 0 || ! is_file($o->outputPath) || filesize($o->outputPath) === 0) {
             @unlink($o->outputPath);
             throw new RenderException('FFmpeg failed to render the video.', self::tail($result['stderr']));
         }

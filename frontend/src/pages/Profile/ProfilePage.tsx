@@ -102,7 +102,7 @@ export const ProfilePage: React.FC = () => {
         {usage ? (
           <>
             <p className="profile-card-sub">
-              <strong>{usage.plan.label}</strong> plan · resets on {formatDate(new Date(new Date(usage.period.end).getTime() + 86400000).toISOString())}
+              <strong>{usage.plan.label}</strong> plan · resets on {formatDate(usage.period.resets_at ?? usage.period.end)}
             </p>
             <div className="profile-usage-grid">
               <UsageRow label="Caption minutes" meter={usage.caption_minutes} />

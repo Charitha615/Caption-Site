@@ -87,7 +87,7 @@ class SignupAttributionTest extends TestCase
         $this->withHeaders($headers)->getJson('/api/admin/signups?days=30')
             ->assertOk()
             ->assertJsonPath('data.totals', ['signups' => 5, 'paid' => 1, 'tracked' => 4])
-            ->assertJsonPath('data.sources.0', ['source' => 'tiktok', 'medium' => 'social', 'campaign' => 'launch', 'signups' => 3, 'paid' => 1]);
+            ->assertJsonPath('data.sources.0', ['source' => 'tiktok', 'medium' => 'social', 'campaign' => 'launch', 'link_name' => null, 'signups' => 3, 'paid' => 1]);
 
         $this->withHeaders($headers)->getJson('/api/admin/signups?days=0')->assertJsonPath('data.totals.signups', 6);
     }

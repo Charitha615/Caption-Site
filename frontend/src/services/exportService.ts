@@ -8,6 +8,16 @@ export const exportService = {
     return res.data.data.exports;
   },
 
+  /** Whether the server has the person outline for the project's current video (captions behind the person). */
+  async subjectMaskReady(projectUuid: string): Promise<boolean> {
+    const res = await apiClient.get<ApiResponse<{ ready: boolean }>>(`/projects/${projectUuid}/subject-mask`);
+    return res.data.data.ready;
+  },
+
+  async uploadSubjectMask(projectUuid: string, mask: Blob): Promise<void> {
+    await apiClient.put(`/projects/${projectUuid}/subject-mask`, mask, { headers: { 'Content-Type': 'application/octet-stream' }, timeout: 300000 });
+  },
+
   async create(projectUuid: string, payload: CreateExportPayload): Promise<ExportItem> {
     const res = await apiClient.post<ApiResponse<{ export: ExportItem }>>(`/projects/${projectUuid}/exports`, payload);
     return res.data.data.export;

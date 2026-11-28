@@ -10,9 +10,26 @@ import { sanitizeStyle } from '../../utils/captionStyle';
 import { applyPresetLook, BUILT_IN_PRESETS } from '../../model/presets';
 import { usePlan } from '../../../../hooks/usePlan';
 import { PRO_ANIMATIONS, PRO_PRESETS } from '../../../../config/pricing';
+import { loadSubjectSegmenter } from '../../../../utils/subjectMask';
 import type { CaptionStyle } from '../../model/types';
 import { Segmented } from '../controls';
 import { CaptionBox } from '../player/CaptionBox';
+
+/** The look "behind the person" switches on: big, heavy, outlined and bright, placed around head height. */
+const BEHIND_LOOK: Partial<CaptionStyle> = {
+  fontSize: 120,
+  fontWeight: 900,
+  textColor: '#FACC15',
+  outlineColor: '#000000',
+  outlineWidth: 6,
+  textTransform: 'uppercase',
+  backgroundOpacity: 0,
+  alignMatrix: 'center',
+  positionX: 50,
+  positionY: 30,
+  maxWidth: 92,
+  textAlign: 'center',
+};
 
 /** Thumbnails normalise text to ~15px so long samples fit, while keeping each preset's look. */
 const previewScale = (fontSize: number) => Math.min(0.3, 15 / Math.max(1, fontSize));
@@ -92,6 +109,12 @@ export const StylesPanel = memo(function StylesPanel() {
   const proLocked = plan.known && !plan.features.premium_styles;
   const currentPreset = target ? selected?.styleOverride?.preset ?? style.preset : style.preset;
 
+  /** Behind the person (whole project). Turning it on also gives the captions the big, outlined look it needs. */
+  const setBehind = (on: boolean) => {
+    if (on) void loadSubjectSegmenter().catch(() => setFormError('Could not load person detection in this browser. Try Chrome or Edge.'));
+    useCaptionStore.getState().updateStyle(on ? { ...BEHIND_LOOK, behindSubject: true } : { behindSubject: false }, null);
+  };
+
   return (
     <div className="ed-panel-scroll">
       <div className="ed-inspector-block">
@@ -106,6 +129,16 @@ export const StylesPanel = memo(function StylesPanel() {
           ]}
         />
         {scope === 'caption' && !selected && <p className="ed-help">Select a caption first — until then presets apply to all.</p>}
+      </div>
+
+      <div className="ed-inspector-block ed-behind-block">
+        <label className="ed-behind-toggle" title={proLocked ? 'Exporting this needs Pro' : 'Captions go behind the person in the video'}>
+          <input type="checkbox" checked={!!style.behindSubject} onChange={(e) => setBehind(e.target.checked)} />
+          <span>
+            <strong>Behind the person</strong> {proLocked && <span className="ed-pro-badge">Pro</span>}
+            <small>Big outlined captions that sit behind you. Works best with one person in the shot.</small>
+          </span>
+        </label>
       </div>
 
       <div className="ed-preset-grid">

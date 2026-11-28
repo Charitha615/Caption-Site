@@ -1,6 +1,7 @@
 import { shakeAt } from './ai/stabilize';
 import { keyedSource } from './chroma';
 import { filterCss } from './filters';
+import { drawBehindSubject } from '../../utils/subjectMask';
 import {
   STABILIZE_ZOOM, clipEnd, fadeLevel, fontCss, sourceTime, spokenWordIndex, transformAt, type AspectRatio, type Clip, type Fill, type Track, type Transform, type Transition,
 } from './model';
@@ -349,7 +350,8 @@ export function drawFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t
       if (extraFilter) ctx.filter = extraFilter;
       paintFill(ctx, clip.fill, w, h);
     } else if (clip.kind === 'text') {
-      drawText(ctx, clip, tf, t, w, h, px, extraFilter);
+      if (clip.style?.behindSubject) drawBehindSubject(ctx, () => drawText(ctx, clip, tf, t, w, h, px, extraFilter));
+      else drawText(ctx, clip, tf, t, w, h, px, extraFilter);
     } else if (clip.kind === 'video' || clip.kind === 'image') {
       const src = source(clip);
       if (src && (!(src instanceof HTMLVideoElement) || src.readyState >= 2)) drawPicture(ctx, clip, tf, src, w, h, px, extraFilter, t);

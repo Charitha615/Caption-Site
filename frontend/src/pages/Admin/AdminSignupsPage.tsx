@@ -4,6 +4,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useAuthStore } from '../../stores/authStore';
 import { adminSignupService, type SignupPeriod, type SignupReport } from '../../services/adminSignupService';
 import { toAppError } from '../../services/errors';
+import { CampaignLinks } from './CampaignLinks';
 import './AdminReviewsPage.css';
 
 const PERIODS: Array<{ days: SignupPeriod; label: string }> = [
@@ -22,6 +23,7 @@ export const AdminSignupsPage: React.FC = () => {
   const [days, setDays] = useState<SignupPeriod>(30);
   const [data, setData] = useState<SignupReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -34,7 +36,7 @@ export const AdminSignupsPage: React.FC = () => {
       })
       .catch((err) => active && setError(toAppError(err, 'Could not load sign-ups.').message));
     return () => { active = false; };
-  }, [isAdmin, days]);
+  }, [isAdmin, days, reload]);
 
   if (!isAdmin) {
     return (
@@ -49,10 +51,14 @@ export const AdminSignupsPage: React.FC = () => {
       <div>
         <h2 className="page-heading">Sign-ups</h2>
         <p className="page-subheading">
-          Where new users came from. Tag your links like <code>sinsub.cc/?utm_source=tiktok&amp;utm_campaign=launch</code>, or give a creator <code>sinsub.cc/?ref=theirname</code>.
+          Where new users came from. Make a campaign link below for each post or ad (like <code>sinsub.cc/?utm_source=facebook&amp;utm_medium=post&amp;utm_campaign=text-captions</code>),
+          or give a creator <code>sinsub.cc/?ref=theirname</code>.
         </p>
       </div>
 
+      <CampaignLinks onChanged={() => setReload((n) => n + 1)} />
+
+      <h3 className="admin-user-h">All sources</h3>
       <div className="admin-tabs" role="tablist" aria-label="Period">
         {PERIODS.map((p) => (
           <button
@@ -84,11 +90,12 @@ export const AdminSignupsPage: React.FC = () => {
               <div className="admin-table-wrap" role="tabpanel">
                 <table className="admin-table">
                   <thead>
-                    <tr><th scope="col">Source</th><th scope="col">Medium</th><th scope="col">Campaign</th><th scope="col">Sign-ups</th><th scope="col">Went Pro</th></tr>
+                    <tr><th scope="col">Link</th><th scope="col">Source</th><th scope="col">Medium</th><th scope="col">Campaign</th><th scope="col">Sign-ups</th><th scope="col">Went Pro</th></tr>
                   </thead>
                   <tbody>
                     {data.sources.map((row) => (
                       <tr key={`${row.source}|${row.medium}|${row.campaign}`}>
+                        <td>{row.link_name ?? <span className="admin-muted">—</span>}</td>
                         <td>{row.source ?? <span className="admin-muted">(direct / unknown)</span>}</td>
                         <td>{row.medium ?? '—'}</td>
                         <td>{row.campaign ?? '—'}</td>

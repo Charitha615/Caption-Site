@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\AdminMarketingLinkController;
 use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\AdminSignupController;
 use App\Http\Controllers\Api\AdminUserController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\SubjectMaskController;
 use App\Http\Controllers\Api\UploadSessionController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\VideoEditorAiController;
@@ -88,6 +90,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::post('/payments/{payment}/approve', [AdminPaymentController::class, 'approve']);
         Route::post('/payments/{payment}/reject', [AdminPaymentController::class, 'reject']);
         Route::get('/signups', [AdminSignupController::class, 'index']);
+        Route::get('/marketing-links', [AdminMarketingLinkController::class, 'index']);
+        Route::post('/marketing-links', [AdminMarketingLinkController::class, 'store']);
+        Route::put('/marketing-links/{link:uuid}', [AdminMarketingLinkController::class, 'update']);
+        Route::delete('/marketing-links/{link:uuid}', [AdminMarketingLinkController::class, 'destroy']);
     });
 
     Route::middleware('can:manage-users')->prefix('admin')->group(function () {
@@ -146,6 +152,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     // Exports (SRT/VTT/TXT/JSON immediately; MP4 rendered on the queue)
     Route::get('/projects/{project}/exports', [ExportController::class, 'index']);
+    Route::get('/projects/{project}/subject-mask', [SubjectMaskController::class, 'show']);
+    Route::put('/projects/{project}/subject-mask', [SubjectMaskController::class, 'update'])->middleware('throttle:exports');
     Route::post('/projects/{project}/exports', [ExportController::class, 'store'])->middleware('throttle:exports');
     Route::get('/exports/{export}', [ExportController::class, 'show']);
     Route::delete('/exports/{export}', [ExportController::class, 'destroy']);

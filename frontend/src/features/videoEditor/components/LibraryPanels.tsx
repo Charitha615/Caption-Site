@@ -5,10 +5,14 @@ import { ACCEPTED_FONTS, loadFontFile } from '../customFonts';
 import { filterCss, FILTER_PRESETS } from '../filters';
 import { fontCss, type Fill, type TextStyle } from '../model';
 import { useVideoEditorStore } from '../store';
+import { usePlan } from '../../../hooks/usePlan';
+import { loadSubjectSegmenter } from '../../../utils/subjectMask';
 
 /* ---------- Text ---------- */
 
 const TEXT_PRESETS: { label: string; text: string; sample: string; style: Partial<TextStyle>; watermark?: number }[] = [
+  // Pro: big outlined text drawn behind the person in the video.
+  { label: 'Behind me', text: 'BIG IDEA', sample: 'BEHIND', style: { fontSize: 200, y: 0.3, font: 'impact', color: '#facc15', outline: true, animation: 'pop', behindSubject: true } },
   // Watermarks run the whole video, faint (the number is the opacity; change it under Opacity).
   { label: 'Watermark', text: '@yourbrand', sample: '© brand', watermark: 0.5, style: { fontSize: 36, x: 0.96, y: 0.94, align: 'right', font: 'rounded', animation: 'none' } },
   { label: 'Big watermark', text: 'YOUR BRAND', sample: 'BRAND', watermark: 0.18, style: { fontSize: 150, y: 0.5, font: 'impact', outline: true, animation: 'none' } },
@@ -78,6 +82,20 @@ function FontUpload() {
 export function TextPanel() {
   const addTextClip = useVideoEditorStore((s) => s.addTextClip);
   const addWatermark = useVideoEditorStore((s) => s.addWatermark);
+  const addToast = useToastStore((s) => s.addToast);
+  const plan = usePlan();
+  const behindLocked = plan.known && !plan.features.premium_styles;
+  const add = (preset: (typeof TEXT_PRESETS)[number]) => {
+    if (preset.style.behindSubject) {
+      if (behindLocked) {
+        addToast({ type: 'info', message: 'Text behind the person is part of Pro.' });
+        return;
+      }
+      void loadSubjectSegmenter().catch(() => addToast({ type: 'error', message: 'Could not load person detection in this browser.' }));
+    }
+    if (preset.watermark) addWatermark(preset.text, preset.style, preset.watermark);
+    else addTextClip(preset.text, preset.style);
+  };
   return (
     <div className="ve-panel">
       <h2 className="ve-panel-title">Text</h2>
@@ -85,7 +103,7 @@ export function TextPanel() {
       <FontUpload />
       <div className="ve-tile-grid">
         {TEXT_PRESETS.map((preset) => (
-          <button key={preset.label} type="button" className="ve-tile" onClick={() => (preset.watermark ? addWatermark(preset.text, preset.style, preset.watermark) : addTextClip(preset.text, preset.style))}>
+          <button key={preset.label} type="button" className="ve-tile" onClick={() => add(preset)} title={preset.style.behindSubject ? 'Text behind the person (Pro)' : undefined}>
             <span className="ve-tile-art is-text" aria-hidden="true">
               <span
                 style={{
@@ -100,7 +118,7 @@ export function TextPanel() {
                 {preset.sample}
               </span>
             </span>
-            <span className="ve-tile-label">{preset.label}</span>
+            <span className="ve-tile-label">{preset.label}{preset.style.behindSubject && <span className="ve-pro-badge">Pro</span>}</span>
           </button>
         ))}
       </div>

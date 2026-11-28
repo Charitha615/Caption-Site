@@ -46,6 +46,8 @@ export interface TextStyle {
   captionMode?: CaptionMode;
   /** Colour of the spoken word in karaoke mode. */
   highlight?: string;
+  /** Pro: the text is drawn behind the person in the video (see utils/subjectMask). */
+  behindSubject?: boolean;
 }
 
 export type FilterPresetId =

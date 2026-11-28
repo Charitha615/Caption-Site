@@ -10,6 +10,7 @@ use App\Services\Rendering\AssCaptionRenderer;
 use App\Services\Rendering\FontRegistry;
 use App\Services\Rendering\RenderException;
 use App\Services\Rendering\RenderOptions;
+use App\Services\Rendering\SubjectMaskStore;
 use App\Services\Rendering\VideoRendererService;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
@@ -75,12 +76,24 @@ class RenderVideoJob implements ShouldQueue
             File::ensureDirectoryExists($workDir, 0700);
             $assPath = $workDir.'/captions.ass';
             $outPath = $workDir.'/output.mp4';
+            $watermark = ! empty($meta['watermark']) ? (string) config('brand.title_name') : null;
+            $behind = ! empty($meta['behind_subject']);
+            $frontPath = null;
+            $mask = null;
+            if ($behind) {
+                // Captions behind the person; the watermark stays in front, in its own file.
+                $mask = SubjectMaskStore::writeFrames(app(SubjectMaskStore::class)->absolutePath($project), $workDir.'/mask');
+                if ($watermark !== null) {
+                    $frontPath = $workDir.'/front.ass';
+                    file_put_contents($frontPath, $captionRenderer->render([], $meta['style'] ?? [], $width, $height, $watermark, (float) ($meta['duration'] ?? 0)));
+                }
+            }
             file_put_contents($assPath, $captionRenderer->render(
                 $exports->captionsFor($project),
                 $meta['style'] ?? [],
                 $width,
                 $height,
-                ! empty($meta['watermark']) ? (string) config('brand.title_name') : null,
+                $behind ? null : $watermark,
                 (float) ($meta['duration'] ?? 0),
             ));
 
@@ -98,6 +111,11 @@ class RenderVideoJob implements ShouldQueue
                     preset: (string) $quality['preset'],
                     audioBitrate: (string) $quality['audio_bitrate'],
                     durationSeconds: (float) ($meta['duration'] ?? 0),
+                    maskPattern: $mask['pattern'] ?? null,
+                    maskFps: (float) ($mask['fps'] ?? 0),
+                    sourceWidth: (int) ($meta['source_width'] ?? 0),
+                    sourceHeight: (int) ($meta['source_height'] ?? 0),
+                    frontSubtitlePath: $frontPath,
                 ),
                 onProgress: function (int $percent) use ($export, &$lastWrite) {
                     $now = microtime(true);

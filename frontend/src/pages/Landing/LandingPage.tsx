@@ -243,7 +243,7 @@ export const LandingPage: React.FC = () => {
               footnote={
                 <>
                   {PAYMENT_NOTE}{' '}
-                  <span lang="si">Bank transfer එකක් කරලා slip එක upload කරන්න, නැත්නම් WhatsApp කරන්න.</span>
+                  <span lang="si">WhatsApp කරන්න, අපි bank details එවනවා. ගෙවලා slip එක එවන්න.</span>
                 </>
               }
             />

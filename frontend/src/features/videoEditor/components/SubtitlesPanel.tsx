@@ -7,6 +7,7 @@ import { clipEnd, fontCss, formatTime, type TextStyle } from '../model';
 import { downloadBlob, fileBase } from '../sources';
 import { usePlan } from '../../../hooks/usePlan';
 import { SUBTITLE_STYLE, useVideoEditorStore } from '../store';
+import { loadSubjectSegmenter } from '../../../utils/subjectMask';
 
 const SPEECH_LANGUAGES: { value: SpeechLanguage; label: string }[] = [
   { value: 'si', label: 'Sinhala (සිංහල)' },
@@ -31,6 +32,8 @@ const CAPTION_STYLES: { label: string; style: Partial<TextStyle> }[] = [
   { label: 'Neon', style: { ...SUBTITLE_STYLE, captionMode: 'karaoke', color: '#a5f3fc', highlight: '#f0abfc', font: 'rounded', background: null } },
   { label: 'Purple box', style: { ...SUBTITLE_STYLE, outline: false, background: 'rgba(124, 58, 237, 0.92)', color: '#ffffff', font: 'rounded', captionMode: 'karaoke', highlight: '#fde047' } },
   { label: 'Minimal', style: { ...SUBTITLE_STYLE, fontSize: 44, bold: false, outline: false, background: null, color: '#ffffff', font: 'sans' } },
+  // Pro: big outlined words drawn behind the person.
+  { label: 'Behind me', style: { ...SUBTITLE_STYLE, captionMode: 'word', fontSize: 150, y: 0.32, font: 'impact', color: '#facc15', outline: true, background: null, behindSubject: true } },
 ];
 
 const POSITIONS = [
@@ -180,6 +183,17 @@ export function SubtitlesPanel() {
 
   const plan = usePlan();
   const translateLocked = plan.known && !plan.features.editor_ai;
+  const behindLocked = plan.known && !plan.features.premium_styles;
+  /** Captions behind the person (Pro); a preset can come with it. */
+  const setBehind = (on: boolean, style?: Partial<TextStyle>) => {
+    if (!active) return;
+    if (on && behindLocked) {
+      addToast({ type: 'info', message: 'Captions behind the person are part of Pro.' });
+      return;
+    }
+    if (on) void loadSubjectSegmenter().catch(() => addToast({ type: 'error', message: 'Could not load person detection in this browser.' }));
+    styleSubtitles({ ...style, behindSubject: on }, active.id);
+  };
   const translate = () => run('translate', async () => {
     const texts = await aiService.translate(lines.map((c) => c.text ?? ''), to);
     const label = TEXT_LANGUAGES.find((l) => l.value === to)!.label;
@@ -214,7 +228,13 @@ export function SubtitlesPanel() {
           <h2 className="ve-panel-title">Caption style</h2>
           <div className="ve-tile-grid">
             {CAPTION_STYLES.map((preset) => (
-              <button key={preset.label} type="button" className="ve-tile" onClick={() => styleSubtitles(preset.style, active.id)}>
+              <button
+                key={preset.label}
+                type="button"
+                className="ve-tile"
+                title={preset.style.behindSubject ? 'Captions behind the person (Pro)' : undefined}
+                onClick={() => (preset.style.behindSubject ? setBehind(true, preset.style) : styleSubtitles({ ...preset.style, behindSubject: false }, active.id))}
+              >
                 <span className="ve-tile-art is-text" aria-hidden="true">
                   <span
                     style={{
@@ -225,13 +245,18 @@ export function SubtitlesPanel() {
                       WebkitTextStroke: preset.style.outline ? '0.5px #000' : undefined,
                     }}
                   >
-                    {preset.style.captionMode === 'karaoke' ? <>Say <span style={{ color: preset.style.highlight }}>this</span></> : preset.style.captionMode === 'word' ? 'WORD' : 'Subtitle'}
+                    {preset.style.behindSubject ? 'BEHIND' : preset.style.captionMode === 'karaoke' ? <>Say <span style={{ color: preset.style.highlight }}>this</span></> : preset.style.captionMode === 'word' ? 'WORD' : 'Subtitle'}
                   </span>
                 </span>
-                <span className="ve-tile-label">{preset.label}</span>
+                <span className="ve-tile-label">{preset.label}{preset.style.behindSubject && <span className="ve-pro-badge">Pro</span>}</span>
               </button>
             ))}
           </div>
+          <label className="ve-field is-inline" title={behindLocked ? 'Part of Pro' : 'Puts the captions behind the person in the video'}>
+            <input type="checkbox" checked={!!first?.behindSubject} disabled={behindLocked} onChange={(e) => setBehind(e.target.checked)} />
+            <span>Behind the person</span>
+            {behindLocked && <span className="ve-pro-badge">Pro</span>}
+          </label>
           <div className="ve-field">
             <span>Position</span>
             <div className="ve-chips">

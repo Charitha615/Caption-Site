@@ -2674,3 +2674,16 @@ select.ed-input {
   background: #F97316; color: #fff; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.02em; line-height: 1.5;
 }
 .ed-pro-note a { color: #F97316; font-weight: 700; }
+
+/* Captions behind the person (Pro): the person is redrawn above the caption layer. */
+.ed-subject-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.ed-behind-toggle { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.ed-behind-toggle input { margin-top: 3px; accent-color: var(--ed-accent, #f97316); }
+.ed-behind-toggle strong { font-size: 0.86rem; }
+.ed-behind-toggle small { display: block; margin-top: 2px; color: var(--ed-text-muted, #9ca3af); font-size: 0.76rem; line-height: 1.4; }

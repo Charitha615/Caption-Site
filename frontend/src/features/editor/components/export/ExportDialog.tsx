@@ -13,6 +13,7 @@ import { flush } from '../../services/autosave';
 import { Link } from 'react-router-dom';
 import { usePlan } from '../../../../hooks/usePlan';
 import { PRO_ANIMATIONS, PRO_PRESETS } from '../../../../config/pricing';
+import { analyzeVideoSubject } from '../../../../utils/subjectMask';
 
 const RESOLUTIONS: Array<{ value: Exclude<ExportResolution, 'source'>; label: string; short: number }> = [
   { value: '720', label: '720p', short: 720 },
@@ -174,6 +175,7 @@ export function ExportDialog() {
   const usesProStyle = useCaptionStore(
     (s) =>
       PRO_ANIMATIONS.includes(s.style.animation) ||
+      !!s.style.behindSubject ||
       (!!s.style.preset && PRO_PRESETS.includes(s.style.preset)) ||
       s.captions.some(
         (c) =>
@@ -205,6 +207,8 @@ export function ExportDialog() {
   const [items, setItems] = useState<ExportItem[]>([]);
   const [focusUuid, setFocusUuid] = useState<string | null>(null);
   const [busy, setBusy] = useState<ExportType | null>(null);
+  /** 0 … 1 while finding the person through the video, for captions behind them. */
+  const [subjectProgress, setSubjectProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingCancel, setPendingCancel] = useState<ExportItem | null>(null);
   const itemsRef = useRef(items);
@@ -258,6 +262,7 @@ export function ExportDialog() {
       if (useEditorProjectStore.getState().saveStatus === 'failed') {
         throw new Error('Your latest changes could not be saved yet. Wait for "Saved" in the top bar, then export.');
       }
+      if (payload.type === 'mp4' && useCaptionStore.getState().style.behindSubject) await prepareSubject(projectUuid);
       const created = await exportService.create(projectUuid, payload);
       setItems((prev) => [created, ...prev]);
       if (payload.type === 'mp4') {
@@ -269,7 +274,19 @@ export function ExportDialog() {
       setError(apiErrorMessage(err, 'Export failed.'));
     } finally {
       setBusy(null);
+      setSubjectProgress(null);
     }
+  };
+
+  /** Captions behind the person: find the person through the video once, and send it to the server. */
+  const prepareSubject = async (uuid: string) => {
+    if (await exportService.subjectMaskReady(uuid)) return;
+    const url = useVideoStore.getState().videoUrl;
+    if (!url || useVideoStore.getState().isLocalPreview) throw new Error('Upload the video to the project first.');
+    setSubjectProgress(0);
+    const { blob } = await analyzeVideoSubject(url, setSubjectProgress);
+    setSubjectProgress(1);
+    await exportService.uploadSubjectMask(uuid, blob);
   };
 
   const remove = async (item: ExportItem) => {
@@ -352,6 +369,11 @@ export function ExportDialog() {
               {plan.known && plan.features.watermark && !styleLocked && (
                 <p className="ed-help ed-pro-note">
                   Free videos export in HD with a small සිංSub mark in the corner. <Link to="/billing">Pro</Link> exports up to 4K without it.
+                </p>
+              )}
+              {subjectProgress !== null && (
+                <p className="ed-help" role="status">
+                  {subjectProgress < 1 ? `Finding the person in your video for “behind the person”… ${Math.round(subjectProgress * 100)}%` : 'Sending it to the server…'}
                 </p>
               )}
               <button type="button" className="ed-btn is-accent is-lg ed-export2-cta" onClick={exportVideo} disabled={!!mp4Blocked || styleLocked || captionCount === 0 || busy !== null}>

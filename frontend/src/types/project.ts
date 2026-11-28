@@ -132,7 +132,8 @@ export interface UsageSummary {
   plan: { key: string; label: string; expires_at?: string | null };
   /** What the plan includes; missing on servers older than the Pro split. */
   features?: PlanFeatures;
-  period: { start: string; end: string };
+  /** The current 30-day usage cycle (from registration or plan start); `end` is the day it resets. */
+  period: { start: string; end: string; resets_at?: string };
   caption_minutes: UsageMeter;
   ai_requests_today: UsageMeter;
   exports: UsageMeter;

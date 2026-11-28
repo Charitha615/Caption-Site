@@ -38,7 +38,8 @@ class AdminUserController extends Controller
             ->withCount('projects')
             ->withMax('tokens as last_active_at', 'last_used_at')
             ->when($filters['search'] ?? null, function ($query, string $search) {
-                $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
+                $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('signup_source', $search)->orWhere('signup_campaign', $search));
             })
             ->when($filters['plan'] ?? null, function ($query, string $plan) {
                 $default = config('plans.default');
@@ -80,11 +81,7 @@ class AdminUserController extends Controller
         ]);
         $isDefault = $data['plan'] === config('plans.default');
 
-        $user->forceFill([
-            'plan' => $data['plan'],
-            'plan_expires_at' => $isDefault || empty($data['expires_at']) ? null : Carbon::parse($data['expires_at'])->endOfDay(),
-            'plan_reminded_at' => null,
-        ])->save();
+        $user->switchPlan($data['plan'], $isDefault || empty($data['expires_at']) ? null : Carbon::parse($data['expires_at'])->endOfDay());
         $this->usage->forget($user->id);
         AppLog::info('admin.user_plan_changed', ['admin' => $request->user()->uuid, 'user' => $user->uuid, 'plan' => $data['plan'], 'until' => $user->plan_expires_at?->toDateString()]);
 
@@ -138,7 +135,7 @@ class AdminUserController extends Controller
     }
 
     /**
-     * @return array{uuid: string, name: string, email: string, role: string, avatar_url: ?string, plan: string, plan_label: string, stored_plan: ?string, plan_expires_at: ?string, projects_count: int, last_active_at: ?string, usage_reset_at: ?string, created_at: ?string}
+     * @return array{uuid: string, name: string, email: string, role: string, avatar_url: ?string, plan: string, plan_label: string, stored_plan: ?string, plan_expires_at: ?string, projects_count: int, last_active_at: ?string, usage_reset_at: ?string, created_at: ?string, signup: array{source: ?string, medium: ?string, campaign: ?string}}
      */
     private function present(User $user): array
     {
@@ -158,6 +155,7 @@ class AdminUserController extends Controller
             'last_active_at' => $user->last_active_at ? Carbon::parse($user->last_active_at)->toISOString() : null,
             'usage_reset_at' => $user->usage_reset_at?->toISOString(),
             'created_at' => $user->created_at?->toISOString(),
+            'signup' => ['source' => $user->signup_source, 'medium' => $user->signup_medium, 'campaign' => $user->signup_campaign],
         ];
     }
 }

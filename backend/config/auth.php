@@ -114,4 +114,20 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin account
+    |--------------------------------------------------------------------------
+    |
+    | Created by `php artisan db:seed` (AdminUserSeeder). Leave ADMIN_PASSWORD empty to
+    | give the account a random password: sign in with Google or "Forgot password".
+    |
+    */
+
+    'admin' => [
+        'email' => env('ADMIN_EMAIL'),
+        'name' => env('ADMIN_NAME', 'Admin'),
+        'password' => env('ADMIN_PASSWORD'),
+    ],
+
 ];

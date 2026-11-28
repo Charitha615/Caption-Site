@@ -33,6 +33,19 @@ export function MarketingHeader({ lang = 'en' }: { lang?: Lang }) {
   );
 }
 
+/** Brand marks (lucide has no TikTok icon, and its brand icons are deprecated). */
+function SocialIcon({ name }: { name: 'tiktok' | 'facebook' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      {name === 'tiktok' ? (
+        <path d="M16.6 5.82A4.3 4.3 0 0 1 15.54 3h-3.09v12.4a2.59 2.59 0 0 1-2.59 2.5 2.6 2.6 0 0 1-2.6-2.6 2.6 2.6 0 0 1 3.4-2.47V9.67a5.73 5.73 0 0 0-.8-.06 5.68 5.68 0 0 0-5.69 5.69A5.68 5.68 0 0 0 9.86 21a5.69 5.69 0 0 0 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3a4.3 4.3 0 0 1-3.25-1.48z" />
+      ) : (
+        <path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14A28 28 0 0 0 14.64 2C11.93 2 10 3.66 10 6.7v2.8H7v4h3V22h4z" />
+      )}
+    </svg>
+  );
+}
+
 /** Footer of every public page: links to all feature pages and guides (internal links help search engines find them). */
 export function MarketingFooter({ lang = 'en' }: { lang?: Lang }) {
   const si = lang === 'si';
@@ -42,6 +55,15 @@ export function MarketingFooter({ lang = 'en' }: { lang?: Lang }) {
         <div className="sx-footer-brand">
           <BrandLogo />
           <p lang="si">සිංහල creators ලා වෙනුවෙන් හදපු caption tool එක.</p>
+          <ul className="mk-social" aria-label={si ? 'අපිව follow කරන්න' : 'Follow us'}>
+            {BRAND.social.map((s) => (
+              <li key={s.key}>
+                <a href={s.url} target="_blank" rel="noopener noreferrer me" aria-label={`${BRAND.name} on ${s.label}`} title={`${s.label} · ${s.handle}`}>
+                  <SocialIcon name={s.key} />
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
         <div className="mk-footer-cols">
           <nav aria-label="Tools" className="mk-footer-col">

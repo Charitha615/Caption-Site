@@ -127,14 +127,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
             <>
               <p className="pro-card-subtext">
                 {minutes.limit === null
-                  ? `${minutes.used} caption minutes used this month`
+                  ? `${minutes.used} caption minutes used`
                   : `${minutes.used} of ${minutes.limit} caption minutes used`}
               </p>
               {percent !== null && (
                 <div
                   className="pro-usage-track"
                   role="progressbar"
-                  aria-label="Caption minutes used this month"
+                  aria-label="Caption minutes used in this 30-day cycle"
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={percent}
@@ -146,6 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           ) : (
             <p className="pro-card-subtext">Loading usage…</p>
           )}
+          {usage?.period && <p className="pro-card-subtext">Resets {formatDate(usage.period.resets_at ?? usage.period.end)}</p>}
           {isPro && usage?.plan.expires_at && (
             <p className="pro-card-subtext">Pro until {formatDate(usage.plan.expires_at)}</p>
           )}

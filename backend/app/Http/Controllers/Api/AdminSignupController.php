@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\MarketingLink;
 use App\Models\Payment;
 use App\Models\User;
 use App\Traits\ApiResponseTrait;
@@ -24,6 +25,8 @@ class AdminSignupController extends Controller
 
         $paidUserIds = Payment::query()->where('status', Payment::STATUS_APPROVED)->select('user_id');
 
+        $linkNames = MarketingLink::query()->get()->mapWithKeys(fn (MarketingLink $l) => ["{$l->source}|{$l->medium}|{$l->campaign}" => $l->name]);
+
         $users = User::query()->when($days > 0, fn ($q) => $q->where('created_at', '>=', now()->subDays($days)));
 
         $rows = (clone $users)
@@ -38,6 +41,7 @@ class AdminSignupController extends Controller
                 'source' => $row->signup_source,
                 'medium' => $row->signup_medium,
                 'campaign' => $row->signup_campaign,
+                'link_name' => $linkNames["{$row->signup_source}|{$row->signup_medium}|{$row->signup_campaign}"] ?? null,
                 'signups' => (int) $row->signups,
                 'paid' => (int) $row->paid,
             ]);

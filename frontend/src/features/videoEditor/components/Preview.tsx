@@ -5,6 +5,7 @@ import { ASPECTS, clipEnd, fadeLevel, sourceTime, type Clip, type MediaItem } fr
 import { drawFrame } from '../render';
 import { previewLookup, previewVideos } from '../sources';
 import { useVideoEditorStore } from '../store';
+import { loadSubjectSegmenter } from '../../../utils/subjectMask';
 
 /** Clips that start this soon get their element ready ahead of time, so cuts don't flash. */
 const PRELOAD_SECONDS = 2;
@@ -13,6 +14,11 @@ const PRELOAD_SECONDS = 2;
 function useSyncedMedia(ref: React.RefObject<HTMLMediaElement | null>, clip: Clip, muted: boolean) {
   const playhead = useVideoEditorStore((s) => s.playhead);
   const playing = useVideoEditorStore((s) => s.playing);
+  // Text behind the person needs the person detector; start loading it as soon as such text exists.
+  const needsSubject = useVideoEditorStore((s) => s.clips.some((c) => c.style?.behindSubject));
+  useEffect(() => {
+    if (needsSubject) void loadSubjectSegmenter().catch(() => undefined);
+  }, [needsSubject]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;

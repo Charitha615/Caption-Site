@@ -101,7 +101,7 @@ export const AdminPaymentsPage: React.FC = () => {
     <div className="admin-reviews">
       <div>
         <h2 className="page-heading">Payments</h2>
-        <p className="page-subheading">Find the transfer in the bank by its reference and amount, then approve it to turn Pro on.</p>
+        <p className="page-subheading">Pro requests from WhatsApp. Reply with the bank details, find the transfer by its reference and amount, then approve it to turn Pro on.</p>
       </div>
 
       <div className="admin-tabs" role="tablist" aria-label="Payment status">

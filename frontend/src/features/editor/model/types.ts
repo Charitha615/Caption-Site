@@ -99,6 +99,9 @@ export interface CaptionStyle {
   maxWidth: number;
 
   animation: CaptionAnimation;
+
+  /** Pro: captions are drawn behind the person in the video (whole project). */
+  behindSubject?: boolean;
 }
 
 export type CaptionStyleOverride = Partial<CaptionStyle>;

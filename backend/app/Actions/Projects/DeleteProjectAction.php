@@ -4,6 +4,7 @@ namespace App\Actions\Projects;
 
 use App\Models\Project;
 use App\Services\Media\MediaStorage;
+use App\Services\Rendering\SubjectMaskStore;
 use App\Support\AppLog;
 use Illuminate\Support\Facades\File;
 
@@ -39,6 +40,8 @@ class DeleteProjectAction
             File::deleteDirectory($upload->chunkDirectory());
         }
         $project->uploadSessions()->delete();
+
+        app(SubjectMaskStore::class)->delete($project);
 
         AppLog::info('project.deleted', ['project' => $project->uuid]);
 

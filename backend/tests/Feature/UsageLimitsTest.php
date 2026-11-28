@@ -6,8 +6,11 @@ use App\Models\Export;
 use App\Models\MediaFile;
 use App\Models\Project;
 use App\Models\UsageRecord;
+use App\Models\User;
+use App\Services\Billing\BillingService;
 use App\Services\Usage\UsageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -32,6 +35,43 @@ class UsageLimitsTest extends TestCase
             ->assertJsonPath('data.usage.ai_requests_today.used', 1);
 
         $this->withHeaders($headers)->getJson('/api/dashboard')->assertJsonPath('data.summary.caption_minutes_limit', 15);
+    }
+
+    public function test_usage_runs_in_30_day_cycles_from_registration_and_restarts_when_a_plan_is_switched_on(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 09:00:00'));
+        [$user, $headers] = $this->userWithToken();
+        $usage = app(UsageService::class);
+        $billing = app(BillingService::class);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->travelTo(Carbon::parse('2026-12-05 09:00:00'));
+        $usage->record($user, UsageRecord::ACTION_CAPTION_GENERATION, 600, 'seconds');
+        $this->withHeaders($headers)->getJson('/api/usage')
+            ->assertJsonPath('data.usage.period.start', '2026-11-10')
+            ->assertJsonPath('data.usage.period.end', '2026-12-10')
+            ->assertJsonPath('data.usage.caption_minutes.used', 10);
+
+        // Not reset on the 1st of the month, but 30 days after registering.
+        $this->travelTo(Carbon::parse('2026-12-10 09:00:01'));
+        $this->withHeaders($headers)->getJson('/api/usage')
+            ->assertJsonPath('data.usage.period.start', '2026-12-10')
+            ->assertJsonPath('data.usage.caption_minutes.used', 0);
+
+        // Pro switched on: a new 30-day cycle from that day, and monthly Pro lasts 30 days.
+        $this->travelTo(Carbon::parse('2026-12-20 12:00:00'));
+        $billing->approve($billing->submit($user, 'monthly', null, 'Requested on WhatsApp'), $admin);
+        $this->assertTrue($user->refresh()->plan_expires_at->equalTo(Carbon::parse('2027-01-19 12:00:00')));
+        $this->app['auth']->forgetGuards();
+        $headers = ['Authorization' => 'Bearer '.$user->createToken('t')->plainTextToken]; // sign-in tokens last 30 days
+        $this->withHeaders($headers)->getJson('/api/usage')
+            ->assertJsonPath('data.usage.period.start', '2026-12-20')
+            ->assertJsonPath('data.usage.period.end', '2027-01-19');
+
+        // Renewing Pro keeps the same cycle.
+        $this->travelTo(Carbon::parse('2027-01-02 12:00:00'));
+        $billing->approve($billing->submit($user->refresh(), 'monthly', null, null), $admin);
+        $this->assertSame('2026-12-20', $user->refresh()->usageCycleStart()->toDateString());
     }
 
     public function test_exhausted_caption_minutes_block_new_uploads_and_regeneration_with_402(): void

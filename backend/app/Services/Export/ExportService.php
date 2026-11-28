@@ -11,6 +11,7 @@ use App\Models\UsageRecord;
 use App\Models\User;
 use App\Services\Caption\CaptionStyleNormalizer;
 use App\Services\Caption\Contracts\SubtitleFormatterInterface;
+use App\Services\Rendering\SubjectMaskStore;
 use App\Services\Rendering\VideoRendererService;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
@@ -31,6 +32,7 @@ class ExportService
         protected SubtitleFormatterInterface $formatter,
         protected CaptionStyleNormalizer $normalizer,
         protected UsageService $usage,
+        protected SubjectMaskStore $subjectMasks,
     ) {}
 
     /**
@@ -98,7 +100,11 @@ class ExportService
         }
 
         $style = $this->styleFor($project, $template);
-        $this->usage->ensureCanUseStyles($user, $this->animationsUsed($project, $style), $this->presetsUsed($project, $template));
+        $behindSubject = ! empty($style['behindSubject']);
+        $this->usage->ensureCanUseStyles($user, $this->animationsUsed($project, $style), $this->presetsUsed($project, $template), $behindSubject);
+        if ($behindSubject && ! $this->subjectMasks->isReady($project)) {
+            throw ValidationException::withMessages(['type' => 'The person in this video has not been found yet. Export again from the editor, which finds them first.']);
+        }
 
         $export = Export::create([
             'project_id' => $project->id,
@@ -119,6 +125,7 @@ class ExportService
                 // Snapshot so later edits don't change a render already in the queue.
                 'style' => $style,
                 'watermark' => $user->hasFeature('watermark'),
+                'behind_subject' => $behindSubject,
             ],
         ]);
 

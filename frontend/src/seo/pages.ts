@@ -16,6 +16,7 @@ const organization = {
   url: `${SITE_URL}/`,
   logo: `${SITE_URL}/apple-touch-icon.png`,
   email: BRAND.supportEmail,
+  sameAs: BRAND.social.map((s) => s.url),
   areaServed: 'LK',
 };
 

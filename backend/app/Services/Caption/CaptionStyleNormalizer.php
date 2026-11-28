@@ -46,6 +46,7 @@ class CaptionStyleNormalizer
         'positionY' => 92,
         'maxWidth' => 80,
         'animation' => 'karaoke',
+        'behindSubject' => false,
     ];
 
     /** [min, max] for numeric properties. */
@@ -171,6 +172,10 @@ class CaptionStyleNormalizer
 
         if (in_array($key, self::FONTS, true)) {
             return is_string($value) && array_key_exists($value, config('captions.fonts', [])) ? $value : null;
+        }
+
+        if ($key === 'behindSubject') {
+            return is_bool($value) ? $value : null;
         }
 
         if ($key === 'preset') {

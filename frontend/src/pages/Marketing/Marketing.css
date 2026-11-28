@@ -56,3 +56,10 @@
   .mk-steps li { padding-left: 60px; }
 }
 @media (prefers-reduced-motion: reduce) { .mk-cards a { transition: none; } }
+.mk-social { display: flex; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.mk-social a {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--sx-line); color: var(--sx-ink-2); transition: color .15s, border-color .15s;
+}
+.mk-social a:hover { color: var(--sx-purple); border-color: var(--sx-purple); }
+.mk-social a:focus-visible { outline: 2px solid var(--sx-purple); outline-offset: 2px; }

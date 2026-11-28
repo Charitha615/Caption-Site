@@ -115,9 +115,9 @@ class BillingService
             $start = $user->planKey() === $payment->plan && $user->plan_expires_at?->isFuture()
                 ? $user->plan_expires_at->copy()
                 : Carbon::now();
-            $end = $payment->period === 'yearly' ? $start->copy()->addYear() : $start->copy()->addMonth();
+            $end = $payment->period === 'yearly' ? $start->copy()->addYear() : $start->copy()->addDays(User::USAGE_CYCLE_DAYS);
 
-            $user->forceFill(['plan' => $payment->plan, 'plan_expires_at' => $end, 'plan_reminded_at' => null])->save();
+            $user->switchPlan($payment->plan, $end);
             $payment->forceFill([
                 'status' => Payment::STATUS_APPROVED,
                 'reviewed_by' => $admin->id,

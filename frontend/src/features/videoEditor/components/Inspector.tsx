@@ -12,6 +12,8 @@ import {
   type AnimProp, type Clip, type Crop, type FilterPresetId, type TextAlign, type TextAnimation, type Transition, type TransitionType,
 } from '../model';
 import { useVideoEditorStore } from '../store';
+import { usePlan } from '../../../hooks/usePlan';
+import { loadSubjectSegmenter } from '../../../utils/subjectMask';
 
 function Section({ title, children, defaultOpen = true, onReset }: { title: string; children: React.ReactNode; defaultOpen?: boolean; onReset?: () => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -182,6 +184,8 @@ export function Inspector() {
   const media = useVideoEditorStore((s) => s.media);
   const fonts = useVideoEditorStore((s) => s.fonts);
   const selectedCount = useVideoEditorStore((s) => s.selectedIds.filter((id) => s.clips.some((c) => c.id === id)).length);
+  const plan = usePlan();
+  const behindLocked = plan.known && !plan.features.premium_styles;
   const { updateClip, deleteSelected, duplicateSelected, addZoomMotion, clearKeyframes, detachAudio, toggleClipMute, rippleDeleteSelected, select } = useVideoEditorStore.getState();
   if (selectedCount > 1) {
     return (
@@ -279,6 +283,19 @@ export function Inspector() {
               <input type="checkbox" checked={style.outline} onChange={(e) => set({ style: { outline: e.target.checked } })} /> <span>Outline</span>
             </label>
           </div>
+          <label className="ve-field is-inline" title={behindLocked ? 'Part of Pro' : 'Draws this text behind the person in the video'}>
+            <input
+              type="checkbox"
+              checked={!!style.behindSubject}
+              disabled={behindLocked && !style.behindSubject}
+              onChange={(e) => {
+                if (e.target.checked) void loadSubjectSegmenter().catch(() => undefined);
+                set({ style: { behindSubject: e.target.checked } });
+              }}
+            />
+            <span>Behind the person</span>
+            {behindLocked && <span className="ve-pro-badge">Pro</span>}
+          </label>
           <div className="ve-field-row">
             <label className="ve-field is-inline">
               <input type="checkbox" checked={!!style.background} onChange={(e) => set({ style: { background: e.target.checked ? '#000000a6' : null } })} />

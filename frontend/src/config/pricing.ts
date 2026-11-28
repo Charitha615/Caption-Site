@@ -67,6 +67,7 @@ export const PRICING_PLANS: PricingPlan[] = [
       'Videos up to 3 hours, uploads up to 4 GB',
       'MP4 export up to 4K, no watermark',
       'All caption styles — word-by-word highlight, karaoke, Spotlight, Hormozi, Word Box',
+      'Captions behind the person — big outlined text that sits behind you',
       'AI tools: voice-over, translation, script writer, titles, highlights',
       'Unlimited subtitle exports, 300 AI requests a day',
       '50 GB storage',
@@ -80,4 +81,4 @@ export const PRICING_PLANS: PricingPlan[] = [
 ];
 
 /** How to pay, under the pricing cards. */
-export const PAYMENT_NOTE = 'Pay by bank transfer, then upload the slip or send it on WhatsApp. Pro turns on as soon as we confirm it.';
+export const PAYMENT_NOTE = 'Request Pro on WhatsApp: we send you the bank details, and Pro turns on as soon as we confirm your payment.';

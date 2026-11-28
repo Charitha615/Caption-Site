@@ -45,10 +45,11 @@ export const DEFAULT_STYLE: CaptionStyle = {
   positionY: 92,
   maxWidth: 80,
   animation: 'karaoke',
+  behindSubject: false,
 };
 
 /** Only the "look" of a preset — never touches position, so applying a preset keeps the user's layout. */
-export type PresetLook = Omit<CaptionStyle, 'preset' | 'alignMatrix' | 'positionX' | 'positionY' | 'maxWidth' | 'textAlign'>;
+export type PresetLook = Omit<CaptionStyle, 'preset' | 'alignMatrix' | 'positionX' | 'positionY' | 'maxWidth' | 'textAlign' | 'behindSubject'>;
 
 /** Layout a preset may carry (e.g. Hormozi sits in the middle of the frame). */
 export type PresetLayout = Partial<Pick<CaptionStyle, 'alignMatrix' | 'positionX' | 'positionY' | 'maxWidth' | 'textAlign'>>;
@@ -78,7 +79,7 @@ export const BUILT_IN_PRESETS: PresetDefinition[] = presetData.presets.map((p) =
 
 function lookDefaults(): PresetLook {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { preset, alignMatrix, positionX, positionY, maxWidth, textAlign, ...base } = DEFAULT_STYLE;
+  const { preset, alignMatrix, positionX, positionY, maxWidth, textAlign, behindSubject, ...base } = DEFAULT_STYLE;
   return base;
 }
 

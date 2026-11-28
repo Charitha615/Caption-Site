@@ -31,31 +31,26 @@ const payment = (over: Partial<Payment> = {}): Payment => ({
 describe('Upgrade page', () => {
   beforeEach(() => Object.values(billing).forEach((m) => m.mockReset()));
 
-  it('shows the price for the chosen period, the bank details and the reference', async () => {
-    billing.get.mockResolvedValue(info());
+  it('requests Pro on WhatsApp with the email and the chosen plan, and saves the request', async () => {
+    useAuthStore.setState({ user: { id: 2, uuid: 'u', name: 'Kasun', email: 'kasun@example.com', role: 'user', created_at: '', updated_at: '' } });
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    billing.get.mockResolvedValueOnce(info()).mockResolvedValueOnce(info({ payments: [payment({ has_slip: false, note: 'Requested on WhatsApp' })] }));
+    billing.submit.mockResolvedValue(payment());
     render(<MemoryRouter><BillingPage /></MemoryRouter>);
 
     expect(await screen.findByRole('heading', { name: 'Upgrade to Pro' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Transfer LKR 3,990/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: /Monthly/ }));
-    expect(screen.getByRole('heading', { name: /Transfer LKR 490/ })).toBeInTheDocument();
-    expect(screen.getByText('8001234567')).toBeInTheDocument();
-    expect(screen.getAllByText('SS-7KQ2PX').length).toBeGreaterThan(0);
-  });
+    await userEvent.click(screen.getByRole('button', { name: /Request Pro on WhatsApp/ }));
 
-  it('sends the slip for checking', async () => {
-    billing.get.mockResolvedValueOnce(info()).mockResolvedValueOnce(info({ payments: [payment()] }));
-    billing.submit.mockResolvedValue(payment());
-    const { container } = render(<MemoryRouter><BillingPage /></MemoryRouter>);
-
-    const send = await screen.findByRole('button', { name: 'Send for checking' });
-    expect(send).toBeDisabled();
-    const slip = new File(['x'], 'slip.jpg', { type: 'image/jpeg' });
-    await userEvent.upload(container.querySelector<HTMLInputElement>('input[type="file"]')!, slip);
-    await userEvent.click(send);
-
-    expect(billing.submit).toHaveBeenCalledWith('yearly', slip, undefined);
-    expect(await screen.findByRole('heading', { name: /We are checking your payment/ })).toBeInTheDocument();
+    const text = decodeURIComponent(String(open.mock.calls[0][0]).split('?text=')[1]);
+    expect(String(open.mock.calls[0][0])).toMatch(/^https:\/\/wa\.me\/94755173298\?text=/);
+    expect(text).toContain('Email: kasun@example.com');
+    expect(text).toContain('Plan: Pro monthly (LKR 490)');
+    expect(text).toContain('Reference: SS-7KQ2PX');
+    expect(billing.submit).toHaveBeenCalledWith('monthly', null, 'Requested on WhatsApp');
+    expect(await screen.findByRole('heading', { name: /We got your Pro request/ })).toBeInTheDocument();
+    expect(screen.queryByText('8001234567')).not.toBeInTheDocument();
+    open.mockRestore();
   });
 
   it('shows when Pro ends and why a payment was not confirmed', async () => {

@@ -48,7 +48,7 @@ class UsageService
      * @return array{
      *     plan: array{key: string, label: string, expires_at: ?string},
      *     features: array{max_export_height: int, watermark: bool, premium_styles: bool, editor_ai: bool, priority_support: bool},
-     *     period: array{start: string, end: string},
+     *     period: array{start: string, end: string, resets_at: string},
      *     caption_minutes: array{used: float, limit: ?int},
      *     ai_requests_today: array{used: int, limit: ?int},
      *     exports: array{used: int, limit: ?int},
@@ -60,16 +60,21 @@ class UsageService
      */
     public function summary(User $user): array
     {
-        return Cache::remember($this->cacheKey($user->id), self::CACHE_TTL, function () use ($user) {
+        // Limits run in 30-day cycles from registration or from when the plan was switched on.
+        $cycleStart = $user->usageCycleStart();
+        $cycleEnd = $cycleStart->copy()->addDays(User::USAGE_CYCLE_DAYS);
+        // Never serve a cached summary past the moment the cycle resets.
+        $ttl = max(1, min(self::CACHE_TTL, (int) Carbon::now()->diffInSeconds($cycleEnd, true)));
+
+        return Cache::remember($this->cacheKey($user->id), $ttl, function () use ($user, $cycleStart, $cycleEnd) {
             $limits = $this->limits($user);
-            $monthStart = Carbon::now()->startOfMonth();
             // An admin "fresh month" reset: only usage after it counts.
             $resetAt = $user->usage_reset_at;
             $countFrom = fn (Carbon $start): Carbon => $resetAt && $resetAt->greaterThan($start) ? $resetAt : $start;
 
             $monthly = UsageRecord::query()
                 ->where('user_id', $user->id)
-                ->where('created_at', '>=', $countFrom($monthStart))
+                ->where('created_at', '>=', $countFrom($cycleStart))
                 ->selectRaw('action, SUM(quantity) as total, COUNT(*) as events')
                 ->groupBy('action')
                 ->get()
@@ -88,7 +93,7 @@ class UsageService
                     'expires_at' => $user->planKey() !== config('plans.default') ? $user->plan_expires_at?->toISOString() : null,
                 ],
                 'features' => $limits['features'],
-                'period' => ['start' => $monthStart->toDateString(), 'end' => $monthStart->copy()->endOfMonth()->toDateString()],
+                'period' => ['start' => $cycleStart->toDateString(), 'end' => $cycleEnd->toDateString(), 'resets_at' => $cycleEnd->toISOString()],
                 'caption_minutes' => [
                     'used' => round(((float) ($monthly[UsageRecord::ACTION_CAPTION_GENERATION]->total ?? 0)) / 60, 1),
                     'limit' => $limits['caption_minutes_per_month'],
@@ -149,11 +154,15 @@ class UsageService
      *
      * @param  array<int, string>  $animations  caption animations used by the export
      * @param  array<int, string>  $presets  built-in caption presets used by the export
+     * @param  bool  $behindSubject  captions drawn behind the person
      */
-    public function ensureCanUseStyles(User $user, array $animations, array $presets = []): void
+    public function ensureCanUseStyles(User $user, array $animations, array $presets = [], bool $behindSubject = false): void
     {
         if ($user->hasFeature('premium_styles')) {
             return;
+        }
+        if ($behindSubject) {
+            throw new UsageLimitExceededException('Captions behind the person are part of Pro. Turn the effect off in Styles, or upgrade to Pro.', 'premium_styles');
         }
         if (array_intersect($animations, config('plans.premium_animations'))) {
             throw new UsageLimitExceededException('Word-by-word highlight styles (Spotlight, Hormozi, Word Box, TikTok) are part of Pro. Pick another style, or upgrade to Pro.', 'premium_styles');

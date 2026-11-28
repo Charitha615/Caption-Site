@@ -114,7 +114,7 @@ const getDuration = () => useVideoStore.getState().duration;
 
 function lookOf(style: CaptionStyle): PresetLook {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { preset, alignMatrix, positionX, positionY, maxWidth, textAlign, ...rest } = style;
+  const { preset, alignMatrix, positionX, positionY, maxWidth, textAlign, behindSubject, ...rest } = style;
   return rest;
 }
 
