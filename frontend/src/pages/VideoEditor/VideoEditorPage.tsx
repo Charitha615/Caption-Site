@@ -2,12 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, AlignHorizontalJustifyStart, ArrowLeft, Check, CloudOff, FilePlus2, Loader2, AudioLines, Bot, Captions, Camera, Copy, Download, FolderOpen, Magnet, Maximize2, Pause, Play, Redo2, Scissors,
-  Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, UploadCloud, ZoomIn, ZoomOut,
+  Shapes, SkipBack, Sparkles, Trash2, Type, Undo2, Unlink, UploadCloud, ZoomIn, ZoomOut, Eraser, RotateCcw, Cloud,
 } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog';
+import { Modal } from '../../components/Modal/Modal';
 import { useToastStore } from '../../stores/toastStore';
-import { autosaveSupported, createAutosave, indexedDbBackend, type Autosave, type SaveStatus } from '../../features/videoEditor/autosave';
+import { autosaveSupported, createAutosave, indexedDbBackend, type Autosave, type SavedProject, type SaveStatus } from '../../features/videoEditor/autosave';
+import { ProjectsDialog } from '../../features/videoEditor/projects/ProjectsDialog';
+import { MissingFilesBar } from '../../features/videoEditor/projects/MissingFilesBar';
+import { packProjectFile, projectFileName, unpackProjectFile } from '../../features/videoEditor/projects/projectFile';
+import { toSavedProject, videoProjectService } from '../../features/videoEditor/projects/videoProjectService';
+import { useCloudSync, type CloudStatus } from '../../features/videoEditor/projects/useCloudSync';
 import { ASPECTS, formatTime, type AspectRatio } from '../../features/videoEditor/model';
 import { totalDuration, useVideoEditorStore } from '../../features/videoEditor/store';
 import { Preview } from '../../features/videoEditor/components/Preview';
@@ -193,7 +198,19 @@ function useEditorAutosave() {
     autosave?.start();
   };
 
-  return { status, ready, startNew };
+  /** Replaces the open video with another project (from the account, or a project file). */
+  const openProject = async (project: SavedProject, files: Map<string, Blob>) => {
+    const autosave = ref.current;
+    if (!autosave) throw new Error('This browser cannot open saved projects.');
+    await autosave.stop();
+    try {
+      await autosave.load(project, files);
+    } finally {
+      autosave.start();
+    }
+  };
+
+  return { status, ready, startNew, openProject };
 }
 
 function SaveBadge({ status }: { status: SaveStatus }) {
@@ -205,6 +222,19 @@ function SaveBadge({ status }: { status: SaveStatus }) {
   };
   const { icon, text, title } = info[status];
   return <span className={`ve-save is-${status}`} title={title} role="status">{icon} {text}</span>;
+}
+
+/** Whether the layout is saved to the account. */
+function CloudBadge({ status, onClick }: { status: CloudStatus; onClick: () => void }) {
+  if (status === 'off') return null;
+  const info: Record<Exclude<CloudStatus, 'off'>, { icon: React.ReactNode; text: string; title: string }> = {
+    saving: { icon: <Loader2 size={13} className="ve-spin" />, text: 'Syncing…', title: 'Saving the edit to your account' },
+    saved: { icon: <Cloud size={13} />, text: 'In your account', title: 'The edit is saved to your account (your video files stay on this device).' },
+    error: { icon: <CloudOff size={13} />, text: 'Not synced', title: 'Could not save to your account. It will try again after your next change.' },
+    full: { icon: <CloudOff size={13} />, text: 'Not synced', title: 'Your plan’s online projects are used up. Open Projects to delete an old one.' },
+  };
+  const { icon, text, title } = info[status];
+  return <button type="button" className={`ve-save ve-cloud is-${status}`} title={title} onClick={onClick}>{icon} {text}</button>;
 }
 
 function togglePlay() {
@@ -219,8 +249,28 @@ function Editor() {
   useDocumentTitle('Video editor');
   usePlayback();
   useShortcuts();
-  const { status: saveStatus, ready, startNew } = useEditorAutosave();
+  const { status: saveStatus, ready, startNew, openProject } = useEditorAutosave();
+  const cloud = useCloudSync(ready && autosaveSupported());
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const addToast = useToastStore((st) => st.addToast);
+  const openOnline = async (uuid: string) => {
+    const project = await videoProjectService.get(uuid);
+    await openProject(toSavedProject(project), new Map());
+    setProjectsOpen(false);
+    addToast({ type: 'success', message: `Opened “${project.name}”.` });
+  };
+  const openFile = async (file: File) => {
+    const { project, files } = await unpackProjectFile(file);
+    await openProject(project, files);
+    setProjectsOpen(false);
+    addToast({ type: 'success', message: `Opened “${project.name}”.` });
+  };
+  const downloadProject = async () => {
+    const blob = await packProjectFile();
+    downloadBlob(blob, projectFileName(useVideoEditorStore.getState().name));
+  };
   const [confirmNew, setConfirmNew] = useState(false);
+  const clipCount = useVideoEditorStore((st) => st.clips.length);
   const [tab, setTab] = useState<Tab>('media');
   /** The side panel can be folded away (tap the open tab again) to give the preview more room on tablets. */
   const [sideOpen, setSideOpen] = useState(true);
@@ -291,8 +341,14 @@ function Editor() {
         <Link to="/dashboard" className="ve-back" aria-label="Back to dashboard"><ArrowLeft size={18} /></Link>
         <input className="ve-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Video name" />
         {autosaveSupported() ? <SaveBadge status={saveStatus} /> : <span className="ve-save is-error" title="This browser can't save projects. Export to keep your video."><CloudOff size={13} /> Not saved</span>}
+        <CloudBadge status={cloud.status} onClick={() => setProjectsOpen(true)} />
         <div className="ve-topbar-spacer" />
-        <button type="button" className="ve-icon-btn" onClick={() => setConfirmNew(true)} aria-label="New video" title="New video"><FilePlus2 size={16} /></button>
+        <button type="button" className="ve-reset-btn" onClick={() => setProjectsOpen(true)} disabled={!autosaveSupported()} title="Your saved videos, and project files">
+          <FolderOpen size={15} aria-hidden="true" /> Projects
+        </button>
+        <button type="button" className="ve-reset-btn" onClick={() => setConfirmNew(true)} title="Clear the timeline or start a new video">
+          <RotateCcw size={15} aria-hidden="true" /> Reset
+        </button>
         <button type="button" className="ve-icon-btn" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
         <button type="button" className="ve-icon-btn" onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><Redo2 size={16} /></button>
         <select className="ve-select" value={aspect} onChange={(e) => setAspect(e.target.value as AspectRatio)} aria-label="Aspect ratio">
@@ -304,6 +360,7 @@ function Editor() {
         </button>
       </header>
 
+      <MissingFilesBar />
       <div className="ve-body">
         <nav className="ve-rail" aria-label="Editor tools">
           {TABS.map((t) => (
@@ -367,24 +424,55 @@ function Editor() {
 
       <Timeline />
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      {projectsOpen && (
+        <ProjectsDialog
+          cloud={cloud.status}
+          onClose={() => setProjectsOpen(false)}
+          onOpenOnline={openOnline}
+          onOpenFile={openFile}
+          onDownload={downloadProject}
+          onDeleted={cloud.retry}
+        />
+      )}
       <PhoneNotice />
       {!ready && (
         <div className="ve-restoring" role="status">
           <Loader2 size={22} className="ve-spin" aria-hidden="true" /> Opening your last video…
         </div>
       )}
-      <ConfirmDialog
-        isOpen={confirmNew}
-        title="Start a new video?"
-        message="The current video and its files will be removed from this browser. Export it first if you want to keep it."
-        confirmLabel="Start new video"
-        tone="danger"
-        onCancel={() => setConfirmNew(false)}
-        onConfirm={() => {
-          setConfirmNew(false);
-          void startNew();
-        }}
-      />
+      <Modal isOpen={confirmNew} onClose={() => setConfirmNew(false)} title="Reset the video" size="sm">
+        <div className="ve-reset-options">
+          <button
+            type="button"
+            className="ve-reset-option"
+            disabled={clipCount === 0}
+            onClick={() => {
+              setConfirmNew(false);
+              useVideoEditorStore.getState().clearTimeline();
+            }}
+          >
+            <Eraser size={18} aria-hidden="true" />
+            <span>
+              <strong>Clear the timeline</strong>
+              <small>Removes every clip and text, keeps your imported videos, music and fonts. Undo with Ctrl+Z.</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="ve-reset-option is-danger"
+            onClick={() => {
+              setConfirmNew(false);
+              void startNew();
+            }}
+          >
+            <FilePlus2 size={18} aria-hidden="true" />
+            <span>
+              <strong>Start over</strong>
+              <small>Removes everything, including the files saved in this browser. Export first if you want to keep this video. Can&apos;t be undone.</small>
+            </span>
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -141,6 +141,8 @@ export interface UsageSummary {
   storage_mb: UsageMeter;
   max_upload_mb: number | null;
   max_video_minutes: number | null;
+  /** The free Pro trial (once per email). */
+  trial?: { days: number; eligible: boolean; active: boolean; used: boolean; ends_at: string | null };
 }
 
 export interface DashboardData {

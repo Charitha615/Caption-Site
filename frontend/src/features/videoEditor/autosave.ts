@@ -22,6 +22,8 @@ export interface SavedProject {
   fonts: CustomFont[];
   zoom: number;
   snap: boolean;
+  /** The copy saved to the account, if any. */
+  projectUuid?: string | null;
 }
 
 /** Where the project and its files are kept. IndexedDB in the browser; an in-memory copy in tests. */
@@ -100,7 +102,28 @@ interface AutosaveOptions {
 }
 
 /** The parts of the editor state that are saved: a change to any of them schedules a save. */
-const savedSlice = (s: ReturnType<typeof useVideoEditorStore.getState>) => [s.name, s.aspect, s.tracks, s.clips, s.media, s.fonts, s.snap] as const;
+const savedSlice = (s: ReturnType<typeof useVideoEditorStore.getState>) => [s.name, s.aspect, s.tracks, s.clips, s.media, s.fonts, s.snap, s.projectUuid] as const;
+
+export const mediaFileKey = mediaKey;
+export const fontFileKey = fontKey;
+
+/** The editor's project as it is saved (without the files). */
+export function currentProject(): SavedProject {
+  const s = useVideoEditorStore.getState();
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    name: s.name,
+    aspect: s.aspect,
+    tracks: s.tracks,
+    clips: s.clips,
+    media: s.media.map(({ url: _url, ...rest }) => rest),
+    fonts: s.fonts,
+    zoom: s.zoom,
+    snap: s.snap,
+    projectUuid: s.projectUuid,
+  };
+}
 
 export function createAutosave(backend: AutosaveBackend, options: AutosaveOptions = {}) {
   const blobOf = options.blobOf ?? (async (url: string) => (await fetch(url)).blob());
@@ -121,6 +144,8 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
     for (const item of s.media) {
       const key = mediaKey(item.id);
       wanted.add(key);
+      // Not on this device yet: keep a file saved earlier, if there is one.
+      if (item.missing || !item.url) continue;
       if (!stored.has(key)) {
         await backend.saveFile(key, await blobOf(item.url));
         stored.add(key);
@@ -136,18 +161,7 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
         stored.add(key);
       }
     }
-    await backend.saveProject({
-      version: 1,
-      savedAt: Date.now(),
-      name: s.name,
-      aspect: s.aspect,
-      tracks: s.tracks,
-      clips: s.clips,
-      media: s.media.map(({ url: _url, ...rest }) => rest),
-      fonts: s.fonts,
-      zoom: s.zoom,
-      snap: s.snap,
-    });
+    await backend.saveProject(currentProject());
     // Files of media taken out of the project go after the project stops pointing at them.
     for (const key of [...stored]) {
       if (!wanted.has(key)) {
@@ -183,10 +197,10 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
     timer = setTimeout(() => void flush(), delay);
   };
 
-  return {
+  const api = {
     /**
-     * Loads the saved project into the editor. Media whose file is missing is left out, with its clips.
-     * Resolves with whether there was a project to restore.
+     * Loads the saved project into the editor. Media whose file is not here stays in the project,
+     * marked missing (the user can find the file again). Resolves with whether there was a project.
      */
     async restore(): Promise<boolean> {
       const saved = await backend.loadProject();
@@ -194,7 +208,7 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
       const media: MediaItem[] = [];
       for (const item of saved.media) {
         const file = await backend.loadFile(mediaKey(item.id));
-        if (file) media.push({ ...item, url: URL.createObjectURL(file) });
+        media.push(file ? { ...item, url: URL.createObjectURL(file), missing: false } : { ...item, url: '', missing: true });
       }
       const fonts: CustomFont[] = [];
       for (const font of saved.fonts) {
@@ -204,6 +218,7 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
       const have = new Set(media.map((m) => m.id));
       useVideoEditorStore.setState({
         name: saved.name,
+        projectUuid: saved.projectUuid ?? null,
         aspect: saved.aspect,
         tracks: saved.tracks,
         clips: saved.clips.filter((c) => !c.mediaId || have.has(c.mediaId)),
@@ -240,6 +255,28 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
       else await running;
     },
     flush,
+    /**
+     * Replaces the saved project with another one (a project file, or one from the account) and
+     * opens it. Call `stop` first, and `start` after.
+     */
+    async load(project: SavedProject, files: Map<string, Blob>): Promise<void> {
+      await running;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      dirty = false;
+      // Files already here that the incoming project also uses are kept (e.g. reopening the online
+      // copy of the open video); everything else goes.
+      const needed = new Set([...project.media.map((m) => mediaKey(m.id)), ...project.fonts.map((f) => fontKey(f.id))]);
+      for (const key of await backend.fileKeys()) {
+        if (!needed.has(key) || files.has(key)) await backend.deleteFile(key);
+      }
+      for (const [key, blob] of files) await backend.saveFile(key, blob);
+      stored = new Set(await backend.fileKeys());
+      await backend.saveProject(project);
+      useVideoEditorStore.getState().reset();
+      await api.restore();
+      status('saved');
+    },
     /** Forgets the saved project (for "New video"). Call `stop` first. */
     async clear() {
       await running;
@@ -251,6 +288,7 @@ export function createAutosave(backend: AutosaveBackend, options: AutosaveOption
       status('idle');
     },
   };
+  return api;
 }
 
 export type Autosave = ReturnType<typeof createAutosave>;

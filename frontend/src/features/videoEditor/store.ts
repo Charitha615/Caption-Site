@@ -61,6 +61,8 @@ export interface ClipPatch {
 
 export interface VideoEditorState extends Snapshot {
   name: string;
+  /** The copy of this project saved to the account, once it has one. */
+  projectUuid: string | null;
   aspect: AspectRatio;
   media: MediaItem[];
   /** Fonts the user uploaded this session. */
@@ -78,6 +80,9 @@ export interface VideoEditorState extends Snapshot {
   future: Snapshot[];
 
   setName: (name: string) => void;
+  setProjectUuid: (uuid: string | null) => void;
+  /** Gives a missing media item its file again (found on this device). */
+  relinkMedia: (id: string, found: Pick<MediaItem, 'url'> & Partial<MediaItem>) => void;
   setAspect: (aspect: AspectRatio) => void;
   addMedia: (item: MediaItem) => void;
   removeMedia: (id: string) => void;
@@ -163,6 +168,8 @@ export interface VideoEditorState extends Snapshot {
   closeGap: (trackId: string, from: number, to: number) => void;
   toggleTrack: (id: string, key: 'muted' | 'hidden') => void;
   reset: () => void;
+  /** Removes every clip and extra track but keeps the imported media, fonts and settings (can be undone). */
+  clearTimeline: () => void;
 }
 
 export const totalDuration = (clips: Clip[]) => clips.reduce((max, clip) => Math.max(max, clipEnd(clip)), 0);
@@ -186,6 +193,7 @@ const newClip = (fields: Pick<Clip, 'trackId' | 'kind' | 'start' | 'duration'> &
 
 const initial = () => ({
   name: 'Untitled video',
+  projectUuid: null as string | null,
   aspect: '16:9' as AspectRatio,
   media: [] as MediaItem[],
   fonts: [] as CustomFont[],
@@ -318,6 +326,9 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
     ...initial(),
 
     setName: (name) => set({ name }),
+    setProjectUuid: (projectUuid) => set({ projectUuid }),
+    relinkMedia: (id, found) =>
+      set((s) => ({ media: s.media.map((m) => (m.id === id ? { ...m, ...found, id, missing: false } : m)) })),
     setAspect: (aspect) => set({ aspect }),
     addMedia: (item) => set((s) => ({ media: [...s.media, item] })),
     removeMedia: (id) => {
@@ -368,7 +379,7 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
     addMediaClip: (mediaId, at) => {
       const { media, tracks, clips } = get();
       const item = media.find((m) => m.id === mediaId);
-      if (!item) return;
+      if (!item || item.missing) return;
       const kind = trackKindFor(item.kind);
       const duration = item.kind === 'image' ? IMAGE_DEFAULT_DURATION : item.duration;
       let trackId = at?.freeTrack ? undefined : (tracks.find((t) => t.id === at?.trackId && t.kind === kind) ?? tracks.find((t) => t.kind === kind))?.id;
@@ -771,6 +782,12 @@ export const useVideoEditorStore = create<VideoEditorState>()((rawSet, get) => {
     },
 
     toggleTrack: (id, key) => set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, [key]: !t[key] } : t)) })),
+
+    clearTimeline: () => {
+      if (get().clips.length === 0) return;
+      record();
+      set({ clips: [], tracks: defaultTracks(), playhead: 0, playing: false, selectedId: null, selectedIds: [] });
+    },
 
     reset: () => {
       get().media.forEach((m) => {

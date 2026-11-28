@@ -60,8 +60,9 @@ export function MediaPanel() {
             return (
               <li
                 key={item.id}
-                className="ve-media-item"
-                draggable
+                className={`ve-media-item ${item.missing ? 'is-missing' : ''}`}
+                title={item.missing ? 'This file is not on this device yet. Use “Find files”.' : undefined}
+                draggable={!item.missing}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(MEDIA_DRAG_TYPE, item.id);
                   e.dataTransfer.effectAllowed = 'copy';
@@ -71,12 +72,12 @@ export function MediaPanel() {
                   {item.thumb ? <img src={item.thumb} alt="" draggable={false} /> : <Icon size={22} aria-hidden="true" />}
                   {item.kind !== 'image' && <span className="ve-media-duration">{formatTime(item.duration, false)}</span>}
                 </span>
-                <span className="ve-media-name" title={item.name}>{item.name}</span>
+                <span className="ve-media-name" title={item.name}>{item.name}{item.missing && <span className="ve-missing-tag">Not on this device</span>}</span>
                 <span className="ve-media-actions">
-                  <button type="button" className="ve-icon-btn is-solid" aria-label={`Add ${item.name} to the timeline`} title="Add to timeline" onClick={() => addMediaClip(item.id)}>
+                  <button type="button" className="ve-icon-btn is-solid" aria-label={`Add ${item.name} to the timeline`} title="Add to timeline" disabled={item.missing} onClick={() => addMediaClip(item.id)}>
                     <Plus size={14} />
                   </button>
-                  {item.kind === 'video' && (
+                  {item.kind === 'video' && !item.missing && (
                     <button
                       type="button"
                       className="ve-icon-btn is-solid"

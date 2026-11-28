@@ -42,7 +42,7 @@ describe('Video editor autosave', () => {
     store().reset();
     expect(await createAutosave(backend, { blobOf }).restore()).toBe(true);
     expect(store().name).toBe('Trip to Ella');
-    expect(store().media).toEqual([{ ...video, url: expect.stringMatching(/^blob:restored-/) }]);
+    expect(store().media).toEqual([{ ...video, url: expect.stringMatching(/^blob:restored-/), missing: false }]);
     expect(store().clips.map((c) => c.kind).sort()).toEqual(['text', 'video']);
     expect(store().past).toEqual([]);
   });
@@ -78,7 +78,7 @@ describe('Video editor autosave', () => {
     expect(statuses.at(-1)).toBe('saved');
   });
 
-  it('leaves out media whose file is gone, with its clips', async () => {
+  it('keeps media whose file is gone as a placeholder to find again, with its clips', async () => {
     const backend = memoryBackend();
     const autosave = createAutosave(backend, { blobOf, delayMs: 0 });
     autosave.start();
@@ -90,8 +90,8 @@ describe('Video editor autosave', () => {
 
     store().reset();
     await createAutosave(backend, { blobOf }).restore();
-    expect(store().media).toEqual([]);
-    expect(store().clips.map((c) => c.kind)).toEqual(['text']);
+    expect(store().media).toEqual([{ ...video, url: '', missing: true }]);
+    expect(store().clips.map((c) => c.kind).sort()).toEqual(['text', 'video']);
   });
 
   it('starts empty after "New video"', async () => {

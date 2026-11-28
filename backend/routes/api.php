@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\UploadSessionController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\VideoEditorAiController;
 use App\Http\Controllers\Api\VideoEditorImportController;
+use App\Http\Controllers\Api\VideoProjectController;
 use App\Http\Controllers\Api\VideoUploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -83,6 +84,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     // Admin: approve reviews before they are shown publicly.
     // Pro by bank transfer
     Route::get('/billing', [BillingController::class, 'show']);
+    Route::post('/billing/trial', [BillingController::class, 'startTrial'])->middleware('throttle:10,60');
     Route::post('/billing/payments', [BillingController::class, 'store'])->middleware('throttle:20,60');
     Route::post('/billing/payments/{payment}/slip', [BillingController::class, 'attachSlip'])->middleware('throttle:20,60');
     Route::get('/billing/payments/{payment}/slip', [BillingController::class, 'slip']);
@@ -115,6 +117,13 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::get('/reviews', [ReviewController::class, 'adminIndex']);
         Route::patch('/reviews/{review}', [ReviewController::class, 'moderate']);
     });
+    // Video editor projects saved to the account (layout only).
+    Route::get('/video-projects', [VideoProjectController::class, 'index']);
+    Route::post('/video-projects', [VideoProjectController::class, 'store'])->middleware('throttle:60,1');
+    Route::get('/video-projects/{videoProject}', [VideoProjectController::class, 'show']);
+    Route::put('/video-projects/{videoProject}', [VideoProjectController::class, 'update'])->middleware('throttle:120,1');
+    Route::delete('/video-projects/{videoProject}', [VideoProjectController::class, 'destroy']);
+
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread', [NotificationController::class, 'unread']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);

@@ -195,7 +195,7 @@ export const AdminUsersPage: React.FC = () => {
               )}
             </div>
             <div className="admin-user-plan">
-              <Badge variant={PLAN_BADGE[u.plan] ?? 'gray'} size="sm">{u.plan_label}</Badge>
+              <Badge variant={PLAN_BADGE[u.plan] ?? 'gray'} size="sm">{u.plan_label}{u.on_trial ? ' · trial' : ''}</Badge>
               <span className="admin-review-role">
                 {u.plan === 'free' ? (u.stored_plan && u.stored_plan !== 'free' ? `${u.stored_plan} ended` : '') : u.plan_expires_at ? `until ${formatDate(u.plan_expires_at)}` : 'no end date'}
               </span>

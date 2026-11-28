@@ -10,6 +10,12 @@ export interface AdminPaymentList {
 
 /** Pro by bank transfer: the user's plan and payments, and the admin review queue. */
 export const billingService = {
+  /** Starts the free Pro trial (once per email). */
+  async startTrial(): Promise<{ ends_at: string; days: number }> {
+    const res = await apiClient.post<ApiResponse<{ ends_at: string; days: number }>>('/billing/trial', null, { silent: true });
+    return res.data.data;
+  },
+
   async get(): Promise<BillingInfo> {
     const res = await apiClient.get<ApiResponse<BillingInfo>>('/billing');
     return res.data.data;

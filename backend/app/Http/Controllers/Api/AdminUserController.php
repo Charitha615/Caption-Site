@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\InApp\PlanChanged;
+use App\Services\Billing\TrialService;
 use App\Services\Usage\UsageService;
 use App\Support\AppLog;
 use App\Traits\ApiResponseTrait;
@@ -129,7 +130,7 @@ class AdminUserController extends Controller
     }
 
     /**
-     * @return array{uuid: string, name: string, email: string, role: string, avatar_url: ?string, plan: string, plan_label: string, stored_plan: ?string, plan_expires_at: ?string, projects_count: int, last_active_at: ?string, usage_reset_at: ?string, created_at: ?string, signup: array{source: ?string, medium: ?string, campaign: ?string}}
+     * @return array{uuid: string, name: string, email: string, role: string, avatar_url: ?string, plan: string, plan_label: string, stored_plan: ?string, plan_expires_at: ?string, projects_count: int, last_active_at: ?string, usage_reset_at: ?string, on_trial: bool, trial_started_at: ?string, created_at: ?string, signup: array{source: ?string, medium: ?string, campaign: ?string}}
      */
     private function present(User $user): array
     {
@@ -148,6 +149,8 @@ class AdminUserController extends Controller
             'projects_count' => (int) $user->projects_count,
             'last_active_at' => $user->last_active_at ? Carbon::parse($user->last_active_at)->toISOString() : null,
             'usage_reset_at' => $user->usage_reset_at?->toISOString(),
+            'on_trial' => app(TrialService::class)->isOnTrial($user),
+            'trial_started_at' => $user->trial_started_at?->toISOString(),
             'created_at' => $user->created_at?->toISOString(),
             'signup' => ['source' => $user->signup_source, 'medium' => $user->signup_medium, 'campaign' => $user->signup_campaign],
         ];

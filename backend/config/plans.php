@@ -9,6 +9,7 @@
 | date (users.plan_expires_at); after it the user is on the default plan again.
 | Limits are enforced by App\Services\Usage\UsageService and reported by GET /api/usage.
 | Use null for "unlimited".
+| video_projects: video editor projects saved to the account (layout only; media stays on the device).
 |
 | Features (true = included):
 |   max_export_height  tallest MP4 export (short side, px): 720 = HD, 2160 = 4K
@@ -40,9 +41,16 @@ return [
      */
     'free_default_preset' => 'bold',
 
+    /** Free Pro trial: once per email, for accounts that are on Free and have never paid. */
+    'trial' => [
+        'plan' => 'pro',
+        'days' => (int) env('TRIAL_DAYS', 7),
+    ],
+
     'plans' => [
         'free' => [
             'label' => 'Free',
+            'video_projects' => 5,
             'caption_minutes_per_month' => (int) env('FREE_CAPTION_MINUTES', 15),
             'ai_requests_per_day' => (int) env('FREE_AI_REQUESTS_PER_DAY', 10),
             'exports_per_month' => 50,
@@ -61,6 +69,7 @@ return [
         ],
         'pro' => [
             'label' => 'Pro',
+            'video_projects' => 200,
             'caption_minutes_per_month' => (int) env('PRO_CAPTION_MINUTES', 600),
             'ai_requests_per_day' => 300,
             'exports_per_month' => null,
@@ -80,6 +89,7 @@ return [
         // Internal accounts (set by hand): no limits (still tracked), never shown for sale.
         'unlimited' => [
             'label' => 'Unlimited',
+            'video_projects' => null,
             'caption_minutes_per_month' => null,
             'ai_requests_per_day' => null,
             'exports_per_month' => null,

@@ -17,6 +17,9 @@ export interface AdminUser {
   projects_count: number;
   last_active_at: string | null;
   usage_reset_at: string | null;
+  /** On the free Pro trial now. */
+  on_trial?: boolean;
+  trial_started_at?: string | null;
   created_at: string | null;
   /** Where they came from when they signed up (UTM tags or referring site). */
   signup?: { source: string | null; medium: string | null; campaign: string | null };

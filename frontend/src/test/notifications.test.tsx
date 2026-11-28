@@ -47,7 +47,7 @@ describe('Notification bell', () => {
 
 describe('App tour', () => {
   beforeEach(() => {
-    account.updateSettings.mockReset().mockResolvedValue({ default_language: 'si', default_export_resolution: '1080', default_export_quality: 'standard', tour_pending: false });
+    account.updateSettings.mockReset().mockResolvedValue({ default_language: 'si', tour_pending: false });
     act(() => useTourStore.setState({ open: false }));
   });
 

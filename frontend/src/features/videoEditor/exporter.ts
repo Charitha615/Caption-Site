@@ -111,6 +111,10 @@ export async function exportVideo(job: ExportJob): Promise<Blob> {
   const { aspect, quality, fps, tracks, clips, media, format, onProgress, signal, watermark } = job;
   const total = clips.reduce((max, c) => Math.max(max, clipEnd(c)), 0);
   if (total <= 0) throw new Error('Add something to the timeline before exporting.');
+  const missing = media.filter((m) => m.missing && clips.some((c) => c.mediaId === m.id));
+  if (missing.length > 0) {
+    throw new Error(`Find these files on this device first (Media panel → Find files): ${missing.map((m) => m.name).join(', ')}.`);
+  }
   if (clips.some((c) => c.style?.behindSubject)) {
     // Text behind the person: the detector must be ready before the first frame is recorded.
     await loadSubjectSegmenter().catch(() => {

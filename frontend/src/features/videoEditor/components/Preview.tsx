@@ -151,7 +151,7 @@ export function Preview() {
       <div className="ve-sources" aria-hidden="true">
         {sources.map((clip) => {
           const item = clip.mediaId ? byId.get(clip.mediaId) : undefined;
-          if (!item) return null;
+          if (!item || item.missing || !item.url) return null;
           const muted = (mutedTrack.get(clip.trackId) ?? false) || !!clip.muted;
           return clip.kind === 'video'
             ? <VideoSource key={`${clip.id}-${clip.denoise}`} clip={clip} media={item} muted={muted} />

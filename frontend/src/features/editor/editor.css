@@ -2486,6 +2486,9 @@ select.ed-input {
 
 .ed-export2-res { border: none; padding: 0; margin: 0; min-width: 0; }
 .ed-export2-res-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.ed-export2-res-grid.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ed-export2-res-grid.is-3 .ed-export2-res-label { font-size: 14px; }
+.ed-export2-res-grid.is-3 .ed-export2-res-size { text-align: center; }
 .ed-export2-res-option {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 12px 6px; border-radius: var(--ed-radius-sm, 8px);

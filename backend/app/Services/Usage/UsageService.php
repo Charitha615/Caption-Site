@@ -8,6 +8,7 @@ use App\Models\MediaFile;
 use App\Models\Project;
 use App\Models\UsageRecord;
 use App\Models\User;
+use App\Services\Billing\TrialService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -55,7 +56,8 @@ class UsageService
      *     renders: array{used: int, limit: ?int},
      *     storage_mb: array{used: float, limit: ?int},
      *     max_upload_mb: ?int,
-     *     max_video_minutes: ?int
+     *     max_video_minutes: ?int,
+     *     trial: array{days: int, eligible: bool, active: bool, used: bool, ends_at: ?string}
      * }
      */
     public function summary(User $user): array
@@ -104,8 +106,28 @@ class UsageService
                 'storage_mb' => ['used' => round($this->storageBytes($user) / 1048576, 1), 'limit' => $limits['storage_mb']],
                 'max_upload_mb' => $limits['max_upload_mb'],
                 'max_video_minutes' => $limits['max_video_minutes'],
+                'trial' => $this->trialSummary($user),
             ];
         });
+    }
+
+    /**
+     * The free Pro trial: whether the account can start one, is on one now, or has used it.
+     *
+     * @return array{days: int, eligible: bool, active: bool, used: bool, ends_at: ?string}
+     */
+    private function trialSummary(User $user): array
+    {
+        $trials = app(TrialService::class);
+        $active = $trials->isOnTrial($user);
+
+        return [
+            'days' => $trials->days(),
+            'eligible' => $trials->isEligible($user),
+            'active' => $active,
+            'used' => $user->trial_started_at !== null,
+            'ends_at' => $user->trial_started_at ? $trials->trialEnd($user)->toISOString() : null,
+        ];
     }
 
     /** Bytes currently stored for the user (source videos + exported files). */

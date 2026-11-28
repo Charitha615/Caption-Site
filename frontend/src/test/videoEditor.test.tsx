@@ -19,6 +19,19 @@ describe('Video editor timeline', () => {
     store().addMedia(image);
   });
 
+  it('clears the timeline but keeps the imported media, and can be undone', () => {
+    store().addMediaClip('m-video');
+    store().addTextClip('Hello');
+    expect(store().clips).toHaveLength(2);
+
+    store().clearTimeline();
+    expect(store().clips).toHaveLength(0);
+    expect(store().media.map((m) => m.id)).toEqual(['m-video', 'm-image']);
+
+    store().undo();
+    expect(store().clips).toHaveLength(2);
+  });
+
   it('places media one after another on the matching track', () => {
     store().addMediaClip('m-video');
     store().addMediaClip('m-video');

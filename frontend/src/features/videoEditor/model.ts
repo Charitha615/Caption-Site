@@ -19,6 +19,13 @@ export interface MediaItem {
   /** Loudness of the sound, 0 … 1, `peaksPerSecond` values per second of source. Missing until worked out (or for silent files). */
   peaks?: number[];
   peaksPerSecond?: number;
+  /** File size in bytes, to find the same file again on another device. */
+  size?: number;
+  /**
+   * The file is not on this device (a project opened from the account on another computer, or after
+   * switching projects): `url` is empty until the user finds the file again.
+   */
+  missing?: boolean;
 }
 
 export type FontId = 'sans' | 'rounded' | 'serif' | 'impact' | 'mono';

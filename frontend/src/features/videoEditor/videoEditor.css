@@ -593,3 +593,53 @@
 .ve-pro-tool { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid rgba(249, 115, 22, 0.45); border-radius: 12px; background: rgba(249, 115, 22, 0.08); }
 .ve-pro-tool p { margin: 0; font-size: 0.85rem; line-height: 1.5; }
 .ve-pro-tool .ve-export { justify-content: center; text-decoration: none; }
+.ve-reset-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--ve-line, rgba(255, 255, 255, 0.12));
+  border-radius: 8px; background: none; color: #c3c8d1; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ve-reset-btn:hover { background: var(--ve-hover); color: var(--editor-text); }
+.ve-reset-options { display: flex; flex-direction: column; gap: 10px; }
+.ve-reset-option {
+  display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 14px; text-align: left;
+  border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-surface); color: var(--text-primary); font: inherit; cursor: pointer;
+}
+.ve-reset-option:hover:not(:disabled) { border-color: var(--brand-primary); }
+.ve-reset-option:disabled { opacity: 0.5; cursor: not-allowed; }
+.ve-reset-option svg { flex: none; margin-top: 2px; color: var(--brand-primary); }
+.ve-reset-option.is-danger svg { color: #dc2626; }
+.ve-reset-option.is-danger:hover { border-color: #dc2626; }
+.ve-reset-option strong { display: block; font-size: 0.95rem; }
+.ve-reset-option small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; }
+
+/* Projects: saved to the account and as project files */
+.ve-reset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+button.ve-cloud { border: 0; background: none; font: inherit; cursor: pointer; }
+.ve-cloud.is-full, .ve-cloud.is-error { color: #fbbf24; }
+.ve-projects { width: min(640px, 100%); max-height: min(86vh, 760px); overflow-y: auto; gap: 16px; }
+.ve-projects-current { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--ve-hover); }
+.ve-projects-line { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 0.85rem; line-height: 1.45; }
+.ve-projects-line svg { flex: none; margin-top: 2px; }
+.ve-projects-line.is-full, .ve-projects-line.is-error { color: #fbbf24; }
+.ve-modal-actions.is-left { justify-content: flex-start; flex-wrap: wrap; }
+.ve-projects-h { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 0.95rem; }
+.ve-projects-count { font-size: 0.75rem; font-weight: 600; color: var(--ve-muted); }
+.ve-projects-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ve-projects-list li { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; border: 1px solid var(--ve-line, rgba(255, 255, 255, 0.1)); }
+.ve-projects-list li.is-open { border-color: var(--ve-accent); }
+.ve-projects-thumb { flex: none; display: grid; place-items: center; width: 64px; height: 40px; overflow: hidden; border-radius: 6px; background: #0b0d12; color: var(--ve-muted); }
+.ve-projects-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ve-projects-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ve-projects-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+.ve-projects-info small { color: var(--ve-muted); font-size: 0.76rem; }
+.ve-projects-actions, .ve-projects-confirm { display: flex; align-items: center; gap: 6px; flex: none; font-size: 0.8rem; }
+.ve-projects-open-tag { padding: 3px 8px; border-radius: 999px; background: var(--ve-accent); color: #fff; font-size: 0.72rem; font-weight: 700; }
+.ve-secondary-btn.is-danger { border-color: #ef4444; color: #fca5a5; }
+
+/* Files not on this device */
+.ve-missing-bar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px; flex-wrap: wrap;
+  background: rgba(251, 191, 36, 0.12); color: #fde68a; border-bottom: 1px solid rgba(251, 191, 36, 0.3); font-size: 0.84rem;
+}
+.ve-missing-bar span { flex: 1; min-width: 200px; }
+.ve-media-item.is-missing .ve-media-thumb { opacity: 0.45; }
+.ve-missing-tag { display: block; color: #fbbf24; font-size: 0.7rem; font-weight: 700; }

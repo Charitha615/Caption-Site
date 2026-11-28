@@ -11,6 +11,7 @@ import { LoadingState } from '../../components/LoadingState/LoadingState';
 import { RetryState } from '../../components/RetryState/RetryState';
 import { PRICING_PLANS, YEARLY_SAVING_LABEL } from '../../config/pricing';
 import { formatDate, formatDateTime } from '../../utils/formatters';
+import { TrialNotice } from '../../features/billing/TrialNotice';
 import type { BillingInfo, BillingPeriod, Payment } from '../../types/auth';
 import './BillingPage.css';
 
@@ -122,6 +123,8 @@ export const BillingPage: React.FC = () => {
             : 'Message us on WhatsApp. We send you the bank details, and Pro turns on as soon as we confirm your payment.'}
         </p>
       </div>
+
+      {!isUnlimited && <TrialNotice placement="billing" onStarted={() => void load()} />}
 
       {isUnlimited ? null : pending ? (
         <section className="billing-card billing-pending" aria-labelledby="pending-title">

@@ -153,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           )}
           {usage?.period && <p className="pro-card-subtext">Resets {formatDate(usage.period.resets_at ?? usage.period.end)}</p>}
           {isPro && usage?.plan.expires_at && (
-            <p className="pro-card-subtext">Pro until {formatDate(usage.plan.expires_at)}</p>
+            <p className="pro-card-subtext">{usage.trial?.active ? 'Free trial' : 'Pro'} until {formatDate(usage.plan.expires_at)}</p>
           )}
           {isPro ? (
             <button type="button" className="pro-manage-btn" onClick={() => navigate('/profile')}>

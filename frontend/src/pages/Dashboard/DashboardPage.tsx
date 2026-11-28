@@ -15,6 +15,7 @@ import { SplineScene } from '../../components/SplineScene/SplineScene';
 import { Spotlight } from '../../components/Spotlight/Spotlight';
 import { ProjectCard } from '../../features/projects/ProjectCard';
 import { AiKeyNotice } from '../../features/account/AiKeyNotice';
+import { TrialNotice } from '../../features/billing/TrialNotice';
 import { toAppError } from '../../services/errors';
 import { VIDEO_EDITOR_PATH } from '../../features/videoEditor/paths';
 import type { Project } from '../../types/project';
@@ -167,6 +168,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </section>
 
+      <TrialNotice />
       <AiKeyNotice />
 
       <section aria-labelledby="tools-title">

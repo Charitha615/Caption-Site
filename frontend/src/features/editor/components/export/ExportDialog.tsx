@@ -5,10 +5,10 @@ import { ConfirmDialog } from '../../../../components/ConfirmDialog/ConfirmDialo
 import { apiErrorMessage, exportService } from '../../../../services/exportService';
 import { useCaptionStore } from '../../../../stores/editor/captionStore';
 import { useEditorProjectStore } from '../../../../stores/editor/editorProjectStore';
-import { useSettingsStore } from '../../../../stores/settingsStore';
+import { safeStorage } from '../../../../utils/storage';
 import { useUIStore } from '../../../../stores/editor/uiStore';
 import { useVideoStore } from '../../../../stores/editor/videoStore';
-import type { CreateExportPayload, ExportItem, ExportResolution, ExportType } from '../../../../types/export';
+import type { CreateExportPayload, ExportItem, ExportQuality, ExportResolution, ExportType } from '../../../../types/export';
 import { flush } from '../../services/autosave';
 import { Link } from 'react-router-dom';
 import { usePlan } from '../../../../hooks/usePlan';
@@ -21,6 +21,26 @@ const RESOLUTIONS: Array<{ value: Exclude<ExportResolution, 'source'>; label: st
   { value: '1440', label: '2K', short: 1440 },
   { value: '2160', label: '4K', short: 2160 },
 ];
+
+const QUALITIES: Array<{ value: ExportQuality; label: string; hint: string }> = [
+  { value: 'high', label: 'High', hint: 'Best picture, bigger file' },
+  { value: 'standard', label: 'Standard', hint: 'Good for most videos' },
+  { value: 'small', label: 'Small', hint: 'Faster, smaller file' },
+];
+
+/** The last resolution and quality used, so the next export starts with them (this device only). */
+const LAST_EXPORT_KEY = 'samplecap_last_mp4_export';
+function lastExport(): { resolution?: string; quality?: ExportQuality } {
+  try {
+    const saved = JSON.parse(safeStorage.get(LAST_EXPORT_KEY) ?? '{}') as { resolution?: unknown; quality?: unknown };
+    return {
+      resolution: typeof saved.resolution === 'string' ? saved.resolution : undefined,
+      quality: QUALITIES.some((q) => q.value === saved.quality) ? (saved.quality as ExportQuality) : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 const SUBTITLES: Array<{ type: Exclude<ExportType, 'mp4' | 'json'>; label: string; hint: string; Icon: typeof Film }> = [
   { type: 'srt', label: 'SRT', hint: 'YouTube, Facebook, Premiere', Icon: Subtitles },
@@ -169,7 +189,6 @@ export function ExportDialog() {
   const videoH = useVideoStore((s) => s.videoHeight);
   const aspect = useCaptionStore((s) => s.canvas.aspect);
   const captionCount = useCaptionStore((s) => s.captions.length);
-  const preferences = useSettingsStore((st) => st.settings);
   const plan = usePlan();
   const planMax = plan.features.max_export_height;
   const usesProStyle = useCaptionStore(
@@ -190,10 +209,11 @@ export function ExportDialog() {
   const srcH = (!isLocalPreview && videoH) || projectH || 1080;
   const srcShort = Math.min(srcW, srcH);
   const allowed = (short: number) => short <= 1080 || short <= srcShort;
-  const preferred = preferences?.default_export_resolution;
+  const preferred = lastExport().resolution;
   const initial = RESOLUTIONS.find((r) => r.value === preferred && allowed(r.short))?.value ?? (srcShort >= 1080 ? '1080' : '720');
 
   const [resolution, setResolution] = useState<Exclude<ExportResolution, 'source'>>(initial);
+  const [quality, setQuality] = useState<ExportQuality>(() => lastExport().quality ?? 'standard');
   // Once the plan is known, a size above it (e.g. a saved 1080p default on Free) drops to the plan's best.
   useEffect(() => {
     if (!plan.known) return;
@@ -313,7 +333,10 @@ export function ExportDialog() {
     }
   }, [items, focusUuid]);
 
-  const exportVideo = () => void start({ type: 'mp4', resolution, quality: preferences?.default_export_quality ?? 'standard', template: null });
+  const exportVideo = () => {
+    safeStorage.set(LAST_EXPORT_KEY, JSON.stringify({ resolution, quality }));
+    void start({ type: 'mp4', resolution, quality, template: null });
+  };
   const focused = items.find((e) => e.uuid === focusUuid) ?? null;
   const recentVideos = items.filter((e) => e.type === 'mp4' && e.status === 'completed' && e.uuid !== focusUuid).slice(0, 3);
 
@@ -356,6 +379,19 @@ export function ExportDialog() {
                       </label>
                     );
                   })}
+                </div>
+              </fieldset>
+
+              <fieldset className="ed-export2-res" disabled={!!mp4Blocked}>
+                <legend className="ed-field-label">Quality</legend>
+                <div className="ed-export2-res-grid is-3">
+                  {QUALITIES.map((q) => (
+                    <label key={q.value} className={`ed-export2-res-option ${quality === q.value ? 'is-selected' : ''}`}>
+                      <input type="radio" name="export-quality" value={q.value} checked={quality === q.value} onChange={() => setQuality(q.value)} aria-label={`${q.label} quality: ${q.hint}`} />
+                      <span className="ed-export2-res-label">{q.label}</span>
+                      <span className="ed-export2-res-size">{q.hint}</span>
+                    </label>
+                  ))}
                 </div>
               </fieldset>
 

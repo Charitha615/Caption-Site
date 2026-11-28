@@ -36,7 +36,7 @@ describe('Pricing', () => {
     render(<MemoryRouter><Pricing plans={PRICING_PLANS} /></MemoryRouter>);
     expect(screen.getByLabelText('PRO plan')).toHaveTextContent('Popular');
     expect(screen.getByRole('link', { name: 'Start free' })).toHaveAttribute('href', '/register');
-    expect(screen.getByRole('link', { name: 'Get Pro' })).toHaveAttribute('href', '/register?next=/billing');
+    expect(screen.getByRole('link', { name: 'Try Pro free for 7 days' })).toHaveAttribute('href', '/register?next=/billing');
     // Free shows what it leaves out.
     expect(screen.getByLabelText('FREE plan')).toHaveTextContent('watermark');
   });

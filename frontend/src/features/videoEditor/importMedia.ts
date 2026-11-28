@@ -97,11 +97,11 @@ export async function readMediaFile(file: File): Promise<MediaItem> {
   try {
     if (kind === 'image') {
       const size = await loadImage(url);
-      return { id: uid('media'), kind, name: file.name, url, duration: 0, ...size, thumb: url };
+      return { id: uid('media'), kind, name: file.name, url, duration: 0, ...size, thumb: url, size: file.size };
     }
     const info = await loadTimed(url, kind);
     if (info.duration <= 0) throw new Error(`“${file.name}” has no playable length.`);
-    return { id: uid('media'), kind, name: file.name, url, ...info };
+    return { id: uid('media'), kind, name: file.name, url, ...info, size: file.size };
   } catch (err) {
     URL.revokeObjectURL(url);
     throw err;

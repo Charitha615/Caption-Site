@@ -68,6 +68,7 @@ class User extends Authenticatable
             'gemini_api_key' => 'encrypted',
             'gemini_key_checked_at' => 'datetime',
             'plan_started_at' => 'datetime',
+            'trial_started_at' => 'datetime',
             'plan_expires_at' => 'datetime',
             'plan_reminded_at' => 'datetime',
             'usage_reset_at' => 'datetime',

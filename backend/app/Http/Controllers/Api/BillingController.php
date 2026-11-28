@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentResource;
 use App\Models\Payment;
 use App\Services\Billing\BillingService;
+use App\Services\Billing\TrialService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,14 @@ class BillingController extends Controller
     use ApiResponseTrait;
 
     public function __construct(protected BillingService $billing) {}
+
+    /** Starts the free Pro trial (once per email). */
+    public function startTrial(Request $request, TrialService $trials): JsonResponse
+    {
+        $ends = $trials->start($request->user());
+
+        return $this->successResponse(['ends_at' => $ends->toISOString(), 'days' => $trials->days()], 'Your Pro trial is on', 201);
+    }
 
     public function show(Request $request): JsonResponse
     {
