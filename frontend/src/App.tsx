@@ -45,6 +45,8 @@ const SettingsPage = named(() => import('./pages/Settings/SettingsPage'), 'Setti
 const ProfilePage = named(() => import('./pages/Profile/ProfilePage'), 'ProfilePage');
 const AdminReviewsPage = named(() => import('./pages/Admin/AdminReviewsPage'), 'AdminReviewsPage');
 const AdminPaymentsPage = named(() => import('./pages/Admin/AdminPaymentsPage'), 'AdminPaymentsPage');
+const AdminSignupsPage = named(() => import('./pages/Admin/AdminSignupsPage'), 'AdminSignupsPage');
+const AdminUsersPage = named(() => import('./pages/Admin/AdminUsersPage'), 'AdminUsersPage');
 const BillingPage = named(() => import('./pages/Billing/BillingPage'), 'BillingPage');
 const NotFoundPage = named(() => import('./pages/NotFound/NotFoundPage'), 'NotFoundPage');
 const VideoEditorPage = named(() => import('./pages/VideoEditor/VideoEditorPage'), 'VideoEditorPage');
@@ -104,6 +106,8 @@ const RoutedApp: React.FC = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/admin/reviews" element={<AdminReviewsPage />} />
               <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+              <Route path="/admin/signups" element={<AdminSignupsPage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/billing" element={<BillingPage />} />
             </Route>
             {/* Full-screen multi-track video editor */}

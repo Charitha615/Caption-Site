@@ -5,6 +5,7 @@ namespace App\Actions\Auth;
 use App\Models\User;
 use App\Services\Auth\GoogleTokenVerifier;
 use App\Support\AppLog;
+use App\Support\SignupAttribution;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -17,9 +18,10 @@ class GoogleLoginAction
     public function __construct(protected GoogleTokenVerifier $verifier, protected IssueAccessToken $issueToken) {}
 
     /**
+     * @param  array<string, ?string>|null  $attribution  where a new account came from (ignored for existing accounts)
      * @return array{user: User, token: string, created: bool}
      */
-    public function execute(string $accessToken): array
+    public function execute(string $accessToken, ?array $attribution = null): array
     {
         $google = $this->verifier->verify($accessToken);
 
@@ -36,7 +38,7 @@ class GoogleLoginAction
                 'password' => Hash::make(Str::random(64)),
                 'avatar_url' => $google['picture'],
             ]);
-            $user->forceFill(['plan' => config('plans.default')])->save();
+            $user->forceFill(['plan' => config('plans.default'), ...SignupAttribution::toColumns($attribution)])->save();
             $created = true;
         }
 

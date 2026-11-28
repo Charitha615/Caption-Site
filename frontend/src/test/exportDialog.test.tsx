@@ -37,7 +37,7 @@ describe('Export dialog', () => {
     exports.download.mockResolvedValue(undefined);
   });
 
-  it('on Free, offers HD only, explains the watermark, and blocks Pro highlight styles', async () => {
+  it('on Free, offers HD only, explains the watermark, and blocks Pro styles', async () => {
     const meter = { used: 0, limit: null };
     useUsageStore.getState().set({
       plan: { key: 'free', label: 'Free', expires_at: null },
@@ -47,13 +47,19 @@ describe('Export dialog', () => {
     } as UsageSummary);
     try {
       setup(1920, 1080);
+      useCaptionStore.getState().applyPreset('bold', null);
       useCaptionStore.getState().updateStyle({ animation: 'pop' }, null);
       expect(screen.getByRole('radio', { name: /720p/ })).toBeChecked();
       expect(screen.getByRole('radio', { name: '1080p, available on Pro' })).toBeDisabled();
       expect(await screen.findByText(/small සිංSub mark/)).toBeInTheDocument();
 
       useCaptionStore.getState().updateStyle({ animation: 'highlight' }, null);
-      expect(await screen.findByText(/which is part of Pro/)).toBeInTheDocument();
+      expect(await screen.findByText(/is part of Pro/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Export video/ })).toBeDisabled();
+
+      useCaptionStore.getState().applyPreset('cinema', null);
+      expect(useCaptionStore.getState().style.animation).toBe('none');
+      expect(await screen.findByText(/is part of Pro/)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Export video/ })).toBeDisabled();
     } finally {
       useUsageStore.setState({ usage: null, loadedAt: 0 });

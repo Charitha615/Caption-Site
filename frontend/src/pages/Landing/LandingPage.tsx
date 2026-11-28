@@ -238,7 +238,7 @@ export const LandingPage: React.FC = () => {
             <Pricing
               plans={PRICING_PLANS}
               title="Simple pricing"
-              highlight="30 caption minutes free every month."
+              highlight="15 caption minutes free every month."
               description="Start free. Upgrade only when you post more."
               footnote={
                 <>

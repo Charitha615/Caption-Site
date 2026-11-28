@@ -58,7 +58,7 @@ class AuthController extends Controller
         if (! $verifier->isConfigured()) {
             return $this->errorResponse('Google sign-in is not set up on this server yet. Please use email and password.', 503, ['code' => ['google_not_configured']]);
         }
-        $result = $action->execute($request->validated('access_token'));
+        $result = $action->execute($request->validated('access_token'), $request->validated('attribution'));
 
         return $this->successResponse([
             'user' => new UserResource($result['user']),

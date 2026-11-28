@@ -12,7 +12,7 @@ import type { CreateExportPayload, ExportItem, ExportResolution, ExportType } fr
 import { flush } from '../../services/autosave';
 import { Link } from 'react-router-dom';
 import { usePlan } from '../../../../hooks/usePlan';
-import { PRO_ANIMATIONS } from '../../../../config/pricing';
+import { PRO_ANIMATIONS, PRO_PRESETS } from '../../../../config/pricing';
 
 const RESOLUTIONS: Array<{ value: Exclude<ExportResolution, 'source'>; label: string; short: number }> = [
   { value: '720', label: '720p', short: 720 },
@@ -171,7 +171,16 @@ export function ExportDialog() {
   const preferences = useSettingsStore((st) => st.settings);
   const plan = usePlan();
   const planMax = plan.features.max_export_height;
-  const usesProStyle = useCaptionStore((s) => PRO_ANIMATIONS.includes(s.style.animation) || s.captions.some((c) => c.styleOverride?.animation && PRO_ANIMATIONS.includes(c.styleOverride.animation)));
+  const usesProStyle = useCaptionStore(
+    (s) =>
+      PRO_ANIMATIONS.includes(s.style.animation) ||
+      (!!s.style.preset && PRO_PRESETS.includes(s.style.preset)) ||
+      s.captions.some(
+        (c) =>
+          (!!c.styleOverride?.animation && PRO_ANIMATIONS.includes(c.styleOverride.animation)) ||
+          (!!c.styleOverride?.preset && PRO_PRESETS.includes(c.styleOverride.preset)),
+      ),
+  );
   const styleLocked = plan.known && !plan.features.premium_styles && usesProStyle;
   const proOnly = (short: number) => plan.known && short > planMax;
 
@@ -336,8 +345,8 @@ export function ExportDialog() {
               {mp4Blocked && <p className="ed-help">{mp4Blocked}</p>}
               {styleLocked && (
                 <p className="ed-help ed-pro-note" role="note">
-                  This caption style highlights words one by one (Spotlight, Hormozi, Word Box, TikTok), which is part of Pro.
-                  Pick another style in Styles, or <Link to="/billing">upgrade to Pro</Link>.
+                  This caption style is part of Pro. Free includes Bold, Modern, Minimal and Classic — pick one of those in
+                  Styles, or <Link to="/billing">upgrade to Pro</Link>.
                 </p>
               )}
               {plan.known && plan.features.watermark && !styleLocked && (

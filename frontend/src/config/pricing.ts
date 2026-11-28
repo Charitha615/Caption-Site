@@ -23,6 +23,9 @@ export const PRICING_CURRENCY = 'LKR';
 /** Caption animations that need Pro (word-by-word highlight). Mirrors backend config/plans.php `premium_animations`. */
 export const PRO_ANIMATIONS: ReadonlyArray<string> = ['karaoke', 'highlight'];
 
+/** Built-in presets that need Pro. Free keeps Bold, Modern, Minimal and Classic. Mirrors backend config/plans.php `premium_presets`. */
+export const PRO_PRESETS: ReadonlyArray<string> = ['spotlight', 'hormozi', 'wordbox', 'tiktok', 'cinema', 'youtube'];
+
 export const PRO_PRICES = { monthly: 490, yearly: 3990 } as const;
 
 /** "Save 32%": yearly against twelve monthly payments. */
@@ -37,14 +40,16 @@ export const PRICING_PLANS: PricingPlan[] = [
     yearlyTotal: 0,
     features: [
       'සිංහල + English captions with word-level timing',
-      '30 caption minutes every month',
-      'Videos up to 10 minutes, uploads up to 500 MB',
-      '6 caption styles',
-      'MP4 export in HD (720p), plus SRT / VTT / TXT',
+      '15 caption minutes every month',
+      '5 video renders a month',
+      'Videos up to 3 minutes, uploads up to 200 MB',
+      '4 basic caption styles',
+      'MP4 export in HD (720p), plus 50 SRT / VTT / TXT exports a month',
       'Video editor with subtitles',
-      '2 GB storage',
+      '1 GB storage',
+      'WhatsApp support',
     ],
-    missing: ['Small සිංSub watermark on MP4 exports', 'No word-by-word highlight styles or AI tools'],
+    missing: ['Small සිංSub watermark on MP4 exports', 'No word-by-word highlight, karaoke or AI tools'],
     description: 'For trying everything out and short reels.',
     buttonText: 'Start free',
     href: '/register',
@@ -58,10 +63,12 @@ export const PRICING_PLANS: PricingPlan[] = [
     features: [
       'Everything in Free',
       '600 caption minutes every month',
+      '300 video renders a month, 3 at a time',
       'Videos up to 3 hours, uploads up to 4 GB',
       'MP4 export up to 4K, no watermark',
-      'All caption styles — Spotlight, Hormozi, Word Box, TikTok',
-      'AI tools: voice-over, translation, script writer, titles',
+      'All caption styles — word-by-word highlight, karaoke, Spotlight, Hormozi, Word Box',
+      'AI tools: voice-over, translation, script writer, titles, highlights',
+      'Unlimited subtitle exports, 300 AI requests a day',
       '50 GB storage',
       'Priority WhatsApp support',
     ],

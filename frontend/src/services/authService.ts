@@ -1,10 +1,11 @@
 import { apiClient } from './api';
 import type { ApiResponse } from '../types/api';
+import { getAttribution } from '../utils/attribution';
 import type { AuthResponseData, LoginCredentials, RegisterCredentials, User } from '../types/auth';
 
 export const authService = {
   async register(credentials: RegisterCredentials): Promise<AuthResponseData> {
-    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/register', credentials);
+    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/register', { ...credentials, attribution: getAttribution() });
     return res.data.data;
   },
 
@@ -15,7 +16,7 @@ export const authService = {
 
   /** "Continue with Google": exchanges a Google access token for our API token. */
   async google(accessToken: string): Promise<AuthResponseData> {
-    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/google', { access_token: accessToken });
+    const res = await apiClient.post<ApiResponse<AuthResponseData>>('/auth/google', { access_token: accessToken, attribution: getAttribution() });
     return res.data.data;
   },
 

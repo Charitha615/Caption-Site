@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   USER_DATA: 'samplecap_user_data',
   THEME: 'samplecap_theme',
   UPLOAD_SESSIONS: 'samplecap_upload_sessions',
+  SIGNUP_ATTRIBUTION: 'samplecap_signup_attribution',
 } as const;
 
 export const DEFAULT_PAGINATION = {

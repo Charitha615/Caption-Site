@@ -63,10 +63,13 @@ class UsageService
         return Cache::remember($this->cacheKey($user->id), self::CACHE_TTL, function () use ($user) {
             $limits = $this->limits($user);
             $monthStart = Carbon::now()->startOfMonth();
+            // An admin "fresh month" reset: only usage after it counts.
+            $resetAt = $user->usage_reset_at;
+            $countFrom = fn (Carbon $start): Carbon => $resetAt && $resetAt->greaterThan($start) ? $resetAt : $start;
 
             $monthly = UsageRecord::query()
                 ->where('user_id', $user->id)
-                ->where('created_at', '>=', $monthStart)
+                ->where('created_at', '>=', $countFrom($monthStart))
                 ->selectRaw('action, SUM(quantity) as total, COUNT(*) as events')
                 ->groupBy('action')
                 ->get()
@@ -75,7 +78,7 @@ class UsageService
             $aiToday = UsageRecord::query()
                 ->where('user_id', $user->id)
                 ->where('action', UsageRecord::ACTION_AI_REQUEST)
-                ->where('created_at', '>=', Carbon::now()->startOfDay())
+                ->where('created_at', '>=', $countFrom(Carbon::now()->startOfDay()))
                 ->count();
 
             return [
@@ -145,14 +148,18 @@ class UsageService
      * Pro features. Each throws a 402 the app shows as "available on Pro".
      *
      * @param  array<int, string>  $animations  caption animations used by the export
+     * @param  array<int, string>  $presets  built-in caption presets used by the export
      */
-    public function ensureCanUseStyles(User $user, array $animations): void
+    public function ensureCanUseStyles(User $user, array $animations, array $presets = []): void
     {
         if ($user->hasFeature('premium_styles')) {
             return;
         }
         if (array_intersect($animations, config('plans.premium_animations'))) {
             throw new UsageLimitExceededException('Word-by-word highlight styles (Spotlight, Hormozi, Word Box, TikTok) are part of Pro. Pick another style, or upgrade to Pro.', 'premium_styles');
+        }
+        if (array_intersect($presets, config('plans.premium_presets'))) {
+            throw new UsageLimitExceededException('This caption style is part of Pro. Free includes Bold, Modern, Minimal and Classic — pick one of those, or upgrade to Pro.', 'premium_styles');
         }
     }
 

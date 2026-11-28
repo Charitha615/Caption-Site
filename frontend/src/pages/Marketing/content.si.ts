@@ -53,7 +53,7 @@ export const SI_CONTENT_PAGES: ContentPageData[] = [
       },
     ],
     faq: [
-      { q: 'සිංහල subtitle generator එක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 30ක්, caption styles 6ක්, SRT, VTT, TXT සහ HD (720p) MP4 export තියෙනවා. Pro (මාසෙට රු. 490) එකේ minutes 600ක්, 4K, හැම style එකක්ම සහ AI tools තියෙනවා.' },
+      { q: 'සිංහල subtitle generator එක නොමිලේද?', a: 'ඔව්. Free plan එකේ මාසෙට caption minutes 15ක්, basic caption styles 4ක්, SRT, VTT, TXT සහ HD (720p) MP4 export තියෙනවා. Pro (මාසෙට රු. 490) එකේ minutes 600ක්, 4K, හැම style එකක්ම සහ AI tools තියෙනවා.' },
       { q: 'සිංහල එක්ක English මිශ්‍ර කතාවට වැඩ කරනවද?', a: 'ඔව්. ලංකාවේ ගොඩක් අය කතා කරන්නේ එහෙමයි. සිංහල කතාව ඇතුළේ තියෙන English වචන ස්වයංක්‍රීයව English අකුරින්ම ලියවෙනවා.' },
       { q: 'Download කරන්න පුළුවන් subtitle formats මොනවද?', a: 'SRT, VTT සහ plain text. නැත්නම් captions burn කරපු MP4 video එකක්.' },
     ],

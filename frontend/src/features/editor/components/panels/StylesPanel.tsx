@@ -9,7 +9,7 @@ import { apiErrorMessage } from '../../../../services/exportService';
 import { sanitizeStyle } from '../../utils/captionStyle';
 import { applyPresetLook, BUILT_IN_PRESETS } from '../../model/presets';
 import { usePlan } from '../../../../hooks/usePlan';
-import { PRO_ANIMATIONS } from '../../../../config/pricing';
+import { PRO_ANIMATIONS, PRO_PRESETS } from '../../../../config/pricing';
 import type { CaptionStyle } from '../../model/types';
 import { Segmented } from '../controls';
 import { CaptionBox } from '../player/CaptionBox';
@@ -117,7 +117,7 @@ export const StylesPanel = memo(function StylesPanel() {
             sample={p.sample}
             style={applyPresetLook(style, p.key, p.look)}
             selected={currentPreset === p.key}
-            pro={proLocked && PRO_ANIMATIONS.includes(p.look.animation)}
+            pro={proLocked && (PRO_ANIMATIONS.includes(p.look.animation) || PRO_PRESETS.includes(p.key))}
             onApply={() => useCaptionStore.getState().applyPreset(p.key, target)}
           />
         ))}
